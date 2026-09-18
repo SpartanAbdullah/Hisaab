@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
-import { Check } from 'lucide-react';
 import { Modal } from '../components/Modal';
+import { Glyph } from '../components/Glyph';
 import { useDiscardGuard } from '../lib/useDiscardGuard';
 import { useSubmitGuard } from '../lib/useSubmitGuard';
 import { useSplitStore } from '../stores/splitStore';
@@ -43,6 +43,14 @@ interface Props {
 }
 
 const CATEGORIES = ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Travel', 'Health', 'General'];
+
+// Member picker chip (paid by / split between): the 1d selector at chip scale
+// — raised card face with the 3:1 field edge; selected = violet-lit face +
+// violet edge, plus a check glyph so the choice never rests on colour alone.
+const memberChipClass = (selected: boolean) =>
+  `selector-base w-auto justify-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-[14px] text-[12px] font-semibold text-ink-800 ${
+    selected ? 'selector-selected' : ''
+  }`;
 
 function sameDisplayName(a: string | null | undefined, b: string | null | undefined): boolean {
   return (a ?? '').trim().toLocaleLowerCase() === (b ?? '').trim().toLocaleLowerCase();
@@ -160,7 +168,7 @@ export function AddGroupExpenseModal({ open, group, onClose, prefillAmount, rece
     setSubmitError(null);
 
     if (!defaultPayerId) {
-      setSubmitError('Your group membership could not be matched. Reopen the group or ask the owner to reconnect you before adding an expense.');
+      setSubmitError(t('agem_membership_unmatched'));
       return;
     }
     if (!description.trim()) {
@@ -267,8 +275,6 @@ export function AddGroupExpenseModal({ open, group, onClose, prefillAmount, rece
     }
   };
 
-  const inputClass = 'w-full border border-cream-border rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all';
-
   return (
     <Modal open={open} onClose={onClose} title={t('group_expense_add')}
       confirmClose={() => guardClose(!!description.trim() || !!amount.trim() || splitType !== 'equal')}
@@ -277,44 +283,45 @@ export function AddGroupExpenseModal({ open, group, onClose, prefillAmount, rece
         {submitError && (
           <p
             role="alert"
-            className="text-[12px] font-medium text-pay-text bg-pay-50 border border-pay-100 rounded-xl px-3 py-2 leading-snug"
+            className="text-[12px] font-medium text-pay-text bg-pay-50 border border-pay-100 rounded-[12px] px-3 py-2 leading-snug"
           >
             {submitError}
           </p>
         )}
         <button onClick={handleSubmit} disabled={saving || !description.trim() || amt <= 0 || activeMembers.length < 2 || !defaultPayerId || (shouldTrackExpense && !dontTrackInAccounts && !paidFromAccountId)}
-          className="w-full bg-accent-600 text-white rounded-2xl py-3.5 text-sm font-bold disabled:opacity-30 shadow-md shadow-accent-600/20">
+          className="cta-primary">
           {saving ? t('quick_processing') : t('group_save_expense')}
         </button>
       </div>
     }>
       <div className="space-y-5 p-5">
         {!defaultPayerId && (
-          <p role="alert" className="text-[12px] font-medium text-pay-text bg-pay-50 border border-pay-100 rounded-xl px-3 py-2 leading-snug">
+          <p role="alert" className="text-[12px] font-medium text-pay-text bg-pay-50 border border-pay-100 rounded-[12px] px-3 py-2 leading-snug">
             {t('agem_membership_unmatched')}
           </p>
         )}
         {activeMembers.length < 2 && (
-          <p role="alert" className="text-[12px] font-medium text-pay-text bg-pay-50 border border-pay-100 rounded-xl px-3 py-2 leading-snug">
+          <p role="alert" className="text-[12px] font-medium text-pay-text bg-pay-50 border border-pay-100 rounded-[12px] px-3 py-2 leading-snug">
             {NEED_TWO_ACTIVE_MEMBERS_MESSAGE}
           </p>
         )}
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_desc')}</label>
-          <input className={`${inputClass} mt-1.5`} value={description} onChange={e => setDescription(e.target.value)} placeholder={t('group_desc_placeholder')} />
+          <label className="form-label">{t('group_desc')}</label>
+          <input className="input-field" value={description} onChange={e => setDescription(e.target.value)} placeholder={t('group_desc_placeholder')} />
         </div>
 
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_amount')}</label>
-          <input className={`${inputClass} mt-1.5 text-lg font-bold`} type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" />
+          <label className="form-label">{t('group_amount')}</label>
+          <input className="input-field font-semibold tabular-nums" type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" />
         </div>
 
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_paid_by')}</label>
-          <div className="flex flex-wrap gap-2 mt-1.5">
+          <label className="form-label">{t('group_paid_by')}</label>
+          <div className="flex flex-wrap gap-2.5">
             {activeMembers.map(member => (
-              <button key={member.id} onClick={() => setPaidBy(member.id)}
-                className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-semibold transition-all ${paidBy === member.id ? 'bg-ink-900 text-white' : 'bg-cream-soft text-ink-700'}`}>
+              <button key={member.id} type="button" onClick={() => setPaidBy(member.id)} aria-pressed={paidBy === member.id}
+                className={memberChipClass(paidBy === member.id)}>
+                {paidBy === member.id && <Glyph name="check" size={12} strokeWidth={3} tone="violet" />}
                 {member.name}
                 {/* Guests are in this list because getActiveGroupMembers keys on
                     status and a guest seat is 'connected' — the same predicate
@@ -322,7 +329,7 @@ export function AddGroupExpenseModal({ open, group, onClose, prefillAmount, rece
                     says which of these people will never see this expense in
                     their own app. */}
                 {isGuestMember(member) && (
-                  <span className={`text-[8.5px] uppercase tracking-wide font-bold ${paidBy === member.id ? 'text-white/60' : 'text-ink-400'}`}>
+                  <span className={`text-[10px] uppercase tracking-[0.06em] font-semibold ${paidBy === member.id ? 'text-accent-text' : 'text-ink-500'}`}>
                     {t('guest_tag')}
                   </span>
                 )}
@@ -333,23 +340,22 @@ export function AddGroupExpenseModal({ open, group, onClose, prefillAmount, rece
 
         {shouldTrackExpense && (
           <div>
-            <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('paid_from')}</label>
+            <label className="form-label">{t('paid_from')}</label>
             {/* Opt-out for people who don't track their own accounts here — the
-                split is still recorded, just without touching a balance. */}
+                split is still recorded, just without touching a balance. The
+                whole row is the switch; the knob shows its state. */}
             <button
               type="button"
+              role="switch"
+              aria-checked={dontTrackInAccounts}
               onClick={() => setDontTrackInAccounts(v => !v)}
-              className={`w-full mt-1.5 p-3 rounded-2xl border-2 flex items-center justify-between text-left transition-all ${
-                dontTrackInAccounts ? 'border-accent-500 bg-accent-50 shadow-sm shadow-accent-500/5' : 'border-cream-border bg-cream-card'
-              }`}>
-              <p className="text-[13px] font-semibold text-ink-800">{t('group_dont_track')}</p>
-              <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${dontTrackInAccounts ? 'bg-accent-500 border-accent-500 text-white' : 'border-cream-border text-transparent'}`}>
-                <Check size={12} strokeWidth={3} />
-              </span>
+              className="selector-base gap-3 p-3 pl-3.5">
+              <span className="text-[13px] font-semibold text-ink-800">{t('group_dont_track')}</span>
+              <span className={`m-switch ${dontTrackInAccounts ? 'is-on' : ''}`} aria-hidden="true" />
             </button>
             {!dontTrackInAccounts && (
               <>
-                <div className="mt-2">
+                <div className="mt-2.5">
                   <AccountSelect accounts={accounts} selectedId={paidFromAccountId} onSelect={setPaidFromAccountId} preferredCurrency={group.currency} />
                 </div>
                 <p className="text-[10.5px] text-ink-500 mt-1.5 leading-relaxed">{t('group_paid_from_hint')}</p>
@@ -359,19 +365,23 @@ export function AddGroupExpenseModal({ open, group, onClose, prefillAmount, rece
         )}
 
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_split_between')}</label>
-          <div className="flex flex-wrap gap-2 mt-1.5">
-            {activeMembers.map(member => (
-              <button key={member.id} onClick={() => toggleMember(member.id)}
-                className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-semibold transition-colors active:scale-95 ${selectedMembers.includes(member.id) ? 'bg-receive-600 text-white' : 'bg-cream-soft text-ink-600 border border-cream-border'}`}>
-                {member.name}
-                {isGuestMember(member) && (
-                  <span className={`text-[8.5px] uppercase tracking-wide font-bold ${selectedMembers.includes(member.id) ? 'text-white/60' : 'text-ink-400'}`}>
-                    {t('guest_tag')}
-                  </span>
-                )}
-              </button>
-            ))}
+          <label className="form-label">{t('group_split_between')}</label>
+          <div className="flex flex-wrap gap-2.5">
+            {activeMembers.map(member => {
+              const included = selectedMembers.includes(member.id);
+              return (
+                <button key={member.id} type="button" onClick={() => toggleMember(member.id)} aria-pressed={included}
+                  className={memberChipClass(included)}>
+                  {included && <Glyph name="check" size={12} strokeWidth={3} tone="violet" />}
+                  {member.name}
+                  {isGuestMember(member) && (
+                    <span className={`text-[10px] uppercase tracking-[0.06em] font-semibold ${included ? 'text-accent-text' : 'text-ink-500'}`}>
+                      {t('guest_tag')}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -382,11 +392,12 @@ export function AddGroupExpenseModal({ open, group, onClose, prefillAmount, rece
         )}
 
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_split_type')}</label>
-          <div className="grid grid-cols-4 gap-1.5 mt-1.5">
+          <label className="form-label">{t('group_split_type')}</label>
+          {/* One mode at a time — the segmented track, active face lit. */}
+          <div className="m-seg flex w-full">
             {(['equal', 'exact', 'percentage', 'shares'] as SplitType[]).map(split => (
-              <button key={split} onClick={() => setSplitType(split)}
-                className={`min-h-[44px] inline-flex items-center justify-center py-2 rounded-xl text-[11px] font-bold transition-all ${splitType === split ? 'bg-ink-900 text-white' : 'bg-cream-soft text-ink-500'}`}>
+              <button key={split} type="button" onClick={() => setSplitType(split)} aria-pressed={splitType === split}
+                className="flex-1 min-w-0 min-h-[44px] px-1 text-[11.5px] leading-tight">
                 {split === 'equal' ? t('group_split_equal') : split === 'exact' ? t('group_split_exact') : split === 'percentage' ? t('group_split_pct') : t('group_split_shares')}
               </button>
             ))}
@@ -394,29 +405,31 @@ export function AddGroupExpenseModal({ open, group, onClose, prefillAmount, rece
         </div>
 
         {amt > 0 && selectedMembers.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {splitType === 'equal' && (
-              <p className="text-[12px] text-ink-500 bg-cream-soft rounded-xl px-3 py-2.5 text-center font-medium">
-                {t('group_each_pays')}: <span className="font-bold text-ink-900">{formatMoney(Math.round((amt / selectedMembers.length) * 100) / 100, group.currency)}</span>
+              <p className="m-inset text-[12px] text-ink-600 px-3 py-2.5 text-center font-medium">
+                {t('group_each_pays')}: <span className="font-semibold text-ink-900 tabular-nums">{formatMoney(Math.round((amt / selectedMembers.length) * 100) / 100, group.currency)}</span>
               </p>
             )}
             {splitType === 'exact' && selectedMembers.map(id => (
-              <div key={id} className="flex items-center gap-2">
-                <span className="text-[12px] text-ink-700 font-medium w-20 truncate">{group.members.find(member => member.id === id)?.name}</span>
-                <input className="flex-1 min-h-[44px] border border-cream-border rounded-xl px-3 py-2 text-sm bg-cream-card" type="number" inputMode="decimal"
+              <div key={id} className="flex items-center gap-2.5">
+                <span className="text-[12px] text-ink-800 font-medium w-20 truncate">{group.members.find(member => member.id === id)?.name}</span>
+                <input className="input-field flex-1 min-h-[44px] px-3 py-2" type="number" inputMode="decimal"
                   value={exactAmounts[id] || ''} onChange={e => setExactAmounts({ ...exactAmounts, [id]: e.target.value })} placeholder="0" />
               </div>
             ))}
             {splitType === 'exact' && (
               <p className={`text-[11px] font-semibold tabular-nums px-1 ${exactIsOff ? 'text-pay-text' : 'text-ink-500'}`}>
                 {t('split_allocated').replace('{a}', formatMoney(exactTotal, group.currency)).replace('{b}', formatMoney(amt, group.currency))}
-                {' — '}{formatMoney(Math.abs(exactRemaining), group.currency)} {exactRemaining < 0 ? 'over' : 'left'}
+                {' — '}
+                {(exactRemaining < 0 ? t('budget_over_by_short') : t('ca_remaining'))
+                  .replace('{amount}', formatMoney(Math.abs(exactRemaining), group.currency))}
               </p>
             )}
             {splitType === 'percentage' && selectedMembers.map(id => (
-              <div key={id} className="flex items-center gap-2">
-                <span className="text-[12px] text-ink-700 font-medium w-20 truncate">{group.members.find(member => member.id === id)?.name}</span>
-                <input className="flex-1 min-h-[44px] border border-cream-border rounded-xl px-3 py-2 text-sm bg-cream-card" type="number" inputMode="decimal"
+              <div key={id} className="flex items-center gap-2.5">
+                <span className="text-[12px] text-ink-800 font-medium w-20 truncate">{group.members.find(member => member.id === id)?.name}</span>
+                <input className="input-field flex-1 min-h-[44px] px-3 py-2" type="number" inputMode="decimal"
                   value={percentages[id] || ''} onChange={e => setPercentages({ ...percentages, [id]: e.target.value })} placeholder="%" />
                 <span className="text-[11px] text-ink-500">%</span>
               </div>
@@ -427,9 +440,9 @@ export function AddGroupExpenseModal({ open, group, onClose, prefillAmount, rece
               </p>
             )}
             {splitType === 'shares' && selectedMembers.map(id => (
-              <div key={id} className="flex items-center gap-2">
-                <span className="text-[12px] text-ink-700 font-medium w-20 truncate">{group.members.find(member => member.id === id)?.name}</span>
-                <input className="flex-1 min-h-[44px] border border-cream-border rounded-xl px-3 py-2 text-sm bg-cream-card" type="number" inputMode="numeric"
+              <div key={id} className="flex items-center gap-2.5">
+                <span className="text-[12px] text-ink-800 font-medium w-20 truncate">{group.members.find(member => member.id === id)?.name}</span>
+                <input className="input-field flex-1 min-h-[44px] px-3 py-2" type="number" inputMode="numeric"
                   value={shares[id] || '1'} onChange={e => setShares({ ...shares, [id]: e.target.value })} placeholder="1" />
                 <span className="text-[11px] text-ink-500">{t('agem_shares')}</span>
               </div>
@@ -443,11 +456,11 @@ export function AddGroupExpenseModal({ open, group, onClose, prefillAmount, rece
         )}
 
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('category')}</label>
-          <div className="flex flex-wrap gap-1.5 mt-1.5">
+          <label className="form-label">{t('category')}</label>
+          <div className="flex flex-wrap gap-2">
             {CATEGORIES.map(item => (
-              <button key={item} onClick={() => setCategory(item)}
-                className={`min-h-[44px] inline-flex items-center px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${category === item ? 'bg-ink-900 text-white' : 'bg-cream-soft text-ink-500'}`}>
+              <button key={item} type="button" onClick={() => setCategory(item)} aria-pressed={category === item}
+                className="m-pill min-h-[44px] px-3.5 text-[11.5px]">
                 {item}
               </button>
             ))}

@@ -3,8 +3,8 @@
 // it locks at the first trade.
 
 import { useState } from 'react';
-import { Pencil, Trash2, Plus } from 'lucide-react';
 import { Modal } from '../components/Modal';
+import { Glyph } from '../components/Glyph';
 import { CreateMarketModal } from './CreateMarketModal';
 import { useInvestmentStore } from '../stores/investmentStore';
 import { useToast } from '../components/Toast';
@@ -68,63 +68,71 @@ export function ManageMarketsSheet({ open, onClose }: Props) {
     <>
       <Modal open={open && !showCreate} onClose={onClose} title={t('inv_manage_markets')}>
         <div className="space-y-2.5">
-          {markets.map((m) => (
-            <div key={m.id} className="rounded-2xl bg-cream-card border border-cream-border p-3.5">
-              {editingId === m.id ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    autoFocus
-                    className="flex-1 border border-cream-border rounded-xl px-3 py-2 text-sm bg-cream-bg focus:outline-none focus:border-accent-500"
-                  />
-                  <button
-                    onClick={() => handleRename(m.id)}
-                    disabled={!editName.trim()}
-                    className="min-h-[38px] px-3.5 rounded-xl bg-ink-900 text-white text-[12px] font-semibold disabled:opacity-30"
-                  >
-                    {t('quick_save')}
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-xl ${marketColorFor(m.id).tint} border ${marketColorFor(m.id).border} flex items-center justify-center shrink-0`}>
-                    <span className={`text-[10px] font-bold ${marketColorFor(m.id).text} tracking-tight`}>{m.name.slice(0, 3).toUpperCase()}</span>
+          {markets.map((m) => {
+            const color = marketColorFor(m.id);
+            return (
+              <div key={m.id} className="m-card p-3.5">
+                {editingId === m.id ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      autoFocus
+                      className="input-field flex-1 min-w-0 px-3 py-2"
+                    />
+                    <button
+                      onClick={() => handleRename(m.id)}
+                      disabled={!editName.trim()}
+                      className="m-btn m-btn-primary min-h-[40px] px-3.5 py-2 rounded-[12px] text-[12px]"
+                    >
+                      {t('quick_save')}
+                    </button>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-semibold text-ink-900 truncate">
-                      {currencyMeta[m.currency]?.flag} {m.name} · {m.currency}
-                    </p>
-                    <p className="text-[10.5px] text-ink-500 mt-0.5">
-                      {t('inv_market_has_holdings').replace('{n}', String(holdingCount(m.id)))} · {t('inv_market_currency_locked')}
-                    </p>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    {/* Monogram plate in the market's own tint (the same hue
+                        as its dot on the scope chips). */}
+                    <div
+                      aria-hidden="true"
+                      className={`m-card ${color.scope} w-9 h-9 rounded-[12px] flex items-center justify-center shrink-0`}
+                    >
+                      <span className={`text-[10px] font-bold tracking-tight ${color.text}`}>{m.name.slice(0, 3).toUpperCase()}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-semibold text-ink-900 truncate">
+                        {currencyMeta[m.currency]?.flag} {m.name} · {m.currency}
+                      </p>
+                      <p className="text-[10.5px] text-ink-600 mt-0.5">
+                        {t('inv_market_has_holdings').replace('{n}', String(holdingCount(m.id)))} · {t('inv_market_currency_locked')}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setEditingId(m.id); setEditName(m.name); }}
+                      aria-label={t('inv_rename_market')}
+                      className="m-ctl relative w-9 h-9 flex items-center justify-center shrink-0 text-ink-600 before:absolute before:-inset-1 before:content-['']"
+                    >
+                      <Glyph name="edit" size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(m.id, m.name)}
+                      aria-label={t('inv_delete_market')}
+                      className="m-ctl relative w-9 h-9 flex items-center justify-center shrink-0 text-ink-600 hover:text-pay-text active:text-pay-text transition-colors before:absolute before:-inset-1 before:content-['']"
+                    >
+                      <Glyph name="trash" size={15} />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => { setEditingId(m.id); setEditName(m.name); }}
-                    aria-label={t('inv_rename_market')}
-                    className="w-9 h-9 rounded-xl border border-cream-border text-ink-500 flex items-center justify-center transition-colors hover:bg-info-50 hover:text-info-600 hover:border-info-600/25 active:bg-cream-soft"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(m.id, m.name)}
-                    aria-label={t('inv_delete_market')}
-                    className="w-9 h-9 rounded-xl border border-cream-border text-ink-500 flex items-center justify-center transition-colors hover:bg-pay-50 hover:text-pay-text hover:border-pay-100 active:bg-pay-50 active:text-pay-text"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
           <button
             type="button"
             onClick={() => setShowCreate(true)}
-            className="w-full rounded-2xl border-2 border-dashed border-cream-border text-ink-700 py-3 text-[12.5px] font-semibold hover:bg-accent-50 hover:border-accent-500/40 hover:text-accent-600 active:bg-cream-soft transition-colors flex items-center justify-center gap-2"
+            className="m-btn m-btn-plain w-full text-[12.5px]"
           >
-            <Plus size={13} strokeWidth={2.4} /> {t('inv_new_market')}
+            <Glyph name="plus" size={14} strokeWidth={3} tone="violet" /> {t('inv_new_market')}
           </button>
         </div>
       </Modal>

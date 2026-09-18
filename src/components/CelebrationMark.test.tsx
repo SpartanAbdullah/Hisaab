@@ -37,9 +37,17 @@ describe('CelebrationMark', () => {
   });
 
   it('honours the accent tone without falling back to the settled green', () => {
-    const html = renderToStaticMarkup(<CelebrationMark tone="accent" />);
-    expect(html).toContain('bg-accent-100');
-    expect(html).not.toContain('bg-receive-50');
+    // 1d: the disc is a tinted plate — the violet tint scope for a milestone,
+    // the mint one for a settled debt — and the tick takes the matching glyph tone.
+    const accent = renderToStaticMarkup(<CelebrationMark tone="accent" />);
+    expect(accent).toContain('m-violet');
+    expect(accent).toContain('var(--color-glyph-violet)');
+    expect(accent).not.toContain('m-mint');
+    expect(accent).not.toContain('var(--color-glyph-green)');
+
+    const settled = renderToStaticMarkup(<CelebrationMark />);
+    expect(settled).toContain('m-mint');
+    expect(settled).toContain('var(--color-glyph-green)');
   });
 
   it('never clips its own overflow — the ring and the burst both leave the box', () => {

@@ -1,8 +1,19 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
-import { Inbox, Send, AlertTriangle, Repeat, CreditCard, CalendarClock, ChevronRight, UserPlus, BellRing, HandCoins, Tag, Users, ListChecks, CheckCircle2, WalletMinimal } from 'lucide-react';
+import { Inbox } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { NavyHero, TopBar } from '../components/NavyHero';
+import { Glyph } from '../components/Glyph';
+import { badgeCount, skeletonDelay } from '../lib/material';
+import {
+  effectiveInboxFilter,
+  inboxFilterCounts,
+  inboxFilterOptions,
+  matchesInboxFilter,
+  showsContactAsks,
+  type InboxFilter,
+} from '../lib/inboxFilters';
+import type { GlyphName, GlyphTone } from '../lib/glyphs';
 import { useLinkedRequestStore } from '../stores/linkedRequestStore';
 import { useSettlementRequestStore } from '../stores/settlementRequestStore';
 import { useSupabaseAuthStore } from '../stores/supabaseAuthStore';
@@ -37,10 +48,9 @@ import { useCategoryOptions } from '../lib/mergedCategories';
 import { useT, type I18nKey } from '../lib/i18n';
 import { daysWaiting } from '../lib/notificationCounts';
 import { PageErrorState } from '../components/PageErrorState';
-import { ListSkeleton } from '../components/ListSkeleton';
 import { EmptyState } from '../components/EmptyState';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
-import type { LinkedRequest, SettlementRequest, Transaction } from '../db';
+import type { AppNotification, LinkedRequest, SettlementRequest, Transaction } from '../db';
 
 type Tab = 'incoming' | 'outgoing' | 'info' | 'action';
 
@@ -97,6 +107,12 @@ export function InboxPage() {
   // specific queue and must land on it.
   const tabHint = (location.state as { tab?: Tab } | null)?.tab;
   const [tab, setTab] = useState<Tab>(tabHint ?? 'incoming');
+  // Sub-filter per request tab (Loans / Payments / Contacts), remembered while
+  // the user flips between Incoming and Outgoing.
+  const [filterByTab, setFilterByTab] = useState<{ incoming: InboxFilter; outgoing: InboxFilter }>({
+    incoming: 'all',
+    outgoing: 'all',
+  });
   const [busyId, setBusyId] = useState<string | null>(null);
   // Uncategorised-expense actions resolve in place via the edit sheet.
   const [selectedTxn, setSelectedTxn] = useState<Transaction | null>(null);
@@ -187,12 +203,6 @@ export function InboxPage() {
     });
   }, [requests, settlements, tab, myId, blockedIds]);
 
-  // Where the pinned pending block ends — drives the "Earlier" divider so the
-  // acted-upon history reads as a visually separate section below.
-  const pendingVisibleCount = useMemo(
-    () => visible.filter((e) => e.item.status === 'pending').length,
-    [visible],
-  );
 
   // "X added you — add them back?" asks. These live on Incoming because they
   // are a DECISION, not an FYI: nothing is written into this user's contacts
@@ -205,6 +215,40 @@ export function InboxPage() {
         (r) => r.fromUserId,
       ).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [contactLinks, myId, blockedIds],
+  );
+
+  // Type sub-filter for the request tabs. Counts cover what the tab holds;
+  // chips appear only when there are two or more kinds to choose between.
+  const isRequestTab = tab === 'incoming' || tab === 'outgoing';
+  const filterCounts = useMemo(
+    () => inboxFilterCounts(visible, tab === 'incoming' ? contactAsks.length : 0),
+    [visible, tab, contactAsks.length],
+  );
+  const filterOptions = isRequestTab ? inboxFilterOptions(filterCounts) : [];
+  const activeFilter: InboxFilter = isRequestTab
+    ? effectiveInboxFilter(filterByTab[tab as 'incoming' | 'outgoing'], filterCounts)
+    : 'all';
+  const shown = useMemo(
+    () => visible.filter((e) => matchesInboxFilter(e.kind, activeFilter)),
+    [visible, activeFilter],
+  );
+  const shownContactAsks = showsContactAsks(activeFilter) ? contactAsks : [];
+  // The number on each chip is what still waits (pending), like the tab
+  // badges; the filter itself also shows that kind's history.
+  const pendingFilterCounts = useMemo(
+    () =>
+      inboxFilterCounts(
+        visible.filter((e) => e.item.status === 'pending'),
+        tab === 'incoming' ? contactAsks.length : 0,
+      ),
+    [visible, tab, contactAsks.length],
+  );
+
+  // Where the pinned pending block ends — drives the "Earlier" divider so the
+  // acted-upon history reads as a visually separate section below.
+  const pendingVisibleCount = useMemo(
+    () => shown.filter((e) => e.item.status === 'pending').length,
+    [shown],
   );
 
   // Badge counts follow the same filter, or the tab would advertise work that
@@ -379,7 +423,7 @@ export function InboxPage() {
     try {
       return JSON.stringify(err);
     } catch {
-      return 'Unknown error';
+      return t('toast_error_generic');
     }
   };
 
@@ -692,30 +736,34 @@ export function InboxPage() {
 
   return (
     <main className="min-h-dvh bg-cream-bg pb-28">
-      <NavyHero>
+      <NavyHero accent="violet">
         <TopBar
           title={t('ltr_inbox_title')}
           back
           // Hide the inbox bell from the top-right — we're already on the
           // inbox page, the icon would be redundant + confusing.
           showInbox={false}
-          action={
-            <PillToggle
-              tab={tab}
-              setTab={setTab}
-              incomingCount={incomingPendingCount}
-              outgoingCount={outgoingPendingCount}
-              infoCount={infoCount}
-              actionCount={actionCount}
-              incomingLabel={t('ltr_tab_incoming')}
-              outgoingLabel={t('ltr_tab_outgoing')}
-              infoLabel={t('ltr_tab_info')}
-              actionLabel={t('ltr_tab_action')}
-            />
-          }
         />
-        <div className="px-5 pb-7">
-          <p className="text-white text-[16px] font-medium leading-snug max-w-[300px]">
+        {/* The four tabs on their own full-width row, so Incoming and
+            Outgoing read in full (founder request 2026-09-19). */}
+        <div className="px-5">
+          <PillToggle
+            tab={tab}
+            setTab={setTab}
+            incomingCount={incomingPendingCount}
+            outgoingCount={outgoingPendingCount}
+            infoCount={infoCount}
+            actionCount={actionCount}
+            incomingLabel={t('ltr_tab_incoming')}
+            incomingName={t('ltr_tab_incoming')}
+            outgoingLabel={t('ltr_tab_outgoing')}
+            outgoingName={t('ltr_tab_outgoing')}
+            infoLabel={t('ltr_tab_info')}
+            actionLabel={t('ltr_tab_action')}
+          />
+        </div>
+        <div className="px-5 pt-3.5 pb-[26px]">
+          <p className="text-white text-[15px] font-medium leading-[1.45] max-w-[300px]">
             {tab === 'incoming' ? t('ltr_incoming_hint') : tab === 'outgoing' ? t('ltr_outgoing_hint') : tab === 'action' ? t('ltr_action_hint') : t('ltr_info_hint')}
           </p>
         </div>
@@ -731,11 +779,39 @@ export function InboxPage() {
           />
         )}
 
+        {/* Type filter — only when the tab mixes kinds (src/lib/inboxFilters.ts). */}
+        {filterOptions.length > 0 && (
+          <div
+            role="group"
+            aria-label={t('inbox_filter_label')}
+            className="flex gap-2 overflow-x-auto no-scrollbar -mx-5 px-5 pb-1"
+          >
+            {filterOptions.map((f) => (
+              <button
+                key={f}
+                type="button"
+                aria-pressed={activeFilter === f}
+                onClick={() =>
+                  setFilterByTab((prev) => ({ ...prev, [tab as 'incoming' | 'outgoing']: f }))
+                }
+                className="m-pill shrink-0 tabular-nums"
+              >
+                {t(INBOX_FILTER_LABEL[f])}
+                {/* Exact, not the 9+ badge cap: a row of "9+ · 9+ · 9+" says
+                    nothing about which kind is waiting. */}
+                {pendingFilterCounts[f] > 0 && (
+                  <span className="opacity-70">{pendingFilterCounts[f] > 99 ? '99+' : pendingFilterCounts[f]}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Connection asks pin above the request list. Someone used this
             user's code; nothing has been written to their contacts and
             nothing will be until they answer. */}
         {tab === 'incoming' &&
-          contactAsks.map((ask) => (
+          shownContactAsks.map((ask) => (
             <ContactAskCard
               key={ask.id}
               name={ask.fromName}
@@ -755,12 +831,13 @@ export function InboxPage() {
 
         {tab === 'action' ? (
           loadStatus === 'loading' && actionItems.length === 0 ? (
-            <ListSkeleton rows={3} withAvatar={false} />
+            <InboxSkeleton shape="rows" />
           ) : actionItems.length === 0 ? (
             loadStatus === 'ready' ? (
               <EmptyState
-                icon={ListChecks}
-                tone="receive"
+                icon={Inbox}
+                clayIcon="inbox"
+                tone="violet"
                 title={t('inbox_empty_action_title')}
                 description={t('inbox_empty_action_desc')}
                 // A cleared queue is a dead end — hand the user a way out
@@ -785,12 +862,13 @@ export function InboxPage() {
           )
         ) : tab === 'info' ? (
           loadStatus === 'loading' && infoItems.length === 0 && infoNotifs.length === 0 ? (
-            <ListSkeleton rows={3} withAvatar={false} />
+            <InboxSkeleton shape="rows" />
           ) : infoItems.length === 0 && infoNotifs.length === 0 ? (
             loadStatus === 'ready' ? (
               <EmptyState
                 icon={Inbox}
-                tone="receive"
+                clayIcon="inbox"
+                tone="violet"
                 title={t('inbox_empty_info_title')}
                 description={t('inbox_empty_info_desc')}
               />
@@ -806,8 +884,8 @@ export function InboxPage() {
                 // notifications with no request row of their own, and the bell
                 // counts them — so this tab has to be able to show them).
                 // A "person added you" glyph on a group expense would misread,
-                // so the icon follows the row's own kind.
-                const RowIcon = n.type === 'contact_linked' ? UserPlus : Users;
+                // so the glyph and its tint follow the row's own kind.
+                const icon = NOTIF_ICON[n.type] ?? GROUP_NOTIF_ICON;
                 return (
                   <button
                     key={n.id}
@@ -823,18 +901,17 @@ export function InboxPage() {
                       const href = notificationHref(n);
                       if (href !== '/inbox') navigate(href);
                     }}
-                    className="w-full text-left rounded-[18px] bg-cream-card border border-cream-border p-4 flex items-center gap-3 press-lg"
+                    className="m-tile rounded-[18px] p-3.5 flex items-center gap-3"
                   >
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-accent-50">
-                      <RowIcon size={17} className="text-accent-600" strokeWidth={2} />
-                    </div>
+                    <RowIcon glyph={icon.glyph} tone={icon.tone} tint={icon.tint} />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-semibold text-ink-900 tracking-tight truncate">
+                      <p className="text-[13px] font-semibold text-ink-900 tracking-[-0.01em] truncate">
                         {content.title || (n.type === 'contact_linked' ? t('ntf_new_connection') : t('ntf_update'))}
                       </p>
-                      <p className="text-[11.5px] text-ink-500 mt-0.5 line-clamp-2">{content.body}</p>
+                      <p className="text-[11.5px] text-ink-600 mt-[3px] leading-[1.5] line-clamp-2">{content.body}</p>
                     </div>
-                    <span className="w-2 h-2 rounded-full bg-accent-500 shrink-0" aria-hidden />
+                    {/* Unread = a violet dot (Inbox's colour). */}
+                    <span className="w-2 h-2 rounded-full bg-iris-500 shrink-0" aria-hidden />
                   </button>
                 );
               })}
@@ -844,16 +921,17 @@ export function InboxPage() {
             </div>
           )
         ) : loadStatus === 'loading' && visible.length === 0 ? (
-          <ListSkeleton rows={3} withAvatar={false} />
-        ) : visible.length === 0 &&
+          <InboxSkeleton shape="cards" />
+        ) : shown.length === 0 &&
           // An ask sitting right above is something to do — don't contradict
           // it with "nothing needs your attention".
-          !(tab === 'incoming' && contactAsks.length > 0) ? (
+          !(tab === 'incoming' && shownContactAsks.length > 0) ? (
           loadStatus === 'ready' ? (
             tab === 'incoming' ? (
               <EmptyState
                 icon={Inbox}
-                tone="accent"
+                clayIcon="inbox"
+                tone="violet"
                 title={t('inbox_empty_incoming_title')}
                 description={t('inbox_empty_incoming_desc')}
                 // One-line explainer so an empty incoming tab reads as
@@ -862,8 +940,9 @@ export function InboxPage() {
               />
             ) : (
               <EmptyState
-                icon={Send}
-                tone="receive"
+                icon={Inbox}
+                clayIcon="inbox"
+                tone="violet"
                 title={t('inbox_empty_outgoing_title')}
                 description={t('inbox_empty_outgoing_desc')}
                 // Outgoing-empty nudges toward the place linked requests are
@@ -877,26 +956,21 @@ export function InboxPage() {
           // Keyed on `tab`: switching Incoming <-> Outgoing swaps the whole
           // list, so replaying the reveal is the honest signal that the
           // content changed rather than merely re-sorted.
-          <div className="space-y-2.5 stagger-in" key={tab}>
+          <div className="space-y-3 stagger-in" key={`${tab}-${activeFilter}`}>
             {/* "Waiting on others (N)" — the outgoing asks that the bell now
                 marks with a quiet dot instead of a red number (audit N-7 kept:
                 no alarm), given a named home so the user can see who is slow
                 and nudge them. Header only; the cards below carry who/what and
                 the age line. */}
             {tab === 'outgoing' && pendingVisibleCount > 0 && (
-              <div className="flex items-center gap-2 pb-0.5">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-400">
-                  {t('inbox_waiting_on_others').replace('{n}', String(pendingVisibleCount))}
-                </span>
-                <span className="flex-1 h-px bg-cream-hairline" />
-              </div>
+              <SectionDivider label={t('inbox_waiting_on_others').replace('{n}', String(pendingVisibleCount))} />
             )}
-            {visible.map((entry, idx) => {
+            {shown.map((entry, idx) => {
               // Divider sits at the boundary between the pinned pending block
               // and the resolved history — shown only when both groups exist.
               const showDivider =
                 pendingVisibleCount > 0 &&
-                pendingVisibleCount < visible.length &&
+                pendingVisibleCount < shown.length &&
                 idx === pendingVisibleCount;
               const card =
                 entry.kind === 'linked' ? (
@@ -942,12 +1016,7 @@ export function InboxPage() {
               return (
                 <Fragment key={`${entry.kind}-${entry.item.id}`}>
                   {showDivider && (
-                    <div className="flex items-center gap-2 pt-1.5 pb-0.5">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-400">
-                        {t('inbox_resolved_divider')}
-                      </span>
-                      <span className="flex-1 h-px bg-cream-hairline" />
-                    </div>
+                    <SectionDivider label={t('inbox_resolved_divider')} className="pt-1.5" />
                   )}
                   {card}
                 </Fragment>
@@ -1000,18 +1069,57 @@ function CardSafetyActions({ onReport, onBlock }: { onReport?: () => void; onBlo
   const t = useT();
   if (!onReport && !onBlock) return null;
   return (
-    <div className="flex items-center gap-3 mt-2.5 pt-2.5 border-t border-cream-hairline">
+    <div className="flex items-center gap-4 mt-3 pt-1.5 border-t border-cream-hairline">
       {onReport && (
-        <button type="button" onClick={onReport} className="text-[11px] font-semibold text-ink-400 active:opacity-60">
+        <button type="button" onClick={onReport} className="min-h-[32px] text-[10.5px] font-medium text-ink-400 active:opacity-60">
           {t('blk_action_report')}
         </button>
       )}
       {onBlock && (
-        <button type="button" onClick={onBlock} className="text-[11px] font-semibold text-pay-text active:opacity-60">
+        <button type="button" onClick={onBlock} className="min-h-[32px] text-[10.5px] font-medium text-ink-400 active:opacity-60">
           {t('blk_action_block')}
         </button>
       )}
     </div>
+  );
+}
+
+// "Waiting on others (N)" / "Earlier": a micro-label trailed by a hairline.
+function SectionDivider({ label, className = '' }: { label: string; className?: string }) {
+  return (
+    <div className={`flex items-center gap-[9px] pb-0.5 ${className}`}>
+      <span className="m-label text-[10px]">{label}</span>
+      <span className="flex-1 h-px bg-cream-hairline" />
+    </div>
+  );
+}
+
+// Loading in the final geometry: request cards are tall (amount + actions),
+// to-do / info rows are single-line tiles.
+function InboxSkeleton({ shape }: { shape: 'cards' | 'rows' }) {
+  const t = useT();
+  const heights = shape === 'cards' ? [118, 118, 88] : [68, 68, 68];
+  return (
+    <div className="flex flex-col gap-3" role="status">
+      <span className="sr-only">{t('loading')}</span>
+      {heights.map((h, i) => (
+        <div
+          key={i}
+          aria-hidden
+          className="m-skel rounded-[18px]"
+          style={{ height: h, '--m-skel-delay': skeletonDelay(i) } as React.CSSProperties}
+        />
+      ))}
+    </div>
+  );
+}
+
+// A row's icon: a 40px square in the row's tint holding the 3c glyph.
+function RowIcon({ glyph, tone, tint }: { glyph: GlyphName; tone: GlyphTone; tint: string }) {
+  return (
+    <span className={`m-card ${tint} w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0`} aria-hidden>
+      <Glyph name={glyph} tone={tone} size={19} />
+    </span>
   );
 }
 
@@ -1020,35 +1128,33 @@ function CardSafetyActions({ onReport, onBlock }: { onReport?: () => void; onBlo
 function Pill({
   value,
   label,
+  name,
   count,
   activeTab,
   onSelect,
 }: {
   value: Tab;
+  /** What the pill shows — the short label when the full one won't fit. */
   label: string;
+  /** Accessible name (the full tab label; contains the short one). */
+  name: string;
   count: number;
   activeTab: Tab;
   onSelect: (t: Tab) => void;
 }) {
   const isActive = activeTab === value;
+  const shownCount = badgeCount(count);
   return (
     <button
+      type="button"
       onClick={() => onSelect(value)}
       data-pill={value}
-      className={`shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors flex items-center gap-1 ${
-        isActive ? 'bg-white text-ink-900' : 'text-white/70'
-      }`}
+      aria-pressed={isActive}
+      aria-label={shownCount ? `${name} · ${shownCount}` : name}
+      className="flex-1 shrink-0 whitespace-nowrap px-2.5 text-[11.5px] tabular-nums"
     >
       {label}
-      {count > 0 && (
-        <span
-          className={`min-w-[14px] h-3.5 px-1 rounded-full text-[9px] font-bold flex items-center justify-center tabular-nums ${
-            isActive ? 'bg-pay-600 text-white' : 'bg-white/15 text-white'
-          }`}
-        >
-          {count > 9 ? '9+' : count}
-        </span>
-      )}
+      {shownCount && <> · {shownCount}</>}
     </button>
   );
 }
@@ -1061,7 +1167,9 @@ function PillToggle({
   infoCount,
   actionCount,
   incomingLabel,
+  incomingName,
   outgoingLabel,
+  outgoingName,
   infoLabel,
   actionLabel,
 }: {
@@ -1072,7 +1180,9 @@ function PillToggle({
   infoCount: number;
   actionCount: number;
   incomingLabel: string;
+  incomingName: string;
   outgoingLabel: string;
+  outgoingName: string;
   infoLabel: string;
   actionLabel: string;
 }) {
@@ -1084,41 +1194,68 @@ function PillToggle({
     el?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
   }, [tab]);
   return (
-    // Four pills can outgrow a narrow phone next to the back button — the
-    // cluster caps its width and scrolls sideways (scrollbar hidden, house
-    // convention) instead of pushing the TopBar off-screen.
-    <div ref={wrapRef} className="bg-white/10 rounded-full p-0.5 flex items-center max-w-[calc(100vw-96px)] overflow-x-auto no-scrollbar">
-      <Pill value="incoming" label={incomingLabel} count={incomingCount} activeTab={tab} onSelect={setTab} />
-      <Pill value="action" label={actionLabel} count={actionCount} activeTab={tab} onSelect={setTab} />
-      <Pill value="info" label={infoLabel} count={infoCount} activeTab={tab} onSelect={setTab} />
-      <Pill value="outgoing" label={outgoingLabel} count={outgoingCount} activeTab={tab} onSelect={setTab} />
+    // The segmented track on its own row under the title: four equal
+    // segments, the active one light-faced (.m-seg). Scrolls sideways only if
+    // a long translation ever outgrows a narrow phone.
+    <div
+      ref={wrapRef}
+      className="m-seg flex w-full overflow-x-auto no-scrollbar"
+    >
+      <Pill value="incoming" label={incomingLabel} name={incomingName} count={incomingCount} activeTab={tab} onSelect={setTab} />
+      <Pill value="action" label={actionLabel} name={actionLabel} count={actionCount} activeTab={tab} onSelect={setTab} />
+      <Pill value="info" label={infoLabel} name={infoLabel} count={infoCount} activeTab={tab} onSelect={setTab} />
+      <Pill value="outgoing" label={outgoingLabel} name={outgoingName} count={outgoingCount} activeTab={tab} onSelect={setTab} />
     </div>
   );
 }
 
-const INFO_ICON: Record<InfoIconKind, typeof AlertTriangle> = {
-  budget: AlertTriangle,
-  renewal: Repeat,
-  card: CreditCard,
-  bill: CalendarClock,
+const INBOX_FILTER_LABEL: Record<InboxFilter, 'inbox_filter_all' | 'inbox_filter_loans' | 'inbox_filter_payments' | 'inbox_filter_contacts'> = {
+  all: 'inbox_filter_all',
+  loans: 'inbox_filter_loans',
+  payments: 'inbox_filter_payments',
+  contacts: 'inbox_filter_contacts',
 };
 
-const INFO_TONE: Record<InfoItem['tone'], { wrap: string; icon: string }> = {
-  pay: { wrap: 'bg-pay-50', icon: 'text-pay-text' },
-  warn: { wrap: 'bg-warn-50', icon: 'text-warn-600' },
-  info: { wrap: 'bg-info-50', icon: 'text-info-600' },
-  accent: { wrap: 'bg-accent-50', icon: 'text-accent-600' },
+const INFO_ICON: Record<InfoIconKind, GlyphName> = {
+  budget: 'alert',
+  renewal: 'recurring',
+  card: 'card',
+  bill: 'calendar',
+};
+
+// Tone → the row icon's tint scope + glyph accent.
+const INFO_TONE: Record<InfoItem['tone'], { tint: string; glyph: GlyphTone }> = {
+  pay: { tint: 'm-coral', glyph: 'coral' },
+  warn: { tint: 'm-gold', glyph: 'gold' },
+  info: { tint: 'm-blue', glyph: 'blue' },
+  accent: { tint: 'm-violet', glyph: 'violet' },
   // Praise items (e.g. a card bill cleared before its due day).
-  receive: { wrap: 'bg-receive-50', icon: 'text-receive-text' },
+  receive: { tint: 'm-mint', glyph: 'green' },
 };
 
-// Icon + tone derive from the structured content kind; the words come from
-// t() keys here (the lib stays i18n-free — thisWeek.ts pattern).
-const ACTION_META: Record<ActionContent['kind'], { icon: typeof AlertTriangle; tone: InfoItem['tone'] }> = {
-  emi: { icon: HandCoins, tone: 'pay' },
-  recurring: { icon: Repeat, tone: 'warn' },
-  kameti: { icon: Users, tone: 'info' },
-  uncategorized: { icon: Tag, tone: 'accent' },
+// Info-tab notification rows: glyph + tint follow the row's own kind
+// (contacts violet, kameti gold, groups blue). The request-mirror kinds never
+// reach this tab (isInboxInfoNotification), but stay typed for safety.
+type NotifIcon = { glyph: GlyphName; tone: GlyphTone; tint: string };
+const GROUP_NOTIF_ICON: NotifIcon = { glyph: 'groups', tone: 'blue', tint: 'm-blue' };
+const NOTIF_ICON: Record<AppNotification['type'], NotifIcon> = {
+  contact_linked: { glyph: 'link', tone: 'violet', tint: 'm-violet' },
+  kameti: { glyph: 'coins', tone: 'gold', tint: 'm-gold' },
+  system: { glyph: 'info', tone: 'violet', tint: 'm-violet' },
+  invite: GROUP_NOTIF_ICON,
+  group_update: GROUP_NOTIF_ICON,
+  linked_request: { glyph: 'link', tone: 'violet', tint: 'm-violet' },
+  linked_settlement: { glyph: 'link', tone: 'violet', tint: 'm-violet' },
+};
+
+// Glyph + tone derive from the structured content kind; the words come from
+// t() keys here (the lib stays i18n-free — thisWeek.ts pattern). Kameti wears
+// its domain gold, a recurring charge the handoff's blue.
+const ACTION_META: Record<ActionContent['kind'], { glyph: GlyphName; tone: InfoItem['tone'] }> = {
+  emi: { glyph: 'banknote', tone: 'pay' },
+  recurring: { glyph: 'recurring', tone: 'info' },
+  kameti: { glyph: 'coins', tone: 'warn' },
+  uncategorized: { glyph: 'tag', tone: 'accent' },
 };
 
 // Same chrome as InfoCard, but ALWAYS tappable — every item's tap is the
@@ -1130,8 +1267,8 @@ function ActionCard({ item, onResolve, onAccept }: { item: ActionItem; onResolve
   const t = useT();
   const c = item.content;
   const meta = ACTION_META[c.kind];
-  const Icon = meta.icon;
-  const tone = INFO_TONE[meta.tone];
+  // An EMI you're owed reads green; one you owe stays coral.
+  const tone = INFO_TONE[c.kind === 'emi' && c.direction === 'collect' ? 'receive' : meta.tone];
   let title: string;
   let body: string;
   if (c.kind === 'emi') {
@@ -1164,34 +1301,34 @@ function ActionCard({ item, onResolve, onAccept }: { item: ActionItem; onResolve
 
   const mainRow = (
     <>
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${tone.wrap}`}>
-        <Icon size={17} className={tone.icon} strokeWidth={2} />
-      </div>
+      <RowIcon glyph={meta.glyph} tone={tone.glyph} tint={tone.tint} />
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-semibold text-ink-900 tracking-tight truncate">{title}</p>
-        <p className="text-[11.5px] text-ink-500 mt-0.5 truncate">{body}</p>
+        <p className="text-[13px] font-semibold text-ink-900 tracking-[-0.01em] truncate">{title}</p>
+        <p className="text-[11px] text-ink-600 mt-[3px] truncate tabular-nums">{body}</p>
       </div>
-      <ChevronRight size={15} className="text-ink-300 shrink-0" />
+      <Glyph name="chevron-right" size={15} className="text-ink-400" />
     </>
   );
 
   if (suggestion && onAccept) {
+    // Two actions (open the row / accept the suggestion) — a card holding
+    // two buttons, since nested buttons are invalid HTML.
     return (
-      <div className="rounded-[18px] bg-cream-card border border-cream-border overflow-hidden">
+      <div className="m-card rounded-[18px] overflow-hidden">
         <button
           type="button"
           onClick={onResolve}
-          className="w-full text-left p-4 flex items-center gap-3 active:bg-cream-soft transition-colors"
+          className="w-full text-left p-3.5 flex items-center gap-3 active:bg-cream-soft transition-colors"
         >
           {mainRow}
         </button>
-        <div className="px-4 pb-3">
+        <div className="px-3.5 pb-4">
           <button
             type="button"
             onClick={onAccept}
-            className="w-full min-h-[40px] rounded-xl bg-receive-50 text-receive-text text-[12px] font-semibold flex items-center justify-center gap-1.5 press"
+            className="m-btn m-btn-green w-full py-2.5 text-[12px] gap-1.5"
           >
-            <CheckCircle2 size={13} strokeWidth={2.2} />
+            <Glyph name="check" size={13} strokeWidth={3} />
             {t('todo_uncat_suggest').replace('{category}', suggestion)}
           </button>
         </div>
@@ -1203,7 +1340,7 @@ function ActionCard({ item, onResolve, onAccept }: { item: ActionItem; onResolve
     <button
       type="button"
       onClick={onResolve}
-      className="w-full text-left rounded-[18px] bg-cream-card border border-cream-border p-4 flex items-center gap-3 press-lg"
+      className="m-tile rounded-[18px] p-3.5 flex items-center gap-3"
     >
       {mainRow}
     </button>
@@ -1211,7 +1348,6 @@ function ActionCard({ item, onResolve, onAccept }: { item: ActionItem; onResolve
 }
 
 function InfoCard({ item, onOpen }: { item: InfoItem; onOpen: () => void }) {
-  const Icon = INFO_ICON[item.icon];
   const tone = INFO_TONE[item.tone];
   const tappable = !!item.href;
   return (
@@ -1219,16 +1355,16 @@ function InfoCard({ item, onOpen }: { item: InfoItem; onOpen: () => void }) {
       type="button"
       onClick={onOpen}
       disabled={!tappable}
-      className={`w-full text-left rounded-[18px] bg-cream-card border border-cream-border p-4 flex items-center gap-3 ${tappable ? 'active:scale-[0.99] transition-transform' : ''}`}
+      // Untappable rows are information, not a disabled control — full
+      // opacity (the tile's disabled dimming is for real buttons).
+      className="m-tile rounded-[18px] p-3.5 flex items-center gap-3 disabled:opacity-100"
     >
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${tone.wrap}`}>
-        <Icon size={17} className={tone.icon} strokeWidth={2} />
-      </div>
+      <RowIcon glyph={INFO_ICON[item.icon]} tone={tone.glyph} tint={tone.tint} />
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-semibold text-ink-900 tracking-tight truncate">{item.title}</p>
-        <p className="text-[11.5px] text-ink-500 mt-0.5 truncate">{item.body}</p>
+        <p className="text-[13px] font-semibold text-ink-900 tracking-[-0.01em] truncate">{item.title}</p>
+        <p className="text-[11px] text-ink-600 mt-[3px] truncate tabular-nums">{item.body}</p>
       </div>
-      {tappable && <ChevronRight size={15} className="text-ink-300 shrink-0" />}
+      {tappable && <Glyph name="chevron-right" size={15} className="text-ink-400" />}
     </button>
   );
 }
@@ -1250,26 +1386,27 @@ function ContactAskCard({
 }) {
   const t = useT();
   return (
-    <div className="rounded-[18px] bg-accent-50 border border-accent-100 p-4">
+    // Violet-tinted card: a connection ask is Inbox business.
+    <div className="m-card m-violet p-4">
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-accent-100 flex items-center justify-center shrink-0">
-          <UserPlus size={17} className="text-accent-600" strokeWidth={2} />
-        </div>
+        <span className="m-inset w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0" aria-hidden>
+          <Glyph name="user-plus" tone="violet" size={19} />
+        </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-ink-900 tracking-tight">
+          <p className="text-[13.5px] font-semibold text-ink-900 tracking-[-0.01em]">
             {t('clink_card_title').replace('{name}', name)}
           </p>
-          <p className="text-[11.5px] text-ink-500 mt-1 leading-relaxed">
+          <p className="text-[11.5px] text-ink-600 mt-[5px] leading-[1.55]">
             {t('clink_card_body')}
           </p>
         </div>
       </div>
-      <div className="flex gap-2 mt-3">
+      <div className="flex gap-2 mt-3.5">
         <button
           type="button"
           onClick={onSkip}
           disabled={busy}
-          className="px-4 py-2.5 rounded-xl bg-cream-card border border-cream-border text-ink-600 text-[12px] font-semibold disabled:opacity-50 press-sm"
+          className="m-btn m-btn-plain min-w-[92px] px-4 text-[12.5px]"
         >
           {t('clink_skip_cta')}
         </button>
@@ -1277,15 +1414,24 @@ function ContactAskCard({
           type="button"
           onClick={onAdd}
           disabled={busy}
-          className="flex-1 py-2.5 rounded-xl bg-ink-900 text-white text-[12.5px] font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50 press"
+          className="m-btn m-btn-primary flex-1 px-4 text-[12.5px] gap-1.5"
         >
-          <UserPlus size={13} strokeWidth={2.4} />
+          <Glyph name="user-plus" size={14} />
           {t('clink_add_cta').replace('{name}', name)}
         </button>
       </div>
       <CardSafetyActions onReport={onReport} onBlock={onBlock} />
     </div>
   );
+}
+
+/** Status chip for a request / settlement card. A pending ask waiting on YOU
+ *  is violet (Inbox business); one waiting on the other side is neutral;
+ *  accepted is green; rejected / cancelled step back to neutral. */
+function statusChipClass(status: 'pending' | 'accepted' | 'rejected' | 'cancelled', waitingOnMe: boolean): string {
+  if (status === 'pending') return waitingOnMe ? 'm-chip-violet' : 'm-chip-neutral';
+  if (status === 'accepted') return 'm-chip-receive';
+  return 'm-chip-neutral';
 }
 
 /** "3 din se intezar" for a pending outgoing ask. null when the timestamp is
@@ -1332,40 +1478,41 @@ function SettlementCard({
 
   const statusKey = (`stl_status_${request.status}`) as
     | 'stl_status_pending' | 'stl_status_accepted' | 'stl_status_rejected' | 'stl_status_cancelled';
-  const statusClasses = {
-    pending:   'bg-warn-50 text-warn-600',
-    accepted:  'bg-receive-50 text-receive-text',
-    rejected:  'bg-cream-soft text-ink-500',
-    cancelled: 'bg-cream-soft text-ink-500',
-  }[request.status];
+  const waitingOnMe = tab === 'incoming';
+  // This card can't tell which way the money went (that lives on the loan
+  // pair), so the figure stays neutral rather than guess green or coral.
+  // Closed-out history steps back to muted ink.
+  const amountColor = isPending || request.status === 'accepted' ? 'text-ink-900' : 'text-ink-600';
 
   return (
-    <div className={`rounded-[18px] bg-cream-card p-4 ${isPending ? 'border-2 border-accent-100' : 'border border-cream-border'}`}>
+    // A pending settlement wears the handoff's violet ring (an inset outline,
+    // so the card keeps its own lit edge and ambient shadow).
+    <div className={`m-card p-4 ${isPending ? 'outline-2 -outline-offset-2 outline-accent-500/40' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-medium text-ink-900 tracking-tight">{title}</p>
-          <p className="text-[18px] font-semibold text-ink-900 tabular-nums mt-1 tracking-tight">
+          <p className="text-[13.5px] font-semibold text-ink-900 tracking-[-0.01em]">{title}</p>
+          <p className={`text-[22px] font-semibold tabular-nums tracking-[-0.02em] mt-[7px] leading-tight ${amountColor}`}>
             {formatMoney(request.amount, request.currency)}
           </p>
-          <p className="text-[10.5px] text-ink-500 mt-1">
+          {request.note ? (
+            <p className="text-[11.5px] text-ink-600 mt-1.5 leading-[1.55] truncate">&ldquo;{request.note}&rdquo;</p>
+          ) : null}
+          {accountLine && (
+            <p className="text-[11px] text-ink-600 mt-1.5 flex items-start gap-1.5 leading-snug">
+              <Glyph name="wallet" size={12} className="mt-[1px] text-ink-400" />
+              <span>{accountLine}</span>
+            </p>
+          )}
+          <p className="text-[10.5px] text-ink-400 mt-[7px] tabular-nums">
             {format(new Date(request.createdAt), 'MMM d, h:mm a')}
             {/* How long this ask has been sitting — the piece that tells the
                 sender whether it's worth a nudge. Outgoing + pending only. */}
             {tab === 'outgoing' && isPending && waitingLabel(request.createdAt, t) ? (
-              <span className="text-ink-400"> · {waitingLabel(request.createdAt, t)}</span>
+              <> · {waitingLabel(request.createdAt, t)}</>
             ) : null}
           </p>
-          {accountLine && (
-            <p className="text-[11px] text-ink-500 mt-1.5 flex items-start gap-1.5 leading-snug">
-              <WalletMinimal size={12} className="shrink-0 mt-[1px] text-ink-400" />
-              <span>{accountLine}</span>
-            </p>
-          )}
-          {request.note ? (
-            <p className="text-[11px] text-ink-500 italic mt-1.5 truncate">&ldquo;{request.note}&rdquo;</p>
-          ) : null}
         </div>
-        <span className={`text-[10px] font-semibold uppercase tracking-[0.1em] rounded-full px-2.5 py-1 ${statusClasses}`}>
+        <span className={`m-chip m-chip-caps shrink-0 px-[9px] py-[3px] ${statusChipClass(request.status, waitingOnMe)}`}>
           {t(statusKey)}
         </span>
       </div>
@@ -1377,20 +1524,20 @@ function SettlementCard({
               {t('stl_ledger_only_hint')}
             </p>
           )}
-          <div className="flex gap-2 mt-2">
+          <div className="flex gap-2 mt-3.5">
             {tab === 'incoming' ? (
               <>
                 <button
                   onClick={onReject}
                   disabled={busy}
-                  className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-cream-soft border border-cream-border text-ink-600 text-[12px] font-semibold active:bg-cream-hairline transition-colors disabled:opacity-50"
+                  className="m-btn m-btn-danger min-w-[92px] px-4 text-[12.5px]"
                 >
                   {busy ? t('ltr_rejecting') : t('ltr_reject')}
                 </button>
                 <button
                   onClick={onAccept}
                   disabled={busy}
-                  className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-ink-900 text-white text-[12px] font-semibold disabled:opacity-50 press"
+                  className="m-btn m-btn-primary flex-1 px-4 text-[12.5px]"
                 >
                   {busy ? t('ltr_accepting') : t('ltr_accept')}
                 </button>
@@ -1404,15 +1551,15 @@ function SettlementCard({
                   href={remindUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-ink-900 text-white text-[12px] font-semibold flex items-center justify-center gap-1.5 press"
+                  className="m-btn m-btn-plain flex-1 px-4 text-[12.5px] gap-1.5"
                 >
-                  <BellRing size={13} strokeWidth={2.2} />
+                  <Glyph name="whatsapp" size={15} tone="green" />
                   {t('req_remind_cta')}
                 </a>
                 <button
                   onClick={onCancel}
                   disabled={busy}
-                  className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-pay-50 text-pay-text text-[12px] font-semibold active:bg-pay-100 transition-colors disabled:opacity-50"
+                  className="m-btn m-btn-danger min-w-[92px] px-4 text-[12.5px]"
                 >
                   {busy ? t('ltr_cancelling') : t('ltr_cancel')}
                 </button>
@@ -1473,89 +1620,83 @@ function RequestCard({
 
   const statusKey = (`ltr_status_${request.status}`) as
     | 'ltr_status_pending' | 'ltr_status_accepted' | 'ltr_status_rejected' | 'ltr_status_cancelled';
-  const statusClasses = {
-    pending:   'bg-warn-50 text-warn-600',
-    accepted:  'bg-receive-50 text-receive-text',
-    rejected:  'bg-cream-soft text-ink-500',
-    cancelled: 'bg-cream-soft text-ink-500',
-  }[request.status];
+  const isClosed = request.status === 'rejected' || request.status === 'cancelled';
+  // Incoming: the figure wears what accepting would mean for ME (coral = I'd
+  // owe, green = I'd be owed). Outgoing asks stay neutral; closed history is
+  // muted.
+  const amountColor = isClosed ? 'text-ink-600' : isIncoming ? stanceColor : 'text-ink-900';
 
   return (
-    <div className={`rounded-[18px] bg-cream-card p-4 ${isPending ? 'border-2 border-warn-50' : 'border border-cream-border'}`}>
+    // A pending incoming ask wears the handoff's violet ring (an inset
+    // outline, so the card keeps its lit edge and ambient shadow).
+    <div className={`m-card p-4 ${isPending && isIncoming ? 'outline-2 -outline-offset-2 outline-iris-500/40' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <p className="text-[13px] font-medium text-ink-900 tracking-tight">
-              {isIncoming ? (
-                <>
-                  {title} <span className="font-semibold tabular-nums">{amountText}</span>
-                  {stanceClause && (
-                    <>
-                      {' '}
-                      <span className="text-ink-400">— </span>
-                      <span className={`font-semibold ${stanceColor}`}>{stanceClause}</span>
-                    </>
-                  )}
-                </>
-              ) : (
-                title
-              )}
+            <p className="text-[13.5px] font-semibold text-ink-900 tracking-[-0.01em]">
+              {title}
             </p>
             {/* Phase 2D: marks a "sync past record" request so the recipient
                 sees this is historical, not a fresh-loan announcement. Same
                 accept/decline flow underneath. */}
             {request.preExistingLoanId && (
-              <span className="text-[8.5px] font-semibold uppercase tracking-[0.1em] rounded-full bg-accent-100 text-accent-600 px-1.5 py-0.5 shrink-0">
+              <span className="m-chip m-chip-violet m-chip-caps shrink-0">
                 {t('inbox_past_record_tag')}
               </span>
             )}
           </div>
-          {!isIncoming && (
-            <p className="text-[18px] font-semibold text-ink-900 tabular-nums mt-1 tracking-tight">
+          {/* The amount, and — incoming — the resulting stance folded in
+              beside it, so the user reads "what this means for me" without
+              doing the mental math. */}
+          <p className="mt-[7px] flex items-baseline gap-x-2 flex-wrap">
+            <span className={`text-[22px] font-semibold tabular-nums tracking-[-0.02em] leading-tight ${amountColor}`}>
               {amountText}
+            </span>
+            {stanceClause && (
+              <span className={`text-[11.5px] font-semibold ${isClosed ? 'text-ink-500' : stanceColor}`}>{stanceClause}</span>
+            )}
+          </p>
+          {request.note ? (
+            <p className="text-[11.5px] text-ink-600 mt-1.5 leading-[1.55] truncate">&ldquo;{request.note}&rdquo;</p>
+          ) : null}
+          {accountLine && (
+            <p className="text-[11px] text-ink-600 mt-1.5 flex items-start gap-1.5 leading-snug">
+              <Glyph name="wallet" size={12} className="mt-[1px] text-ink-400" />
+              <span>{accountLine}</span>
             </p>
           )}
-          <p className="text-[10.5px] text-ink-500 mt-1">
+          {request.rejectionReason ? (
+            <p className="text-[11px] text-ink-600 mt-1.5">{request.rejectionReason}</p>
+          ) : null}
+          <p className="text-[10.5px] text-ink-400 mt-[7px] tabular-nums">
             {format(new Date(request.createdAt), 'MMM d, h:mm a')}
             {/* How long this ask has been sitting — the piece that tells the
                 sender whether it's worth a nudge. Outgoing + pending only. */}
             {tab === 'outgoing' && isPending && waitingLabel(request.createdAt, t) ? (
-              <span className="text-ink-400"> · {waitingLabel(request.createdAt, t)}</span>
+              <> · {waitingLabel(request.createdAt, t)}</>
             ) : null}
           </p>
-          {accountLine && (
-            <p className="text-[11px] text-ink-500 mt-1.5 flex items-start gap-1.5 leading-snug">
-              <WalletMinimal size={12} className="shrink-0 mt-[1px] text-ink-400" />
-              <span>{accountLine}</span>
-            </p>
-          )}
-          {request.note ? (
-            <p className="text-[11px] text-ink-500 italic mt-1.5 truncate">&ldquo;{request.note}&rdquo;</p>
-          ) : null}
-          {request.rejectionReason ? (
-            <p className="text-[11px] text-ink-500 mt-1.5">{request.rejectionReason}</p>
-          ) : null}
         </div>
-        <span className={`text-[10px] font-semibold uppercase tracking-[0.1em] rounded-full px-2.5 py-1 ${statusClasses}`}>
+        <span className={`m-chip m-chip-caps shrink-0 px-[9px] py-[3px] ${statusChipClass(request.status, isIncoming)}`}>
           {t(statusKey)}
         </span>
       </div>
 
       {isPending ? (
-        <div className="flex gap-2 mt-3">
+        <div className="flex gap-2 mt-3.5">
           {tab === 'incoming' ? (
             <>
               <button
                 onClick={onReject}
                 disabled={busy}
-                className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-cream-soft border border-cream-border text-ink-600 text-[12px] font-semibold active:bg-cream-hairline transition-colors disabled:opacity-50"
+                className="m-btn m-btn-danger min-w-[92px] px-4 text-[12.5px]"
               >
                 {busy ? t('ltr_rejecting') : t('ltr_reject')}
               </button>
               <button
                 onClick={onAccept}
                 disabled={busy}
-                className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-ink-900 text-white text-[12px] font-semibold disabled:opacity-50 press"
+                className="m-btn m-btn-primary flex-1 px-4 text-[12.5px]"
               >
                 {busy ? t('ltr_accepting') : t('ltr_accept')}
               </button>
@@ -1568,15 +1709,15 @@ function RequestCard({
                 href={remindUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-ink-900 text-white text-[12px] font-semibold flex items-center justify-center gap-1.5 press"
+                className="m-btn m-btn-plain flex-1 px-4 text-[12.5px] gap-1.5"
               >
-                <BellRing size={13} strokeWidth={2.2} />
+                <Glyph name="whatsapp" size={15} tone="green" />
                 {t('req_remind_cta')}
               </a>
               <button
                 onClick={onCancel}
                 disabled={busy}
-                className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-pay-50 text-pay-text text-[12px] font-semibold active:bg-pay-100 transition-colors disabled:opacity-50"
+                className="m-btn m-btn-danger min-w-[92px] px-4 text-[12.5px]"
               >
                 {busy ? t('ltr_cancelling') : t('ltr_cancel')}
               </button>

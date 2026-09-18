@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { X, CameraOff, Keyboard, ScanLine } from 'lucide-react';
+import { CameraOff, Keyboard, ScanLine } from 'lucide-react';
 import { extractConnectCode } from '../lib/connectQr';
+import { Glyph } from './Glyph';
 import { useT } from '../lib/i18n';
 import { useBackStackLayer } from '../hooks/useBackStackLayer';
 
@@ -208,21 +209,24 @@ function ActiveScanner({ onClose, onCode, onManualEntry }: Omit<Props, 'open'>) 
     ? () => { onClose(); onManualEntry(); }
     : null;
 
+  // 1d: the chrome around the camera is the hero material (dark in both
+  // themes — .m-hero re-scopes the control material), the viewfinder stays
+  // true black, and the reticle is drawn in the brand-violet primary.
   return (
-    <div className="fixed inset-0 z-[70] bg-black flex flex-col">
-      <div className="flex items-center justify-between px-4 pt-[env(safe-area-inset-top)] h-14 shrink-0">
-        <p className="text-[14px] font-semibold text-white">{t('qr_scan_title')}</p>
+    <div className="m-hero fixed inset-0 z-[70] flex flex-col">
+      <div className="flex items-center justify-between gap-3 px-5 pt-[env(safe-area-inset-top)] h-16 shrink-0">
+        <p className="text-[17px] font-semibold tracking-[-0.01em] text-white">{t('qr_scan_title')}</p>
         <button
           type="button"
           onClick={onClose}
-          className="w-9 h-9 rounded-xl bg-white/10 active:bg-white/20 flex items-center justify-center"
+          className="m-ctl relative w-9 h-9 flex items-center justify-center shrink-0 before:absolute before:-inset-1 before:content-['']"
           aria-label={t('cancel')}
         >
-          <X size={17} className="text-white" />
+          <Glyph name="close" size={16} className="text-white" />
         </button>
       </div>
 
-      <div className="relative flex-1 overflow-hidden">
+      <div className="relative flex-1 overflow-hidden bg-black">
         <video
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"
@@ -238,32 +242,32 @@ function ActiveScanner({ onClose, onCode, onManualEntry }: Omit<Props, 'open'>) 
           // decoder can already read, which reads as the scanner being broken.
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="relative w-[68vw] max-w-[280px] aspect-square">
-              <span className="absolute -top-px -left-px w-10 h-10 border-t-[3px] border-l-[3px] border-white/90 rounded-tl-2xl" />
-              <span className="absolute -top-px -right-px w-10 h-10 border-t-[3px] border-r-[3px] border-white/90 rounded-tr-2xl" />
-              <span className="absolute -bottom-px -left-px w-10 h-10 border-b-[3px] border-l-[3px] border-white/90 rounded-bl-2xl" />
-              <span className="absolute -bottom-px -right-px w-10 h-10 border-b-[3px] border-r-[3px] border-white/90 rounded-br-2xl" />
+              <span className="absolute -top-px -left-px w-10 h-10 border-t-[3px] border-l-[3px] border-accent-500 rounded-tl-2xl" />
+              <span className="absolute -top-px -right-px w-10 h-10 border-t-[3px] border-r-[3px] border-accent-500 rounded-tr-2xl" />
+              <span className="absolute -bottom-px -left-px w-10 h-10 border-b-[3px] border-l-[3px] border-accent-500 rounded-bl-2xl" />
+              <span className="absolute -bottom-px -right-px w-10 h-10 border-b-[3px] border-r-[3px] border-accent-500 rounded-br-2xl" />
             </div>
           </div>
         )}
 
         {(phase === 'denied' || phase === 'unavailable') && (
-          <div className="absolute inset-0 bg-navy-900 flex flex-col items-center justify-center px-8 text-center">
-            <div className="w-14 h-14 rounded-3xl bg-white/10 flex items-center justify-center mb-4">
-              <CameraOff size={24} className="text-white/80" />
+          <div className="m-hero absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
+            <div className="m-plate m-coral mb-[18px]" aria-hidden>
+              <CameraOff size={24} strokeWidth={2.4} className="text-glyph-coral" />
             </div>
-            <p className="text-[14px] font-semibold text-white">
+            <p className="text-[15px] font-semibold tracking-tight text-white">
               {phase === 'denied' ? t('qr_scan_denied_title') : t('qr_scan_unavailable_title')}
             </p>
-            <p className="text-[12px] text-white/60 mt-1.5 leading-relaxed max-w-[280px]">
+            <p className="text-[12px] text-white/70 mt-1.5 leading-relaxed max-w-[270px]">
               {phase === 'denied' ? t('qr_scan_denied_body') : t('qr_scan_unavailable_body')}
             </p>
             {typeInstead && (
               <button
                 type="button"
                 onClick={typeInstead}
-                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white text-navy-900 px-4 py-2.5 text-[12.5px] font-semibold press-sm"
+                className="m-btn m-btn-primary mt-5 px-5 py-2.5 text-[12.5px]"
               >
-                <Keyboard size={14} /> {t('qr_scan_type_instead')}
+                <Keyboard size={14} strokeWidth={2.4} /> {t('qr_scan_type_instead')}
               </button>
             )}
           </div>
@@ -272,12 +276,12 @@ function ActiveScanner({ onClose, onCode, onManualEntry }: Omit<Props, 'open'>) 
 
       <div className="shrink-0 px-6 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-center">
         {wrongCode ? (
-          <p className="text-[12.5px] text-warn-50 font-semibold leading-relaxed">
+          <p className="text-[12.5px] text-accent-600 font-semibold leading-relaxed">
             {t('qr_scan_wrong_code')}
           </p>
         ) : (
           <p className="text-[12.5px] text-white/70 leading-relaxed flex items-center justify-center gap-2">
-            <ScanLine size={14} className="shrink-0" />
+            <ScanLine size={14} strokeWidth={2.4} className="shrink-0 text-glyph-violet" />
             {phase === 'starting' ? t('qr_scan_starting') : t('qr_scan_hint')}
           </p>
         )}
@@ -285,7 +289,7 @@ function ActiveScanner({ onClose, onCode, onManualEntry }: Omit<Props, 'open'>) 
           <button
             type="button"
             onClick={typeInstead}
-            className="mt-3 text-[12px] font-semibold text-white/80 underline underline-offset-4"
+            className="mt-3 text-[12px] font-semibold text-white/80 underline underline-offset-4 min-h-[44px]"
           >
             {t('qr_scan_type_instead')}
           </button>

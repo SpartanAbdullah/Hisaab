@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
 import { useSubmitGuard } from '../lib/useSubmitGuard';
 import { useAccountStore } from '../stores/accountStore';
 import { useTransactionStore } from '../stores/transactionStore';
@@ -182,7 +183,7 @@ export function AllocateRepaymentModal({ open, onClose, loans, direction, curren
           title: result.done > 0
             ? t('alloc_partial_title').replace('{done}', String(result.done)).replace('{total}', String(result.total))
             : t('error'),
-          subtitle: err instanceof Error ? err.message : 'Could not finish. Open the remaining loans to retry.',
+          subtitle: err instanceof Error ? err.message : t('toast_error_generic'),
           duration: 6000,
         });
         if (result.done > 0) { onDone({ totalApplied: result.totalApplied }); onClose(); }
@@ -211,18 +212,19 @@ export function AllocateRepaymentModal({ open, onClose, loans, direction, curren
       }
     >
       <div className="space-y-4">
-        <p className="text-[12px] text-ink-500 leading-relaxed">{t('alloc_intro')}</p>
+        <p className="text-[12px] text-ink-600 leading-relaxed">{t('alloc_intro')}</p>
 
         {/* Strategy */}
         <div>
           <label className="form-label">{t('alloc_strategy_label')}</label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2.5">
             {strategies.map((s) => (
               <button
                 key={s.value}
                 type="button"
                 onClick={() => setStrategy(s.value)}
-                className={`selector-base justify-center text-[12px] font-semibold ${strategy === s.value ? 'selector-selected' : ''}`}
+                aria-pressed={strategy === s.value}
+                className={`selector-base justify-center text-[12px] font-semibold text-ink-800 ${strategy === s.value ? 'selector-selected' : ''}`}
               >
                 {s.label}
               </button>
@@ -240,13 +242,16 @@ export function AllocateRepaymentModal({ open, onClose, loans, direction, curren
               value={lump}
               onChange={(e) => setLump(e.target.value)}
               placeholder="0.00"
-              className="input-field text-center text-lg font-bold tabular-nums"
+              className="input-field text-center font-semibold tabular-nums tracking-[-0.02em]"
+              // Inline on purpose: index.css pins every <input> to 16px (iOS
+              // focus-zoom guard), which beats any font-size utility.
+              style={{ fontSize: 22 }}
               autoFocus
             />
             <button
               type="button"
               onClick={() => setLump(String(maxRemaining))}
-              className="mt-2 text-[11px] text-accent-600 font-bold active:opacity-70"
+              className="mt-2 min-h-[32px] text-[11.5px] text-accent-600 font-semibold active:opacity-70"
             >
               {t('repay_full_amount').replace('{amount}', formatMoney(maxRemaining, currency))}
             </button>
@@ -260,7 +265,7 @@ export function AllocateRepaymentModal({ open, onClose, loans, direction, curren
         {!isLedgerOnlyMode && (
           <div>
             <label className="form-label">{t('alloc_account_label')}</label>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {eligibleAccounts.map((a) => {
                 const meta = currencyMeta[a.currency];
                 return (
@@ -268,17 +273,18 @@ export function AllocateRepaymentModal({ open, onClose, loans, direction, curren
                     key={a.id}
                     type="button"
                     onClick={() => setAccountId(a.id)}
+                    aria-pressed={accountId === a.id}
                     className={accountId === a.id ? 'selector-base selector-selected' : 'selector-base'}
                   >
                     <span className="text-[13px] font-semibold text-ink-800 flex items-center gap-1.5">
                       <span>{meta?.flag}</span> {a.name}
                     </span>
-                    <span className="text-[12px] text-ink-500 tabular-nums">{formatSignedMoney(a.balance, a.currency)}</span>
+                    <span className="text-[12px] text-ink-600 tabular-nums">{formatSignedMoney(a.balance, a.currency)}</span>
                   </button>
                 );
               })}
               {eligibleAccounts.length === 0 && (
-                <p className="text-[12px] text-warn-600 bg-warn-50 rounded-xl p-3">{t('alloc_no_account').replace('{currency}', currency)}</p>
+                <p className="m-card m-gold text-[12px] text-warn-700 p-3 leading-relaxed">{t('alloc_no_account').replace('{currency}', currency)}</p>
               )}
             </div>
           </div>
@@ -287,18 +293,18 @@ export function AllocateRepaymentModal({ open, onClose, loans, direction, curren
         {/* Preview / manual entry */}
         <div>
           <label className="form-label">{t('alloc_preview')}</label>
-          <div className="space-y-2">
+          <div className="m-card overflow-hidden divide-y divide-cream-hairline">
             {displayLoans.map((l) => {
               const applied = strategy === 'manual' ? undefined : (allocById.get(l.id) ?? 0);
               const willClear = applied != null && applied >= l.remainingAmount - 0.001;
               return (
-                <div key={l.id} className="rounded-2xl bg-cream-card border border-cream-border p-3">
+                <div key={l.id} className="px-3.5 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-[12.5px] font-semibold text-ink-900 truncate">
                         {l.notes?.trim() || `${isGiven ? t('loan_receivable') : t('loan_payable')}`}
                       </p>
-                      <p className="text-[10.5px] text-ink-500 tabular-nums">{formatMoney(l.remainingAmount, l.currency)} {t('loan_remaining').toLowerCase()}</p>
+                      <p className="text-[10.5px] text-ink-600 tabular-nums mt-0.5">{formatMoney(l.remainingAmount, l.currency)} {t('loan_remaining').toLowerCase()}</p>
                     </div>
                     {strategy === 'manual' ? (
                       <input
@@ -307,15 +313,18 @@ export function AllocateRepaymentModal({ open, onClose, loans, direction, curren
                         value={manual[l.id] ?? ''}
                         onChange={(e) => setManual((m) => ({ ...m, [l.id]: e.target.value }))}
                         placeholder="0"
-                        className="w-24 input-field text-right text-[13px] font-bold tabular-nums py-2"
+                        className="w-24 input-field text-right font-semibold tabular-nums py-2"
                       />
                     ) : (
                       <div className="text-right shrink-0">
-                        <p className={`text-[13px] font-bold tabular-nums ${applied ? 'text-receive-text' : 'text-ink-400'}`}>
+                        <p className={`text-[13px] font-semibold tabular-nums ${applied ? 'text-receive-text' : 'text-ink-400'}`}>
                           {applied ? formatMoney(applied, l.currency) : '—'}
                         </p>
                         {willClear && applied ? (
-                          <p className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-receive-text">{t('alloc_cleared')}</p>
+                          <span className="m-chip m-chip-receive m-chip-caps mt-1">
+                            <Glyph name="check" size={10} strokeWidth={3} />
+                            {t('alloc_cleared')}
+                          </span>
                         ) : null}
                       </div>
                     )}
@@ -332,7 +341,7 @@ export function AllocateRepaymentModal({ open, onClose, loans, direction, curren
         </div>
 
         {!isLedgerOnlyMode && (
-          <p className="text-[12px] text-ink-500 bg-cream-soft/80 border border-cream-hairline rounded-2xl p-3 leading-relaxed">
+          <p className="m-inset text-[12px] text-ink-600 p-3 leading-relaxed">
             {t('money_not_moved_notice')}
           </p>
         )}

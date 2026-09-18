@@ -1,69 +1,50 @@
-import { Icon3D } from './Icon3D';
-import {
-  clayCardLayoutClasses,
-  clayTintClass,
-  type ClayCardPadding,
-  type ClayTint,
-} from '../lib/clay';
+import { Glyph } from './Glyph';
+import { resolveGlyph } from '../lib/glyphs';
+import { tintClass, tintTone, type Tint } from '../lib/material';
+
+type Padding = 'none' | 'sm' | 'md' | 'lg';
+
+const PADDING: Record<Padding, string> = {
+  none: 'p-0',
+  sm: 'p-3.5',
+  md: 'p-5',
+  lg: 'p-6',
+};
 
 interface Props {
-  /** Defaults to `neutral`: an informational surface with no domain meaning
-   *  must not borrow one. Tint it only when the card IS about that domain. */
-  tint?: ClayTint;
-  /** Structural element. Keep it semantic — `section` for a titled block,
-   *  `article` for a self-contained item, `div` for pure grouping. */
+  /** `neutral` = the standard card face; any other tint gives the handoff's
+   *  tinted stat-card face with matching walls (e.g. mint = "To receive"). */
+  tint?: Tint;
   as?: 'div' | 'section' | 'article' | 'li';
-  /**
-   * 'md' (20px) by default. 'none' is for a list container that supplies its
-   * own row padding — the card then contributes the surface and the radius
-   * only, and rows can run edge to edge.
-   */
-  padding?: ClayCardPadding;
-  /**
-   * Optional 3D asset floating off the top inline-end corner, exactly as on
-   * Tile3D. Sanctioned on tier 2: the tiers are separated by the press, the
-   * focus ring, the shadow spread and the radius — not by the art.
-   *
-   * Reserves a 64px inline-end gutter, except under `padding="none"` where
-   * the caller owns the spacing.
-   */
+  padding?: Padding;
+  /** Optional corner glyph (glyph or retired clay name), in the tint's tone. */
   icon?: string;
-  /**
-   * Inline styles. Deliberately narrow in intent: this exists for per-item
-   * `animationDelay` on a staggered list, which cannot be a class because the
-   * value is an index. Do not reach for it to set colours or spacing — those
-   * are tokens.
-   */
+  /** Feature-card radius (22px) instead of the standard 18px. */
+  feature?: boolean;
   style?: React.CSSProperties;
   children: React.ReactNode;
   className?: string;
 }
 
-/**
- * Tier 2 of the clay system: the INFORMATIONAL surface.
- *
- * Same surface recipe as Tile3D — hairline inside the radius, soft ambient
- * shadow, no drawn edge — but with a wider, flatter shadow (0 12px 32px -16px
- * against the tile's 0 8px 24px -12px), no press, no focus ring, and a 24px
- * radius against the tile's 16px. That radius gap is the point — a user must
- * be able to tell "I can press this" from "this is telling me something"
- * before touching either.
- *
- * If a card needs to be tappable, it is not a card. Use Tile3D.
- */
+// 1d card: lit-top gradient face + ambient shadow; tinted cards add walls.
 export function Card3D({
   tint = 'neutral',
   as: Tag = 'div',
   padding = 'md',
   icon,
+  feature = false,
   style,
   children,
   className = '',
 }: Props) {
+  const resolved = resolveGlyph(icon);
+  const tone = tint === 'neutral' && resolved ? (resolved.tone === 'current' ? 'neutral' : resolved.tone) : tintTone(tint);
   const classes = [
-    'clay-card',
-    ...clayCardLayoutClasses({ padding, hasIcon: Boolean(icon) }),
-    clayTintClass(tint),
+    'm-card',
+    feature ? 'm-card-feature' : '',
+    tintClass(tint),
+    PADDING[padding],
+    resolved ? 'pe-14' : '',
     className,
   ]
     .filter(Boolean)
@@ -71,7 +52,11 @@ export function Card3D({
 
   return (
     <Tag className={classes} style={style}>
-      {icon ? <Icon3D name={icon} size="md" float className="clay-card-icon" /> : null}
+      {resolved ? (
+        <span aria-hidden className="absolute top-4 end-4 inline-flex">
+          <Glyph name={resolved.glyph} tone={tone} size={24} extrude />
+        </span>
+      ) : null}
       {children}
     </Tag>
   );

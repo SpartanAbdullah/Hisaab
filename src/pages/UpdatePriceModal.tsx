@@ -61,14 +61,14 @@ export function UpdatePriceModal({ open, onClose, marketId, symbol, currency, cu
         <button
           onClick={handleSave}
           disabled={!valid || saving}
-          className="w-full bg-ink-900 text-white rounded-2xl py-3.5 text-sm font-semibold disabled:opacity-30 hover:enabled:opacity-90 hover:enabled:shadow-md active:scale-[0.98] transition-all"
+          className="m-btn m-btn-primary w-full py-3.5 text-[14px]"
         >
           {saving ? t('quick_processing') : t('quick_save')}
         </button>
       }
     >
-      <div className="space-y-3">
-        <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
+      <div>
+        <label className="form-label">
           {t('inv_price_label')} ({currency})
         </label>
         <input
@@ -80,10 +80,14 @@ export function UpdatePriceModal({ open, onClose, marketId, symbol, currency, cu
           onChange={(e) => setText(e.target.value)}
           placeholder={currentPrice !== null ? String(currentPrice) : 'e.g. 2.36'}
           autoFocus
-          className="w-full border border-cream-border rounded-2xl px-4 py-3 text-[17px] font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all"
+          className="input-field font-semibold tabular-nums tracking-[-0.02em]"
+          // Inline on purpose: index.css pins every <input> to 16px
+          // (unlayered, the iOS zoom guard), which beats any font-size
+          // utility — the price figure has to win here.
+          style={{ fontSize: 20 }}
         />
         {currentPrice !== null && (
-          <p className="text-[11px] text-ink-500">
+          <p className="text-[11px] text-ink-600 mt-2.5 tabular-nums">
             {t('inv_price_label')}: {formatMoney(currentPrice, currency)}
           </p>
         )}

@@ -1,8 +1,16 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Handshake, Trash2, Share2, Clock3, Copy, Receipt, Sparkles, Check, LogOut, MoreVertical, UserPlus, Pencil, X, Archive, ArchiveRestore, UserMinus, Crown, RefreshCw, Lock, Bell, BellOff, History } from 'lucide-react';
+// Lucide only where the 3c set has no glyph (restore, remove-person, crown,
+// bell-off) — drawn at the glyph weight (2.4) and in glyph tones.
+import { ArchiveRestore, UserMinus, Crown, BellOff, Receipt, UserPlus, Clock3 } from 'lucide-react';
 import { NavyHero, TopBar } from '../components/NavyHero';
 import { Modal } from '../components/Modal';
+import { Glyph } from '../components/Glyph';
+import { UserAvatar } from '../components/UserAvatar';
+import { EmptyState } from '../components/EmptyState';
+import { ListSkeleton } from '../components/ListSkeleton';
+import type { GlyphName } from '../lib/glyphs';
+import { skeletonDelay } from '../lib/material';
 import { useSplitStore } from '../stores/splitStore';
 import { useNotificationStore } from '../stores/notificationStore';
 import { AddGroupExpenseModal } from './AddGroupExpenseModal';
@@ -40,9 +48,29 @@ function formatActivityTime(iso: string): string {
   return `${date} · ${time}`;
 }
 
+// Header control on the blue hero: the 36px raised 1d button (TopBar's back
+// button and the bell use the same recipe), with a 44px+ hit area.
+const HERO_CTL =
+  "m-ctl relative w-9 h-9 flex items-center justify-center shrink-0 before:absolute before:-inset-1 before:content-['']";
+
+// Activity-row icon square: a tinted 1d card per semantic tone (the glyph is
+// drawn in the same tone), a raised neutral control for the quiet events.
+type ActivityTone = 'green' | 'violet' | 'coral' | 'blue' | 'neutral';
+const ACTIVITY_SQUARE: Record<ActivityTone, string> = {
+  green: 'm-card m-mint',
+  violet: 'm-card m-violet',
+  coral: 'm-card m-coral',
+  blue: 'm-card m-blue',
+  neutral: 'm-ctl',
+};
+const ACTIVITY_GLYPH_PX = 17;
+const activityGlyph = (name: GlyphName, tone: ActivityTone) => (
+  <Glyph name={name} size={ACTIVITY_GLYPH_PX} tone={tone} />
+);
+
 interface ActivityDisplay {
   icon: ReactNode;
-  iconBg: string;
+  tone: ActivityTone;
   title: string;
   titleClass?: string;
   subtitle?: string;
@@ -75,8 +103,8 @@ function getActivityDisplay(
       const toId = typeof payload.toMember === 'string' ? payload.toMember : settlement?.toMember;
       const amount = typeof payload.amount === 'number' ? payload.amount : settlement?.amount ?? 0;
       return {
-        icon: <Handshake size={16} />,
-        iconBg: 'bg-receive-50 text-receive-text',
+        icon: activityGlyph('check', 'green'),
+        tone: 'green',
         title: `${memberName(fromId)} → ${memberName(toId)}`,
         subtitle: t('gev_settled_up'),
         note: settlement?.note || undefined,
@@ -89,8 +117,8 @@ function getActivityDisplay(
       const toId = typeof payload.toMember === 'string' ? payload.toMember : undefined;
       const amount = typeof payload.amount === 'number' ? payload.amount : 0;
       return {
-        icon: <Handshake size={16} />,
-        iconBg: 'bg-warn-50 text-warn-600',
+        icon: activityGlyph('undo', 'violet'),
+        tone: 'violet',
         title: `${memberName(fromId)} → ${memberName(toId)}`,
         subtitle: t('gev_settlement_removed'),
         amount: formatMoney(amount, group.currency),
@@ -103,8 +131,8 @@ function getActivityDisplay(
       const paidById = typeof payload.paidBy === 'string' ? payload.paidBy : undefined;
       const actorName = paidById ? memberName(paidById) : '';
       return {
-        icon: <Receipt size={16} />,
-        iconBg: 'bg-accent-100 text-accent-600',
+        icon: activityGlyph('receipt', 'blue'),
+        tone: 'blue',
         title: description,
         subtitle: actorName ? t('gev_expense_added_by').replace('{name}', actorName) : t('gev_expense_added'),
         amount: amount > 0 ? formatMoney(amount, group.currency) : undefined,
@@ -117,8 +145,8 @@ function getActivityDisplay(
       const description = after.description ?? before.description ?? event.summary;
       const amountChanged = typeof before.amount === 'number' && typeof after.amount === 'number' && Math.abs(before.amount - after.amount) > 0.001;
       return {
-        icon: <Pencil size={16} />,
-        iconBg: 'bg-warn-50 text-warn-600',
+        icon: activityGlyph('edit', 'violet'),
+        tone: 'violet',
         title: description,
         subtitle: t('gev_expense_updated'),
         amount: typeof after.amount === 'number' && after.amount > 0 ? formatMoney(after.amount, group.currency) : undefined,
@@ -132,8 +160,8 @@ function getActivityDisplay(
       const description = typeof payload.description === 'string' ? payload.description : event.summary;
       const amount = typeof payload.amount === 'number' ? payload.amount : 0;
       return {
-        icon: <Trash2 size={16} />,
-        iconBg: 'bg-pay-50 text-pay-text',
+        icon: activityGlyph('trash', 'coral'),
+        tone: 'coral',
         title: description,
         titleClass: 'line-through text-ink-500',
         subtitle: t('gev_expense_deleted'),
@@ -143,15 +171,15 @@ function getActivityDisplay(
     }
     case 'member_joined':
       return {
-        icon: <UserPlus size={16} />,
-        iconBg: 'bg-info-50 text-info-600',
+        icon: activityGlyph('user-plus', 'blue'),
+        tone: 'blue',
         title: event.summary,
         subtitle: t('gev_member_joined'),
       };
     case 'member_invited':
       return {
-        icon: <Share2 size={16} />,
-        iconBg: 'bg-info-50 text-info-600',
+        icon: activityGlyph('mail', 'blue'),
+        tone: 'blue',
         title: event.summary,
         subtitle: t('gev_member_invited'),
       };
@@ -161,15 +189,15 @@ function getActivityDisplay(
       // FACT that belongs in the shared feed, but it is nobody's push
       // notification. Payload: { memberId, displayName, groupName, … }
       return {
-        icon: <UserPlus size={16} />,
-        iconBg: 'bg-cream-soft text-ink-600',
+        icon: activityGlyph('user-plus', 'neutral'),
+        tone: 'neutral',
         title: event.summary,
         subtitle: t('gev_guest_added'),
       };
     case 'group_created':
       return {
-        icon: <Sparkles size={16} />,
-        iconBg: 'bg-accent-100 text-accent-600',
+        icon: activityGlyph('sparkles', 'violet'),
+        tone: 'violet',
         title: event.summary,
         subtitle: t('gev_group_created'),
       };
@@ -180,16 +208,16 @@ function getActivityDisplay(
       // archive_group, group-deletion-guard.sql §6b.
       // Payload: { groupId, groupName, currency, actorName, archivedAt }
       return {
-        icon: <Archive size={16} />,
-        iconBg: 'bg-cream-soft text-ink-600',
+        icon: activityGlyph('archive', 'neutral'),
+        tone: 'neutral',
         title: event.summary,
         subtitle: t('gev_group_archived'),
       };
     case 'group_unarchived':
       // unarchive_group, §6c. Payload: { …, unarchivedAt }
       return {
-        icon: <ArchiveRestore size={16} />,
-        iconBg: 'bg-receive-50 text-receive-text',
+        icon: <ArchiveRestore size={ACTIVITY_GLYPH_PX} strokeWidth={2.4} className="text-glyph-green" />,
+        tone: 'green',
         title: event.summary,
         subtitle: t('gev_group_unarchived'),
       };
@@ -204,8 +232,8 @@ function getActivityDisplay(
         const settlementsRetained = Number(payload.settlementsRetained ?? 0);
         const retained = expensesRetained + settlementsRetained;
         return {
-          icon: <UserMinus size={16} />,
-          iconBg: 'bg-warn-50 text-warn-600',
+          icon: <UserMinus size={ACTIVITY_GLYPH_PX} strokeWidth={2.4} className="text-glyph-violet" />,
+          tone: 'violet' as const,
           title: displayName || event.summary,
           subtitle: t('gev_member_account_deleted'),
           note: retained > 0 ? event.summary : undefined,
@@ -217,16 +245,16 @@ function getActivityDisplay(
       return (() => {
         const newOwnerId = typeof payload.newOwnerMemberId === 'string' ? payload.newOwnerMemberId : undefined;
         return {
-          icon: <Crown size={16} />,
-          iconBg: 'bg-accent-100 text-accent-600',
+          icon: <Crown size={ACTIVITY_GLYPH_PX} strokeWidth={2.4} className="text-glyph-violet" />,
+          tone: 'violet' as const,
           title: newOwnerId ? memberName(newOwnerId) : event.summary,
           subtitle: t('gev_ownership_transferred'),
         };
       })();
     default:
       return {
-        icon: <Clock3 size={16} />,
-        iconBg: 'bg-cream-soft text-ink-500',
+        icon: activityGlyph('clock', 'neutral'),
+        tone: 'neutral',
         title: event.summary,
       };
   }
@@ -248,16 +276,34 @@ function memberStatusLabel(t: ReturnType<typeof useT>, member: Pick<GroupMember,
   return t('member_not_on_app');
 }
 
-function memberStatusClass(member: Pick<GroupMember, 'profileId' | 'status' | 'isOwner'>) {
-  // Avatar chips render inside the navy hero, so the palette is white-on-dark
-  // tints rather than the legacy pastel-on-light. Owner uses the violet accent;
-  // connected uses receive green; invited uses warn amber; a guest and everyone
-  // else (declined, left) falls back to a translucent neutral.
-  if (member.isOwner) return 'bg-accent-500/30 text-white ring-2 ring-accent-500/40';
-  if (isGuestMember(member)) return 'bg-white/15 text-white/80';
-  if (member.status === 'connected') return 'bg-receive-600/25 text-white';
-  if (member.status === 'invited') return 'bg-warn-600/30 text-white';
-  return 'bg-white/15 text-white/80';
+// Status halo around a member's avatar. Every person wears the same navy 1d
+// avatar; the 2px ring carries the status, decoded by the legend in the hero:
+// on-app green, invited gold (waiting on them — the same amber as the invite
+// sheet's chip), a guest and everyone else (declined, left) a neutral ring. The owner gets the group's blue accent. Glyph tokens are ≥3:1
+// on the sheet in both themes, and the hero re-scopes them to their dark
+// values, so the same ring reads on the hero and on the balances tab.
+function memberStatusRing(member: Pick<GroupMember, 'profileId' | 'status' | 'isOwner'>, onHero: boolean) {
+  if (member.isOwner) return 'ring-glyph-blue';
+  if (isGuestMember(member)) return onHero ? 'ring-white/30' : 'ring-field-border';
+  if (member.status === 'connected') return 'ring-glyph-green';
+  if (member.status === 'invited') return 'ring-glyph-gold';
+  return onHero ? 'ring-white/30' : 'ring-field-border';
+}
+
+function MemberAvatar({
+  member,
+  size,
+  onHero = false,
+}: {
+  member: Pick<GroupMember, 'name' | 'profileId' | 'status' | 'isOwner'>;
+  size: number;
+  onHero?: boolean;
+}) {
+  return (
+    <span className={`inline-flex shrink-0 rounded-full ring-2 ${memberStatusRing(member, onHero)}`}>
+      <UserAvatar name={member.name} size={size} />
+    </span>
+  );
 }
 
 // Maps renameGroupGuest's status vocabulary to copy. NOT guestRpcFailureMessage
@@ -435,10 +481,41 @@ export function GroupDetailPage() {
   }
 
   if (!group || loadStatus === 'loading') {
+    // Skeletons in the loaded page's geometry: the blue hero with its member
+    // row, then the code card, the spend card, the tab pills and the expense
+    // list — so nothing jumps when the group lands. The back button is live
+    // so a slow load is never a trap.
+    const delay = (i: number) => ({ '--m-skel-delay': skeletonDelay(i) }) as CSSProperties;
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-mesh">
-        <p className="text-ink-500">{t('gdp_loading')}</p>
-      </div>
+      <main className="min-h-dvh bg-cream-bg pb-28" aria-busy="true">
+        <NavyHero accent="blue">
+          <TopBar back />
+          <div className="px-5 pb-7" aria-hidden="true">
+            <div className="m-skel h-[10px] w-44" />
+            <div className="flex items-center gap-1.5 mt-3">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="w-14 flex flex-col items-center gap-1.5">
+                  <div className="m-skel w-8 h-8 rounded-full" style={delay(i)} />
+                  <div className="m-skel h-[7px] w-9" style={delay(i)} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </NavyHero>
+        <div className="sukoon-body px-5 pt-5 space-y-3">
+          <p className="sr-only" role="status">{t('gdp_loading')}</p>
+          <div aria-hidden="true" className="space-y-3">
+            <div className="m-skel h-[68px] rounded-[18px]" />
+            <div className="m-skel h-[88px] rounded-[18px]" style={delay(1)} />
+            <div className="flex gap-2 pt-2">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="m-skel h-8 w-[84px] rounded-full" style={delay(2)} />
+              ))}
+            </div>
+          </div>
+          <ListSkeleton rows={4} />
+        </div>
+      </main>
     );
   }
 
@@ -886,7 +963,7 @@ export function GroupDetailPage() {
 
   return (
     <main className="min-h-dvh bg-cream-bg pb-28">
-      <NavyHero>
+      <NavyHero accent="blue">
         <TopBar
           title={`${group.emoji} ${group.name}`}
           back
@@ -902,37 +979,43 @@ export function GroupDetailPage() {
               {!isArchived && (
                 <button
                   onClick={() => setShowInvite(true)}
-                  className="w-9 h-9 rounded-xl bg-white/10 active:bg-white/15 flex items-center justify-center transition-colors"
+                  className={HERO_CTL}
                   aria-label={t('a11y_invite')}
                 >
-                  <Share2 size={14} className="text-white" />
+                  <Glyph name="share" size={15} className="text-white/90" />
                 </button>
               )}
               <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => setShowMenu((v) => !v)}
-                  className="w-9 h-9 rounded-xl bg-white/10 active:bg-white/15 flex items-center justify-center transition-colors"
+                  className={HERO_CTL}
                   aria-label={t('a11y_more')}
                   aria-haspopup="menu"
                   aria-expanded={showMenu}
                 >
-                  <MoreVertical size={14} className="text-white" />
+                  <Glyph name="more" size={16} strokeWidth={3} className="text-white/90" />
                 </button>
                 {showMenu && (
+                  // The menu lives inside the hero, which is dark in BOTH
+                  // themes (.m-hero re-scopes the material), so it is a dark
+                  // card with white ink everywhere — never theme ink on a
+                  // hero-scoped face.
                   <div
                     role="menu"
-                    className="absolute right-0 top-11 z-30 min-w-[180px] rounded-2xl bg-cream-card border border-cream-border shadow-lg overflow-hidden animate-fade-in"
+                    className="m-card absolute right-0 top-11 z-30 min-w-[196px] border border-white/10 overflow-hidden animate-fade-in"
                   >
                     <button
                       role="menuitem"
                       onClick={() => { setShowMenu(false); void handleToggleMute(); }}
                       disabled={mutingGroup}
-                      className="w-full px-4 py-3 text-left text-[13px] font-medium text-ink-800 active:bg-cream-soft flex items-start gap-2.5 disabled:opacity-50 transition-colors"
+                      className="w-full px-4 py-3 text-left text-[13px] font-medium text-white active:bg-white/5 flex items-start gap-2.5 disabled:opacity-50 transition-colors"
                     >
-                      {groupMuted ? <Bell size={14} className="text-ink-600 mt-0.5 shrink-0" /> : <BellOff size={14} className="text-ink-600 mt-0.5 shrink-0" />}
+                      {groupMuted
+                        ? <Glyph name="bell" size={14} className="text-white/70 mt-0.5" />
+                        : <BellOff size={14} strokeWidth={2.4} className="text-white/70 mt-0.5 shrink-0" />}
                       <span className="flex flex-col">
                         <span>{t(groupMuted ? 'grp_unmute' : 'grp_mute')}</span>
-                        <span className="text-[10.5px] font-normal text-ink-500 mt-0.5">
+                        <span className="text-[10.5px] font-normal text-white/70 mt-0.5">
                           {t('grp_mute_sub')}
                         </span>
                       </span>
@@ -942,9 +1025,9 @@ export function GroupDetailPage() {
                         role="menuitem"
                         onClick={() => { setShowMenu(false); handleLeave(); }}
                         disabled={leaving}
-                        className="w-full px-4 py-3 text-left text-[13px] font-medium text-ink-800 active:bg-cream-soft flex items-center gap-2.5 border-t border-cream-hairline disabled:opacity-50 transition-colors"
+                        className="w-full px-4 py-3 text-left text-[13px] font-medium text-white active:bg-white/5 flex items-center gap-2.5 border-t border-white/10 disabled:opacity-50 transition-colors"
                       >
-                        <LogOut size={14} className={`text-ink-600 ${leaving ? 'animate-pulse' : ''}`} />
+                        <Glyph name="logout" size={14} className={`text-white/70 ${leaving ? 'animate-pulse' : ''}`} />
                         {leaving ? t('grp_leaving') : t('grp_leave_cta')}
                       </button>
                     )}
@@ -952,9 +1035,9 @@ export function GroupDetailPage() {
                       <button
                         role="menuitem"
                         onClick={() => { setShowMenu(false); setShowTransfer(true); }}
-                        className="w-full px-4 py-3 text-left text-[13px] font-medium text-ink-800 active:bg-cream-soft flex items-center gap-2.5 border-t border-cream-hairline transition-colors"
+                        className="w-full px-4 py-3 text-left text-[13px] font-medium text-white active:bg-white/5 flex items-center gap-2.5 border-t border-white/10 transition-colors"
                       >
-                        <Crown size={14} className="text-ink-600" />
+                        <Crown size={14} strokeWidth={2.4} className="text-white/70 shrink-0" />
                         {t('grp_transfer_action')}
                       </button>
                     )}
@@ -963,11 +1046,11 @@ export function GroupDetailPage() {
                         role="menuitem"
                         onClick={() => { setShowMenu(false); void (isArchived ? handleUnarchive() : handleArchive()); }}
                         disabled={archiving}
-                        className="w-full px-4 py-3 text-left text-[13px] font-medium text-ink-800 active:bg-cream-soft flex items-center gap-2.5 border-t border-cream-hairline disabled:opacity-50 transition-colors"
+                        className="w-full px-4 py-3 text-left text-[13px] font-medium text-white active:bg-white/5 flex items-center gap-2.5 border-t border-white/10 disabled:opacity-50 transition-colors"
                       >
                         {isArchived
-                          ? <ArchiveRestore size={14} className="text-ink-600" />
-                          : <Archive size={14} className="text-ink-600" />}
+                          ? <ArchiveRestore size={14} strokeWidth={2.4} className="text-white/70 shrink-0" />
+                          : <Glyph name="archive" size={14} className="text-white/70" />}
                         {isArchived ? t('grp_unarchive_action') : t('grp_archive_action')}
                       </button>
                     )}
@@ -975,9 +1058,9 @@ export function GroupDetailPage() {
                       <button
                         role="menuitem"
                         onClick={() => { setShowMenu(false); handleDelete(); }}
-                        className="w-full px-4 py-3 text-left text-[13px] font-medium text-pay-text active:bg-pay-50 flex items-center gap-2.5 border-t border-cream-hairline transition-colors"
+                        className="w-full px-4 py-3 text-left text-[13px] font-medium text-pay-text active:bg-white/5 flex items-center gap-2.5 border-t border-white/10 transition-colors"
                       >
-                        <Trash2 size={14} className="text-pay-text" />
+                        <Glyph name="trash" size={14} tone="coral" />
                         {t('gdp_delete_group_cta')}
                       </button>
                     )}
@@ -988,7 +1071,7 @@ export function GroupDetailPage() {
           }
         />
         <div className="px-5 pb-7">
-          <p className="text-[10.5px] font-semibold text-white/50 tracking-[0.12em] uppercase">
+          <p className="text-[10.5px] font-semibold text-white/70 tracking-[0.12em] uppercase">
             {group.members.length} {t('group_members_count')} ·{' '}
             {/* "Connected" means "on Hisaab", and a guest is not — even though
                 their seat carries status='connected' so the ledger accepts them
@@ -998,15 +1081,12 @@ export function GroupDetailPage() {
             {group.currency}
           </p>
 
-          <div className="flex items-center gap-1.5 mt-3 overflow-x-auto no-scrollbar">
+          {/* py-1 keeps the status rings clear of the scroller's clip edge. */}
+          <div className="flex items-center gap-1.5 mt-2 py-1 overflow-x-auto no-scrollbar">
             {group.members.map((member) => (
-              <div key={member.id} className="flex flex-col items-center gap-0.5 shrink-0 w-14">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold ${memberStatusClass(member)}`}
-                >
-                  {member.name.charAt(0).toUpperCase()}
-                </div>
-                <span className="text-[9px] text-white/60 truncate w-full text-center">
+              <div key={member.id} className="flex flex-col items-center gap-1 shrink-0 w-14">
+                <MemberAvatar member={member} size={32} onHero />
+                <span className="text-[10px] text-white/70 truncate w-full text-center">
                   {memberStatusLabel(t, member)}
                 </span>
               </div>
@@ -1016,59 +1096,61 @@ export function GroupDetailPage() {
           {/* One-line status legend — appears the first time a group has any
               non-connected member, so the colour coding on the avatars is
               decodable. Dismissible and remembered per-device. */}
-          {/* Guests count as "needs decoding" too: their chip is the neutral
-              tint, which the legend is the only thing explaining. */}
+          {/* Guests count as "needs decoding" too: their ring is the neutral
+              one, which the legend is the only thing explaining. */}
           {!legendDismissed && group.members.some((m) => !m.isOwner && (m.status !== 'connected' || isGuestMember(m))) && (
             <div className="mt-2.5 flex items-center gap-3 rounded-xl bg-white/10 px-3 py-2 animate-fade-in">
-              <span className="flex items-center gap-1.5 text-[9.5px] text-white/75">
-                <span className="w-2 h-2 rounded-full bg-receive-600/70" />
+              <span className="flex items-center gap-1.5 text-[10px] text-white/75">
+                <span className="w-2 h-2 rounded-full bg-glyph-green" />
                 {t('member_on_app')}
               </span>
-              <span className="flex items-center gap-1.5 text-[9.5px] text-white/75">
-                <span className="w-2 h-2 rounded-full bg-warn-600/70" />
+              <span className="flex items-center gap-1.5 text-[10px] text-white/75">
+                <span className="w-2 h-2 rounded-full bg-glyph-gold" />
                 {t('member_invited')}
               </span>
-              <span className="flex items-center gap-1.5 text-[9.5px] text-white/75">
+              <span className="flex items-center gap-1.5 text-[10px] text-white/75">
                 <span className="w-2 h-2 rounded-full bg-white/30" />
                 {t('member_not_on_app')}
               </span>
               <button
                 onClick={dismissLegend}
-                className="ml-auto relative -m-2 p-2 text-white/60 active:text-white transition-colors"
+                className="ml-auto relative -m-2 p-2 text-white/70 active:text-white transition-colors"
                 aria-label={t('a11y_dismiss_legend')}
               >
-                <X size={13} />
+                <Glyph name="close" size={13} />
               </button>
             </div>
           )}
         </div>
       </NavyHero>
 
-      <div className="sukoon-body pt-4">
+      {/* Sections each carry pt-3 (the 12px card rhythm); pt-2 here makes the
+          first one land on the sheet's 20px top gutter. */}
+      <div className="sukoon-body pt-2">
 
       {/* Archived banner. The server refuses every write in an archived group
           (GROUP_ARCHIVED), so this explains a page whose action bar has gone
           rather than letting the user discover it by tapping. */}
       {isArchived && (
-        <div className="px-5 pt-4">
-          <div className="rounded-[18px] bg-cream-soft border border-cream-border p-4 flex items-start gap-3 animate-fade-in">
-            <div className="w-10 h-10 rounded-2xl bg-cream-card border border-cream-hairline text-ink-500 flex items-center justify-center shrink-0">
-              <Lock size={16} />
+        <div className="px-5 pt-3">
+          <div className="m-card p-4 flex items-start gap-3 animate-fade-in">
+            <div className="m-ctl w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0">
+              <Glyph name="lock" size={16} tone="neutral" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-bold text-ink-900 tracking-tight">
+              <p className="text-[13.5px] font-semibold text-ink-900 tracking-[-0.01em]">
                 {t('grp_archived_banner_title')}
               </p>
-              <p className="text-[11px] text-ink-500 mt-1 leading-relaxed">
+              <p className="text-[11.5px] text-ink-600 mt-1 leading-[1.55]">
                 {t('grp_archived_banner_body')}
               </p>
               {isOwner && (
                 <button
                   onClick={() => void handleUnarchive()}
                   disabled={archiving}
-                  className="mt-3 rounded-xl bg-ink-900 text-white px-3.5 py-2 text-[11.5px] font-bold flex items-center gap-1.5 disabled:opacity-40 press"
+                  className="m-btn m-btn-primary mt-3 mb-1 min-h-[36px] px-3.5 py-2 gap-1.5 rounded-xl text-[11.5px]"
                 >
-                  <ArchiveRestore size={12} strokeWidth={2.4} /> {t('grp_unarchive_action')}
+                  <ArchiveRestore size={13} strokeWidth={2.4} /> {t('grp_unarchive_action')}
                 </button>
               )}
             </div>
@@ -1093,24 +1175,25 @@ export function GroupDetailPage() {
 
         if (isSolo) {
           return (
-            <div className="px-5 pt-4">
-              <div className="rounded-[18px] bg-cream-card border border-cream-border p-4 animate-fade-in">
+            <div className="px-5 pt-3">
+              <div className="m-card p-4 animate-fade-in">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 text-accent-600 flex items-center justify-center shrink-0">
-                    <Sparkles size={16} />
+                  <div className="m-card m-blue w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0">
+                    <Glyph name="user-plus" size={17} tone="blue" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-bold text-ink-900 tracking-tight">
+                    <p className="text-[13.5px] font-semibold text-ink-900 tracking-[-0.01em]">
                       {t('group_solo_invite_title')}
                     </p>
-                    <p className="text-[11px] text-ink-500 mt-1 leading-relaxed">
+                    <p className="text-[11.5px] text-ink-600 mt-1 leading-[1.55]">
                       {t('group_solo_invite_body')}
                     </p>
                   </div>
                 </div>
-                <div className="mt-3.5 flex items-center gap-2.5 bg-cream-soft rounded-2xl px-3.5 py-2.5 border border-cream-border">
+                {/* The code sits in a recessed well — it is the thing to copy. */}
+                <div className="m-inset mt-3.5 flex items-center gap-2.5 px-3.5 py-2.5">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[15px] font-bold font-mono tracking-tight text-ink-900 truncate">
+                    <p className="text-[15px] font-semibold font-mono tracking-tight text-ink-900 truncate">
                       {group.joinCode}
                     </p>
                     {joinCodeExpiryLabel && (
@@ -1121,9 +1204,9 @@ export function GroupDetailPage() {
                   </div>
                   <button
                     onClick={copyCode}
-                    className="shrink-0 rounded-xl bg-ink-900 text-white text-white px-3 py-1.5 text-[11px] font-bold flex items-center gap-1.5 active:scale-95 transition-all shadow-sm shadow-indigo-500/20"
+                    className="m-btn m-btn-primary shrink-0 min-h-[36px] px-3 py-1.5 gap-1.5 rounded-xl text-[11.5px]"
                   >
-                    <Copy size={11} strokeWidth={2.5} /> {t('gdp_copy')}
+                    <Glyph name="copy" size={13} /> {t('gdp_copy')}
                   </button>
                 </div>
                 {isOwner && (
@@ -1132,7 +1215,7 @@ export function GroupDetailPage() {
                     disabled={refreshingCode}
                     className="mt-2.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-accent-600 active:opacity-60 disabled:opacity-40 min-h-[36px]"
                   >
-                    <RefreshCw size={12} className={refreshingCode ? 'animate-spin' : ''} />
+                    <Glyph name="refresh" size={12} className={refreshingCode ? 'animate-spin' : ''} />
                     {t('grp_code_refresh')}
                   </button>
                 )}
@@ -1142,14 +1225,14 @@ export function GroupDetailPage() {
         }
 
         return (
-          <div className="px-5 pt-4">
-            <div className="rounded-[18px] bg-cream-card border border-cream-border p-3.5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-accent-100 flex items-center justify-center shrink-0">
-                <Share2 size={16} className="text-accent-600" />
+          <div className="px-5 pt-3">
+            <div className="m-card p-3.5 flex items-center gap-3">
+              <div className="m-card m-blue w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0">
+                <Glyph name="share" size={17} tone="blue" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('gdp_group_code')}</p>
-                <p className="text-[15px] font-bold text-ink-900 font-mono tracking-tight">{group.joinCode}</p>
+                <p className="m-label">{t('gdp_group_code')}</p>
+                <p className="text-[15px] font-semibold text-ink-900 font-mono tracking-tight mt-0.5">{group.joinCode}</p>
                 {joinCodeExpiryLabel && (
                   <p className={`text-[10px] mt-0.5 font-semibold ${joinCodeExpired ? 'text-pay-text' : 'text-ink-500'}`}>
                     {joinCodeExpiryLabel}
@@ -1160,18 +1243,18 @@ export function GroupDetailPage() {
                 <button
                   onClick={() => void handleRefreshJoinCode()}
                   disabled={refreshingCode}
-                  className="shrink-0 rounded-xl bg-cream-card border border-cream-border text-ink-700 px-3 py-2 text-[11px] font-semibold flex items-center gap-1.5 active:scale-95 transition-all disabled:opacity-40"
+                  className="m-ctl relative w-9 h-9 flex items-center justify-center shrink-0 disabled:opacity-40 before:absolute before:-inset-1 before:content-['']"
                   aria-label={t('grp_code_refresh')}
                   title={t('grp_code_refresh')}
                 >
-                  <RefreshCw size={12} className={refreshingCode ? 'animate-spin' : ''} />
+                  <Glyph name="refresh" size={14} className={`text-ink-700 ${refreshingCode ? 'animate-spin' : ''}`} />
                 </button>
               )}
               <button
                 onClick={copyCode}
-                className="shrink-0 rounded-xl bg-cream-card border border-cream-border text-ink-700 px-3 py-2 text-[11px] font-semibold flex items-center gap-1.5 active:scale-95 transition-all"
+                className="m-btn m-btn-plain shrink-0 min-h-[36px] px-3 py-2 gap-1.5 rounded-xl text-[11.5px]"
               >
-                <Copy size={12} /> {t('gdp_copy')}
+                <Glyph name="copy" size={13} /> {t('gdp_copy')}
               </button>
             </div>
           </div>
@@ -1182,38 +1265,41 @@ export function GroupDetailPage() {
           Always present once there's any activity so users have an at-a-glance
           sense of how far from "fully settled" the group is. */}
       {tab !== 'activity' && totalSpend > 0 && (
-        <div className="px-5 pt-4">
-          <div className="rounded-[18px] bg-cream-card border border-cream-border p-4 flex items-center gap-4">
+        <div className="px-5 pt-3">
+          <div className="m-card p-4 flex items-center gap-4">
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('gdp_group_spend')}</p>
-              <p className="text-[22px] font-extrabold text-ink-900 tabular-nums tracking-tight mt-0.5 leading-tight">
+              <p className="m-label">{t('gdp_group_spend')}</p>
+              <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em] mt-1 leading-tight">
                 {formatMoney(totalSpend, group.currency)}
               </p>
-              <p className="text-[11px] text-ink-500 mt-0.5">
+              <p className="text-[11px] text-ink-600 mt-1">
                 {totalOutstanding === 0 ? (
                   <span className="text-receive-text font-semibold inline-flex items-center gap-1">
                     <VerifiedBadge size={13} title={t('group_settled')} /> {t('group_settled')}
                   </span>
                 ) : (
                   <>
-                    <span className="text-pay-text font-semibold">{formatMoney(totalOutstanding, group.currency)}</span>
+                    <span className="text-pay-text font-semibold tabular-nums">{formatMoney(totalOutstanding, group.currency)}</span>
                     <span>{t('gdp_outstanding_suffix')}</span>
                   </>
                 )}
                 <span className="mx-1.5">·</span>{expenses.length === 1 ? t('gdp_expense_one') : t('gdp_expense_many').replace('{n}', String(expenses.length))}
               </p>
             </div>
+            {/* Settled-% ring around a recessed centre well (the handoff's
+                donut recipe). Strokes are glyph tokens: ≥3:1 in both themes. */}
             <ProgressRing
               size={56}
               strokeWidth={5}
               progress={settledRatio}
-              color={totalOutstanding === 0 ? '#10b981' : '#6366f1'}
-              trackColor="#f1f5f9"
+              color={totalOutstanding === 0 ? 'var(--color-glyph-green)' : 'var(--color-glyph-blue)'}
             >
-              <span className={`text-[11px] font-extrabold tabular-nums ${
-                totalOutstanding === 0 ? 'text-receive-text' : 'text-accent-600'
-              }`}>
-                {settledPct}%
+              <span className="m-inset rounded-full w-[42px] h-[42px] flex items-center justify-center">
+                <span className={`text-[11px] font-semibold tabular-nums ${
+                  totalOutstanding === 0 ? 'text-receive-text' : 'text-cobalt-text'
+                }`}>
+                  {settledPct}%
+                </span>
               </span>
             </ProgressRing>
           </div>
@@ -1222,15 +1308,15 @@ export function GroupDetailPage() {
 
       {shownDebts.length > 0 && tab !== 'activity' && (
         <div className="px-5 pt-3">
-          <div className="rounded-[18px] bg-cream-card border border-cream-border p-4 space-y-2.5">
-            <div className="flex items-center justify-between pb-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-ink-400">
+          <div className="m-card p-4 space-y-2.5">
+            <div className="flex items-center justify-between gap-3 pb-0.5">
+              <span className="m-label">
                 {effectiveSimplify ? t('gdp_plan_simplified') : t('gdp_plan_direct')}
               </span>
               {canSimplify && (
                 <button
                   onClick={() => setSimplify((v) => !v)}
-                  className="text-[10.5px] font-semibold text-accent-600 active:opacity-60"
+                  className="text-[11px] font-semibold text-accent-600 active:opacity-60 min-h-[32px] -my-1.5 text-right"
                 >
                   {effectiveSimplify
                     ? t('gdp_show_direct')
@@ -1241,7 +1327,7 @@ export function GroupDetailPage() {
               )}
             </div>
             {effectiveSimplify && plans && plans.rerouted.length > 0 && (
-              <div className="rounded-xl bg-warn-50 border border-warn-100 px-3 py-2 text-[10.5px] font-medium text-warn-700 leading-relaxed">
+              <div className="rounded-xl bg-warn-50 px-3 py-2 text-[10.5px] font-medium text-warn-700 leading-relaxed">
                 {plans.rerouted.length === 1
                   ? t('gdp_reroute_warning_one')
                   : t('gdp_reroute_warning_many').replace('{n}', String(plans.rerouted.length))}
@@ -1261,17 +1347,17 @@ export function GroupDetailPage() {
                 const fromIsMe = debt.from === currentMember?.id;
                 const toIsMe = debt.to === currentMember?.id;
                 return (
-                  <div key={`${debt.from}-${debt.to}-${originalIndex}`} className="flex items-center justify-between">
-                    <p className="text-[12px] text-ink-600">
-                      <span className={`font-bold ${fromIsMe ? 'text-accent-600' : 'text-pay-text'}`}>
+                  <div key={`${debt.from}-${debt.to}-${originalIndex}`} className="flex items-center justify-between gap-3">
+                    <p className="text-[12px] text-ink-600 min-w-0">
+                      <span className={`font-semibold ${fromIsMe ? 'text-accent-600' : 'text-pay-text'}`}>
                         {fromIsMe ? t('label_you') : debt.fromName}
                       </span>
                       {' '}{t('group_owes')}{' '}
-                      <span className={`font-bold ${toIsMe ? 'text-accent-600' : 'text-receive-text'}`}>
+                      <span className={`font-semibold ${toIsMe ? 'text-accent-600' : 'text-receive-text'}`}>
                         {toIsMe ? t('label_you') : debt.toName}
                       </span>
                     </p>
-                    <p className="text-[13px] font-bold text-ink-900 tabular-nums">{formatMoney(debt.amount, group.currency)}</p>
+                    <p className="text-[13.5px] font-semibold text-ink-900 tabular-nums tracking-[-0.01em] shrink-0">{formatMoney(debt.amount, group.currency)}</p>
                   </div>
                 );
               })}
@@ -1279,12 +1365,14 @@ export function GroupDetailPage() {
         </div>
       )}
 
+      {/* Tab pills — the active one is light-faced (m-pill + aria-pressed). */}
       <div className="flex gap-2 px-5 pt-5">
         {(['expenses', 'balances', 'activity'] as const).map(nextTab => (
           <button
             key={nextTab}
             onClick={() => setTab(nextTab)}
-            className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-all ${tab === nextTab ? 'bg-ink-900 text-white' : 'bg-cream-card text-ink-500 border border-cream-border'}`}
+            aria-pressed={tab === nextTab}
+            className="m-pill"
           >
             {nextTab === 'expenses' ? t('group_expenses') : nextTab === 'balances' ? t('group_balances') : t('group_activity')}
           </button>
@@ -1292,149 +1380,149 @@ export function GroupDetailPage() {
       </div>
 
       {tab === 'expenses' ? (
-        <div className="px-5 pt-4 space-y-2">
+        <div className="px-5 pt-4 pb-8">
           {expenses.length === 0 ? (
             // An archived group with no expenses has nothing to activate —
             // every "add" path is refused server-side, so a CTA would be a
             // dead end. The archived banner above already explains the state.
             isArchived ? (
-              <div className="rounded-[18px] bg-cream-card border border-cream-border p-6 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-cream-soft border border-cream-hairline text-ink-500 mx-auto flex items-center justify-center">
-                  <Receipt size={22} />
+              <div className="flex flex-col items-center text-center py-10 px-6">
+                <div className="m-plate mb-[18px]" aria-hidden="true">
+                  <Glyph name="receipt" size={26} tone="neutral" extrude />
                 </div>
-                <p className="text-[13px] font-semibold text-ink-800 mt-3">{t('grp_archived_banner_title')}</p>
+                <p className="text-[15px] font-semibold text-ink-900 tracking-tight">{t('grp_archived_banner_title')}</p>
               </div>
             ) :
-            // Activation card — strong CTA instead of a passive "no expenses"
-            // line. When the owner is still alone, a split isn't possible yet
-            // (expenses can only involve connected members), so point them at
-            // inviting first instead of an "Add expense" button that opens a
-            // modal they can't meaningfully complete.
+            // Activation empty state — strong CTA instead of a passive "no
+            // expenses" line. When the owner is still alone, a split isn't
+            // possible yet (expenses can only involve connected members), so
+            // point them at inviting first instead of an "Add expense" button
+            // that opens a modal they can't meaningfully complete.
             group.members.filter(m => m.status === 'connected').length <= 1 ? (
-              <div className="rounded-[18px] bg-cream-card border border-cream-border p-6 text-center animate-fade-in">
-                <div className="mx-auto w-14 h-14 rounded-3xl bg-gradient-to-br from-indigo-50 to-purple-50 text-accent-600 flex items-center justify-center">
-                  <UserPlus size={24} strokeWidth={1.8} />
-                </div>
-                <p className="text-[15px] font-bold text-ink-900 tracking-tight mt-4">
-                  {t('group_first_invite_title')}
-                </p>
-                <p className="text-[12px] text-ink-500 mt-1.5 leading-relaxed max-w-[260px] mx-auto">
-                  {t('group_first_invite_body')}
-                </p>
-                <button
-                  onClick={async () => {
+              <EmptyState
+                icon={UserPlus}
+                clayIcon="user-plus"
+                tone="blue"
+                size="compact"
+                title={t('group_first_invite_title')}
+                description={t('group_first_invite_body')}
+                actionLabel={t('group_first_invite_cta')}
+                onAction={() => {
+                  void (async () => {
                     if (!group.joinCode) return;
                     await navigator.clipboard.writeText(group.joinCode);
                     toast.show({ type: 'success', title: t('group_code_copied'), subtitle: t('group_code_copied_sub') });
-                  }}
-                  className="mt-5 w-full rounded-2xl py-3 text-[13px] font-bold bg-ink-900 text-white shadow-md shadow-indigo-500/20 flex items-center justify-center gap-2"
-                >
-                  <Copy size={14} strokeWidth={2.5} /> {t('group_first_invite_cta')}
-                </button>
-              </div>
+                  })();
+                }}
+              />
             ) : (
-            <div className="rounded-[18px] bg-cream-card border border-cream-border p-6 text-center animate-fade-in">
-              <div className="mx-auto w-14 h-14 rounded-3xl bg-gradient-to-br from-indigo-50 to-purple-50 text-accent-600 flex items-center justify-center">
-                <Receipt size={24} strokeWidth={1.8} />
-              </div>
-              <p className="text-[15px] font-bold text-ink-900 tracking-tight mt-4">
-                {t('group_first_expense_title')}
-              </p>
-              <p className="text-[12px] text-ink-500 mt-1.5 leading-relaxed max-w-[260px] mx-auto">
-                {t('group_first_expense_body')}
-              </p>
-              <button
-                onClick={() => setShowAddExpense(true)}
-                className="mt-5 w-full rounded-2xl py-3 text-[13px] font-bold bg-ink-900 text-white shadow-md shadow-indigo-500/20 flex items-center justify-center gap-2"
-              >
-                <Plus size={14} strokeWidth={2.5} /> {t('group_first_expense_cta')}
-              </button>
-            </div>
+              <EmptyState
+                icon={Receipt}
+                clayIcon="receipt"
+                tone="blue"
+                size="compact"
+                title={t('group_first_expense_title')}
+                description={t('group_first_expense_body')}
+                actionLabel={t('group_first_expense_cta')}
+                onAction={() => setShowAddExpense(true)}
+              />
             )
           ) : (
-            expenses.map((expense, index) => {
-              const meta = getExpenseMeta(expense);
-              const canReconcile = isPaidByCurrentUser(expense);
-              const isReconciled = expense.isReconciled ?? false;
-              return (
-                <div
-                  key={expense.id}
-                  onClick={() => setEditExpense(expense)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      setEditExpense(expense);
-                    }
-                  }}
-                  className="w-full text-left rounded-[18px] bg-cream-card border border-cream-border p-4 animate-fade-in active:scale-[0.98] transition-all cursor-pointer"
-                  style={{ animationDelay: `${index * 30}ms` }}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    {/* Reconcile button. Using `aria-disabled` instead of the
-                        native `disabled` attribute so that even when this
-                        button can't act (non-payer / saving), the onClick
-                        still fires and stopPropagation prevents the outer
-                        card click from opening the edit modal. */}
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (!canReconcile || savingReconciliationId === expense.id) return;
-                        void handleGroupExpenseReconcile(expense);
-                      }}
-                      aria-pressed={isReconciled}
-                      aria-disabled={!canReconcile || savingReconciliationId === expense.id}
-                      aria-label={
-                        canReconcile
-                          ? isReconciled ? t('gdp_reconcile_aria_unmark') : t('gdp_reconcile_aria_mark')
-                          : isReconciled ? t('gdp_reconcile_aria_done_by_payer') : t('gdp_reconcile_aria_payer_only')
+            // One card, rows split by hairlines: a blue receipt square (the
+            // splits accent), what + who/how/your share, the amount, and the
+            // history control.
+            <div className="m-card overflow-hidden divide-y divide-cream-hairline">
+              {expenses.map((expense, index) => {
+                const meta = getExpenseMeta(expense);
+                const canReconcile = isPaidByCurrentUser(expense);
+                const isReconciled = expense.isReconciled ?? false;
+                return (
+                  <div
+                    key={expense.id}
+                    onClick={() => setEditExpense(expense)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setEditExpense(expense);
                       }
-                      title={
-                        canReconcile
-                          ? isReconciled ? t('gdp_reconcile_title_reconciled') : t('gdp_reconcile_title_mark')
-                          : isReconciled ? t('gdp_reconcile_title_done_by_payer') : t('gdp_reconcile_title_payer_only')
-                      }
-                      className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 transition-all active:scale-95 ${
-                        isReconciled
-                          ? 'bg-receive-600 border-receive-600 text-white'
-                          : canReconcile
-                            ? 'bg-cream-card border-cream-border text-transparent hover:border-receive-600'
-                            : 'bg-cream-soft border-cream-hairline text-transparent opacity-50 cursor-default'
-                      }`}
-                    >
-                      <Check size={14} strokeWidth={3} />
-                    </button>
+                    }}
+                    className="flex items-start gap-3 px-3.5 py-3.5 text-left cursor-pointer active:bg-cream-soft transition-colors animate-fade-in"
+                    style={{ animationDelay: `${index * 30}ms` }}
+                  >
+                    <div className="relative shrink-0">
+                      <div className="m-card m-blue w-10 h-10 rounded-[14px] flex items-center justify-center" aria-hidden="true">
+                        <Glyph name="receipt" size={17} tone="blue" />
+                      </div>
+                      {/* Reconcile toggle, worn as a check badge on the
+                          receipt's corner: hollow ring = not yet, green check =
+                          reconciled. A ::before pads its hit area to 38px.
+                          Using `aria-disabled` instead of the native `disabled`
+                          attribute so that even when this button can't act
+                          (non-payer / saving), the onClick still fires and
+                          stopPropagation prevents the row click from opening
+                          the edit modal. */}
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (!canReconcile || savingReconciliationId === expense.id) return;
+                          void handleGroupExpenseReconcile(expense);
+                        }}
+                        aria-pressed={isReconciled}
+                        aria-disabled={!canReconcile || savingReconciliationId === expense.id}
+                        aria-label={
+                          canReconcile
+                            ? isReconciled ? t('gdp_reconcile_aria_unmark') : t('gdp_reconcile_aria_mark')
+                            : isReconciled ? t('gdp_reconcile_aria_done_by_payer') : t('gdp_reconcile_aria_payer_only')
+                        }
+                        title={
+                          canReconcile
+                            ? isReconciled ? t('gdp_reconcile_title_reconciled') : t('gdp_reconcile_title_mark')
+                            : isReconciled ? t('gdp_reconcile_title_done_by_payer') : t('gdp_reconcile_title_payer_only')
+                        }
+                        className={`absolute -bottom-1.5 -right-1.5 w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center transition-transform active:scale-90 before:absolute before:-inset-2 before:content-[''] ${
+                          isReconciled
+                            ? 'm-stat-dot m-stat-dot-receive border-cream-card'
+                            : canReconcile
+                              ? 'bg-cream-card border-field-border hover:border-receive-600'
+                              : 'bg-cream-soft border-cream-border opacity-50 cursor-default'
+                        }`}
+                      >
+                        {isReconciled && <Glyph name="check" size={11} strokeWidth={3.2} />}
+                      </button>
+                    </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <p className="text-[13px] font-semibold text-ink-900 truncate">{expense.description}</p>
+                        <p className="text-[13.5px] font-semibold text-ink-900 truncate tracking-[-0.01em]">{expense.description}</p>
                         {(expense.version ?? 1) > 1 ? (
                           <span
-                            className="h-2.5 w-2.5 rounded-full bg-warn-600 ring-2 ring-warn-50 shrink-0"
+                            role="img"
+                            className="h-2 w-2 rounded-full bg-accent-500 shrink-0"
                             aria-label={t('a11y_edited_expense')}
                             title={t('a11y_edited')}
                           />
                         ) : null}
                       </div>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        <span className="rounded-full bg-info-50 px-2 py-1 text-[10px] font-semibold leading-none text-info-600 ring-1 ring-info-50">
-                          {t('group_paid_by_short')} <span className="font-extrabold">{meta.paidBy}</span>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                        <span className="m-chip m-chip-blue max-w-full">
+                          {t('group_paid_by_short')} <span className="font-bold truncate min-w-0">{meta.paidBy}</span>
                         </span>
-                        <span className="rounded-full bg-warn-50 px-2 py-1 text-[10px] font-semibold leading-none text-warn-600 ring-1 ring-warn-50">
-                          {t('group_split_short')} <span className="font-extrabold">{meta.split}</span>
+                        <span className="m-chip m-chip-gold max-w-full">
+                          {t('group_split_short')} <span className="font-bold truncate min-w-0">{meta.split}</span>
                         </span>
-                        <span className="rounded-full bg-receive-50 px-2 py-1 text-[10px] font-semibold leading-none text-receive-text ring-1 ring-receive-100">
-                          {t('group_your_share_short')} <span className="font-extrabold tabular-nums">{meta.share}</span>
+                        <span className="m-chip m-chip-receive max-w-full">
+                          {t('group_your_share_short')} <span className="font-bold tabular-nums">{meta.share}</span>
                         </span>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-[14px] font-bold text-ink-900 tabular-nums">{formatMoney(expense.amount, group.currency)}</p>
-                      <p className="text-[9px] text-ink-500">{new Date(expense.date).toLocaleDateString()}</p>
+                    <div className="text-right shrink-0 pt-0.5">
+                      <p className="text-[14px] font-semibold text-ink-900 tabular-nums tracking-[-0.01em]">{formatMoney(expense.amount, group.currency)}</p>
+                      <p className="text-[10px] text-ink-500 tabular-nums mt-0.5">{new Date(expense.date).toLocaleDateString()}</p>
                     </div>
                     {/* Who-changed-what (audit G5/O10). A small secondary
-                        control, not the row's tap target — the card itself
+                        control, not the row's tap target — the row itself
                         still opens the edit modal. */}
                     <button
                       type="button"
@@ -1444,53 +1532,57 @@ export function GroupDetailPage() {
                       }}
                       aria-label={t('eh_row_title')}
                       title={t('eh_row_title')}
-                      className="w-7 h-7 rounded-full border border-cream-border bg-cream-soft flex items-center justify-center shrink-0 active:bg-cream-card transition-colors"
+                      className="m-ctl relative w-7 h-7 rounded-[9px] flex items-center justify-center shrink-0 mt-0.5 before:absolute before:-inset-1.5 before:content-['']"
                     >
-                      <History size={12} className="text-ink-500" />
+                      <Glyph name="clock" size={13} className="text-ink-500" />
                     </button>
                   </div>
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
           )}
         </div>
       ) : tab === 'balances' ? (
-        <div className="px-5 pt-4 pb-44 space-y-2">
+        <div className="px-5 pt-4 pb-44 space-y-2.5">
           {shownDebts.length > 0 && (
             <button
               onClick={() => setShowSettleShare(true)}
-              className="w-full rounded-2xl bg-accent-100 text-accent-600 py-3 text-[13px] font-bold flex items-center justify-center gap-2 press"
+              className="m-btn m-btn-plain w-full text-[13px]"
             >
-              <Share2 size={14} strokeWidth={2.2} /> {t('gsu_cta')}
+              <Glyph name="share" size={15} tone="blue" /> {t('gsu_cta')}
             </button>
           )}
           {balanceRows.length === 0 ? (
-            <div className="rounded-[18px] bg-cream-card border border-cream-border p-6 text-center animate-fade-in">
-              <div className="w-12 h-12 rounded-2xl bg-cream-soft border border-cream-hairline text-ink-500 mx-auto flex items-center justify-center">
-                <Receipt size={22} />
-              </div>
-              <p className="text-sm font-semibold text-ink-800 mt-3">{t('gdp_no_balances')}</p>
-              <p className="text-[12px] text-ink-500 mt-1">{t('gdp_no_balances_desc')}</p>
-            </div>
+            <EmptyState
+              icon={Receipt}
+              clayIcon="receipt"
+              tone="blue"
+              size="compact"
+              title={t('gdp_no_balances')}
+              description={t('gdp_no_balances_desc')}
+            />
           ) : balanceRows.map(({ member, paid, share, net }, index) => {
             const ringProgress = Math.abs(net) / maxAbs;
             const isPositive = net > 0.01;
             const isNegative = net < -0.01;
-            const ringColor = isPositive ? '#10b981' : isNegative ? '#f43f5e' : '#cbd5e1';
+            // Glyph tokens: ≥3:1 strokes on the card in both themes.
+            const ringColor = isPositive
+              ? 'var(--color-glyph-green)'
+              : isNegative
+                ? 'var(--color-glyph-coral)'
+                : 'var(--color-ink-300)';
             return (
               <div
                 key={member.id}
-                className="rounded-[18px] bg-cream-card border border-cream-border p-4 animate-fade-in"
+                className="m-card p-4 animate-fade-in"
                 style={{ animationDelay: `${index * 30}ms` }}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 ${memberStatusClass(member)}`}>
-                      {member.name.charAt(0).toUpperCase()}
-                    </div>
+                    <MemberAvatar member={member} size={40} />
                     <div className="min-w-0">
-                      <p className="text-[13px] font-semibold text-ink-800 truncate">{member.name}</p>
-                      <p className="text-[10px] text-ink-500 mt-0.5">
+                      <p className="text-[13.5px] font-semibold text-ink-900 truncate tracking-[-0.01em]">{member.name}</p>
+                      <p className="text-[10.5px] text-ink-500 mt-0.5">
                         {memberStatusLabel(t, member)}
                         {member.id === currentMember?.id ? <span className="font-semibold text-accent-600">{t('gdp_you_suffix')}</span> : null}
                       </p>
@@ -1500,18 +1592,18 @@ export function GroupDetailPage() {
                     <div className="text-right">
                       {isPositive ? (
                         <>
-                          <p className="text-[10px] text-receive-text font-bold uppercase tracking-wide">{t('gdp_gets_back')}</p>
-                          <p className="text-[13px] font-extrabold text-receive-text tabular-nums">+{formatMoney(net, group.currency)}</p>
+                          <p className="text-[10px] text-receive-text font-semibold uppercase tracking-[0.08em]">{t('gdp_gets_back')}</p>
+                          <p className="text-[13.5px] font-semibold text-receive-text tabular-nums mt-0.5">+{formatMoney(net, group.currency)}</p>
                         </>
                       ) : isNegative ? (
                         <>
-                          <p className="text-[10px] text-pay-text font-bold uppercase tracking-wide">{t('gdp_has_to_pay')}</p>
-                          <p className="text-[13px] font-extrabold text-pay-text tabular-nums">-{formatMoney(Math.abs(net), group.currency)}</p>
+                          <p className="text-[10px] text-pay-text font-semibold uppercase tracking-[0.08em]">{t('gdp_has_to_pay')}</p>
+                          <p className="text-[13.5px] font-semibold text-pay-text tabular-nums mt-0.5">-{formatMoney(Math.abs(net), group.currency)}</p>
                         </>
                       ) : (
                         <>
-                          <p className="text-[10px] text-ink-500 font-bold uppercase tracking-wide">{t('gdp_balance')}</p>
-                          <p className="text-[11px] text-ink-500">{t('group_settled')}</p>
+                          <p className="text-[10px] text-ink-500 font-semibold uppercase tracking-[0.08em]">{t('gdp_balance')}</p>
+                          <p className="text-[11px] text-ink-500 mt-0.5">{t('group_settled')}</p>
                         </>
                       )}
                     </div>
@@ -1520,18 +1612,18 @@ export function GroupDetailPage() {
                       strokeWidth={3}
                       progress={ringProgress}
                       color={ringColor}
-                      trackColor="#f1f5f9"
                     />
                   </div>
                 </div>
+                {/* Paid / share — two recessed stat wells. */}
                 <div className="grid grid-cols-2 gap-2 mt-3">
-                  <div className="rounded-xl bg-cream-soft border border-cream-hairline px-3 py-2">
-                    <p className="text-[9px] font-bold text-ink-500 uppercase tracking-widest">{t('gdp_paid_total')}</p>
-                    <p className="text-[12px] font-bold text-ink-800 tabular-nums mt-0.5">{formatMoney(paid, group.currency)}</p>
+                  <div className="m-inset rounded-[12px] px-3 py-2">
+                    <p className="text-[10px] font-semibold text-ink-500 uppercase tracking-[0.1em]">{t('gdp_paid_total')}</p>
+                    <p className="text-[12.5px] font-semibold text-ink-800 tabular-nums mt-0.5">{formatMoney(paid, group.currency)}</p>
                   </div>
-                  <div className="rounded-xl bg-cream-soft border border-cream-hairline px-3 py-2">
-                    <p className="text-[9px] font-bold text-ink-500 uppercase tracking-widest">{t('gdp_share_total')}</p>
-                    <p className="text-[12px] font-bold text-ink-800 tabular-nums mt-0.5">{formatMoney(share, group.currency)}</p>
+                  <div className="m-inset rounded-[12px] px-3 py-2">
+                    <p className="text-[10px] font-semibold text-ink-500 uppercase tracking-[0.1em]">{t('gdp_share_total')}</p>
+                    <p className="text-[12.5px] font-semibold text-ink-800 tabular-nums mt-0.5">{formatMoney(share, group.currency)}</p>
                   </div>
                 </div>
                 {/* Guest seat actions (audit G6 / O4). A guest has no account,
@@ -1567,7 +1659,7 @@ export function GroupDetailPage() {
                           onClick={() => openRenameGuest(member)}
                           className="text-[11px] font-semibold text-ink-500 active:opacity-60 flex items-center gap-1"
                         >
-                          <Pencil size={11} /> {t('guest_rename_cta')}
+                          <Glyph name="edit" size={11} /> {t('guest_rename_cta')}
                         </button>
                       )}
                     </div>
@@ -1610,41 +1702,48 @@ export function GroupDetailPage() {
           })}
         </div>
       ) : (
-        <div className="px-5 pt-4 space-y-2">
+        <div className="px-5 pt-4 pb-8">
           {events.length === 0 ? (
-            <div className="rounded-[18px] bg-cream-card border border-cream-border p-6 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-cream-soft border border-cream-hairline text-ink-500 mx-auto flex items-center justify-center">
-                <Clock3 size={22} />
-              </div>
-              <p className="text-sm font-semibold text-ink-800 mt-3">{t('gdp_no_activity')}</p>
-              <p className="text-[12px] text-ink-500 mt-1">{t('gdp_no_activity_desc')}</p>
-            </div>
+            <EmptyState
+              icon={Clock3}
+              clayIcon="clock"
+              tone="blue"
+              size="compact"
+              title={t('gdp_no_activity')}
+              description={t('gdp_no_activity_desc')}
+            />
           ) : (
-            events.map((event, index) => {
+            // The feed as one card with hairline rows; each event wears a
+            // tinted icon square in its semantic tone.
+            <div className="m-card overflow-hidden divide-y divide-cream-hairline">
+              {events.map((event, index) => {
               const display = getActivityDisplay(event, settlements, group, t);
               return (
                 <div
                   key={event.id}
-                  className="rounded-[18px] bg-cream-card border border-cream-border p-4 animate-fade-in"
+                  className="px-3.5 py-3.5 animate-fade-in"
                   style={{ animationDelay: `${index * 30}ms` }}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${display.iconBg}`}>
+                    <div
+                      className={`${ACTIVITY_SQUARE[display.tone]} w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0`}
+                      aria-hidden="true"
+                    >
                       {display.icon}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
-                        <p className={`text-[13px] font-bold text-ink-900 leading-snug ${display.titleClass ?? ''}`}>
+                        <p className={`text-[13.5px] font-semibold text-ink-900 leading-snug tracking-[-0.01em] ${display.titleClass ?? ''}`}>
                           {display.title}
                         </p>
                         {display.amount && (
-                          <p className={`text-[14px] font-extrabold tabular-nums shrink-0 ${display.amountClass ?? 'text-ink-900'}`}>
+                          <p className={`text-[14px] font-semibold tabular-nums tracking-[-0.01em] shrink-0 ${display.amountClass ?? 'text-ink-900'}`}>
                             {display.amount}
                           </p>
                         )}
                       </div>
                       {display.subtitle && (
-                        <p className="text-[11px] font-medium text-ink-600 mt-0.5">{display.subtitle}</p>
+                        <p className="text-[11.5px] text-ink-600 mt-0.5">{display.subtitle}</p>
                       )}
                       {display.amountChange && (
                         <p className="text-[11px] text-ink-500 tabular-nums mt-1">{display.amountChange}</p>
@@ -1652,7 +1751,7 @@ export function GroupDetailPage() {
                       {display.note && (
                         <p className="text-[11px] text-ink-500 mt-1.5 italic break-words">“{display.note}”</p>
                       )}
-                      <div className="flex items-center justify-between mt-2">
+                      <div className="flex items-center justify-between gap-3 mt-2">
                         <p className="text-[10px] font-semibold text-ink-400 tabular-nums tracking-wide">
                           {formatActivityTime(event.createdAt)}
                         </p>
@@ -1672,9 +1771,9 @@ export function GroupDetailPage() {
                                   id: event.entityId,
                                 })
                               }
-                              className="text-[10px] font-semibold text-accent-600 active:opacity-70 flex items-center gap-1"
+                              className="text-[10.5px] font-semibold text-accent-600 active:opacity-70 flex items-center gap-1 min-h-[28px]"
                             >
-                              <History size={10} /> {t('eh_view_changes')}
+                              <Glyph name="clock" size={11} /> {t('eh_view_changes')}
                             </button>
                           )}
                           {/* A wrong settle-up (wrong row, double-record from two
@@ -1689,9 +1788,9 @@ export function GroupDetailPage() {
                                 <button
                                   type="button"
                                   onClick={() => void handleRemoveSettlement(settlement)}
-                                  className="text-[10px] font-semibold text-pay-text active:opacity-70 flex items-center gap-1"
+                                  className="text-[10.5px] font-semibold text-pay-text active:opacity-70 flex items-center gap-1 min-h-[28px]"
                                 >
-                                  <Trash2 size={10} /> {t('stl_remove_cta')}
+                                  <Glyph name="trash" size={11} /> {t('stl_remove_cta')}
                                 </button>
                               );
                             })()}
@@ -1701,32 +1800,32 @@ export function GroupDetailPage() {
                   </div>
                 </div>
               );
-            })
+              })}
+            </div>
           )}
         </div>
       )}
 
-      {/* Floating action bar — sits just above the BottomNav FAB. Sized
-          to match the navy hero TopBar action chips: 36px tall, 12px text,
-          rounded-xl. Two-button layout: Add Expense (primary ink-900,
-          flex-1) and Settle Up (receive-600, content-width). */}
+      {/* Floating action bar — sits just above the BottomNav FAB. Two
+          extruded buttons: Add Expense (brand-violet primary, flex-1) and Settle Up
+          (the green settle solid, content-width). */}
       {/* Hidden while archived: tg_block_writes_in_archived_group refuses both
           an expense insert and a settlement insert, so offering the buttons
           would only produce a raw GROUP_ARCHIVED error. */}
       {!isArchived && (
       <div className="fixed bottom-[92px] left-0 right-0 px-5 z-30 pointer-events-none">
-        <div className="flex gap-2 max-w-[480px] mx-auto pointer-events-auto">
+        <div className="flex gap-2.5 max-w-[440px] mx-auto pointer-events-auto">
           <button
             onClick={() => setShowAddExpense(true)}
-            className="flex-1 h-10 bg-ink-900 text-white rounded-xl text-[12.5px] font-semibold flex items-center justify-center gap-1.5 shadow-lg shadow-navy-900/20 press"
+            className="m-btn m-btn-primary flex-1 min-h-[42px] py-2.5 gap-1.5 rounded-[14px] text-[12.5px]"
           >
-            <Plus size={13} strokeWidth={2.4} /> {t('group_expense_add')}
+            <Glyph name="plus" size={14} strokeWidth={3} /> {t('group_expense_add')}
           </button>
           <button
             onClick={() => setShowSettle(true)}
-            className="h-10 px-3.5 rounded-xl text-[12.5px] font-semibold bg-receive-600 text-white flex items-center justify-center gap-1.5 shadow-lg shadow-navy-900/20 press"
+            className="m-btn m-btn-green min-h-[42px] py-2.5 px-4 gap-1.5 rounded-[14px] text-[12.5px]"
           >
-            <Handshake size={13} strokeWidth={2.4} /> {t('group_settle')}
+            <Glyph name="check" size={14} strokeWidth={3} /> {t('group_settle')}
           </button>
         </div>
       </div>
@@ -1763,7 +1862,7 @@ export function GroupDetailPage() {
           <button
             onClick={handleRenameGuest}
             disabled={renaming || !renameValue.trim()}
-            className="w-full bg-ink-900 text-white rounded-2xl py-3.5 text-sm font-bold disabled:opacity-30"
+            className="cta-primary"
           >
             {t('save')}
           </button>
@@ -1771,7 +1870,7 @@ export function GroupDetailPage() {
       >
         <div className="p-5">
           <input
-            className="w-full border border-cream-border rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all"
+            className="input-field"
             value={renameValue}
             maxLength={40}
             autoFocus
@@ -1792,26 +1891,24 @@ export function GroupDetailPage() {
         title={t('grp_transfer_title')}
       >
         <div className="p-5 space-y-3">
-          <p className="text-[12px] text-ink-500 leading-relaxed">{t('grp_transfer_body')}</p>
+          <p className="text-[12px] text-ink-600 leading-relaxed">{t('grp_transfer_body')}</p>
           {transferCandidates.length === 0 ? (
-            <p className="text-[12px] text-ink-400 text-center py-6">{t('grp_transfer_none')}</p>
+            <p className="text-[12px] text-ink-500 text-center py-6">{t('grp_transfer_none')}</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {transferCandidates.map((member) => (
                 <button
                   key={member.id}
                   onClick={() => void handleTransferOwnership(member.id)}
                   disabled={transferringMemberId !== null}
-                  className="w-full rounded-2xl bg-cream-card border border-cream-border p-3 flex items-center gap-3 text-left disabled:opacity-40 press"
+                  className="selector-base gap-3 p-3 disabled:opacity-40"
                 >
-                  <div className="w-10 h-10 rounded-full bg-cream-soft text-ink-700 flex items-center justify-center text-[12px] font-bold shrink-0">
-                    {member.name.charAt(0).toUpperCase()}
-                  </div>
+                  <UserAvatar name={member.name} size={40} />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-semibold text-ink-800 truncate">{member.name}</p>
-                    <p className="text-[10px] text-ink-500 mt-0.5">{t('member_on_app')}</p>
+                    <p className="text-[13.5px] font-semibold text-ink-900 truncate tracking-[-0.01em]">{member.name}</p>
+                    <p className="text-[10.5px] text-ink-500 mt-0.5">{t('member_on_app')}</p>
                   </div>
-                  <Crown size={14} className="text-ink-400 shrink-0" />
+                  <Crown size={15} strokeWidth={2.4} className="text-glyph-violet shrink-0" />
                 </button>
               ))}
             </div>

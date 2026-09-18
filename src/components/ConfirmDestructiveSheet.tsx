@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
-import { AlertTriangle } from 'lucide-react';
 import { Button } from './Button';
+import { Glyph } from './Glyph';
 import { useT } from '../lib/i18n';
 import { useBackStackLayer } from '../hooks/useBackStackLayer';
 
@@ -119,23 +119,26 @@ export function ConfirmDestructiveSheet() {
   if (!open || !options) return null;
 
   const tone = options.tone ?? 'destructive';
-  const accent = tone === 'destructive' ? 'text-pay-text' : 'text-warn-600';
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center" role="presentation" onClick={() => answer(false)}>
-      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity" />
+      <div
+        className="absolute inset-0 transition-opacity"
+        style={{ background: 'var(--m-scrim)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+      />
       <div
         className={`sheet-transient ${show ? 'is-open' : ''}`}
         role="presentation"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 pt-7 pb-5 text-center">
-          <div className="w-12 h-12 rounded-full bg-pay-50 flex items-center justify-center mx-auto mb-4">
-            <AlertTriangle size={22} className={accent} strokeWidth={2} />
+          {/* The 1d empty-state plate, tinted by what the action costs. */}
+          <div className={`m-plate ${tone === 'destructive' ? 'm-coral' : 'm-gold'} mx-auto mb-4`} aria-hidden>
+            <Glyph name="alert" tone={tone === 'destructive' ? 'coral' : 'gold'} size={24} extrude />
           </div>
-          <p className="font-bold text-[16px] text-ink-900 tracking-tight">{options.title}</p>
+          <p className="font-semibold text-[16px] text-ink-900 tracking-tight">{options.title}</p>
           {options.description && (
-            <p className="text-[13px] text-ink-500 mt-2 leading-relaxed">{options.description}</p>
+            <p className="text-[13px] text-ink-600 mt-2 leading-relaxed">{options.description}</p>
           )}
         </div>
 

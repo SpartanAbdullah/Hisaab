@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { Glyph } from './Glyph';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useBackStackLayer } from '../hooks/useBackStackLayer';
@@ -269,17 +269,17 @@ export function Modal({ open, onClose, title, children, footer, confirmClose, ar
       >
         {/* Drag handle — Sukoon grabber: 38 × 4.5 ink-200 */}
         <div className="flex justify-center pt-3 pb-1 shrink-0">
-          <div className="w-[38px] h-[4.5px] rounded-full bg-ink-200" />
+          <div className="w-[38px] h-[4.5px] rounded-full bg-ink-300" />
         </div>
         {/* Header */}
         <div className="modal-header">
-          <h2 id={titleId} className="font-semibold text-[15px] tracking-tight text-ink-900 truncate flex-1 min-w-0 pr-3">{title}</h2>
+          <h2 id={titleId} className="font-semibold text-[16px] tracking-[-0.01em] text-ink-900 truncate flex-1 min-w-0 pr-3">{title}</h2>
           <button
             onClick={requestClose}
-            className="nav-icon-button border border-cream-hairline shrink-0 hover:bg-pay-50 hover:border-pay-100 transition-colors group"
+            className="nav-icon-button shrink-0 group"
             aria-label={t('a11y_close')}
           >
-            <X size={15} className="text-ink-500 group-hover:text-pay-text transition-colors" />
+            <Glyph name="close" size={15} className="text-ink-600 group-hover:text-pay-text transition-colors" />
           </button>
         </div>
         {/* Scrollable content */}

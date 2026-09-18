@@ -20,23 +20,24 @@ describe('ConfirmationActions', () => {
     expect(html).toContain('Cancel');
     expect(html).toContain('Remove contact');
     expect(html.indexOf('Cancel')).toBeLessThan(html.indexOf('Remove contact'));
-    expect(html).toContain('bg-pay-600');
-    expect(html).toContain('text-white');
+    // 1d: a solid coral face (m-btn-coral), not a tinted secondary — the
+    // destructive choice stays the loud one.
+    expect(html).toContain('m-btn-coral');
   });
 
   it('keeps leave-group warning confirmation visible with an explicit label', () => {
     const html = renderActions({ confirmLabel: 'Leave group', tone: 'warning' });
 
     expect(html).toContain('Leave group');
-    expect(html).toContain('bg-warn-600');
-    expect(html).toContain('text-white');
+    // Amber-tinted key: visible, but quieter than a destructive confirm.
+    expect(html).toContain('m-gold');
   });
 
   it('keeps delete-account destructive confirmation visible', () => {
     const html = renderActions({ confirmLabel: 'Delete account' });
 
     expect(html).toContain('Delete account');
-    expect(html).toContain('bg-pay-600');
+    expect(html).toContain('m-btn-coral');
   });
 
   it('keeps the confirm action readable while loading and disabled', () => {
@@ -44,6 +45,7 @@ describe('ConfirmationActions', () => {
 
     expect(html).toContain('Remove contact...');
     expect(html).toContain('disabled=""');
-    expect(html).toContain('disabled:opacity-60');
+    // .m-btn:disabled dims the face in index.css; the label stays legible.
+    expect(html).toContain('m-btn');
   });
 });

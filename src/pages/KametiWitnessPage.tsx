@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Shield, Check, Gift, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { committeesDb } from '../lib/supabaseDb';
 import { CommitteeVerifyDraw } from '../components/CommitteeVerifyDraw';
+import { NavyHero } from '../components/NavyHero';
+import { Glyph } from '../components/Glyph';
+import { UserAvatar } from '../components/UserAvatar';
+import { MoneyDisplay } from '../components/MoneyDisplay';
+import { ListSkeleton } from '../components/ListSkeleton';
 import { formatMoney } from '../lib/constants';
 import { useT } from '../lib/i18n';
 import { track } from '../lib/telemetry';
@@ -16,6 +20,9 @@ import type { Committee, CommitteeMember, CommitteePayment } from '../db';
 // who-paid-this-round, the baari recipient, and the provably-fair draw to
 // verify. No edit controls. Token is parsed from the path so it works whether
 // or not it's mounted inside the router.
+//
+// 1d shell: the gold hero band (NavyHero only — no TopBar, which would bring
+// the signed-in Inbox bell to a visitor who has no account) over the sheet.
 export function KametiWitnessPage() {
   const t = useT();
   const [data, setData] = useState<{ committee: Committee; members: CommitteeMember[]; payments: CommitteePayment[] } | null>(null);
@@ -42,13 +49,33 @@ export function KametiWitnessPage() {
   }, []);
 
   if (status === 'loading') {
-    return <main className="min-h-dvh bg-navy-900 flex items-center justify-center"><p className="text-white/60 text-sm">…</p></main>;
+    // Skeleton in the loaded page's geometry: hero title block, the trust
+    // banner, the pool card, then the member list.
+    return (
+      <main className="min-h-dvh bg-cream-bg pb-12" aria-busy="true">
+        <NavyHero accent="gold">
+          <div className="px-5 pt-2 pb-8" aria-hidden="true">
+            <div className="m-skel h-[11px] w-32" />
+            <div className="m-skel mt-3 h-7 w-56 rounded-lg" />
+            <div className="m-skel mt-3 h-[11px] w-44" />
+          </div>
+        </NavyHero>
+        <div className="sukoon-body px-5 pt-5 space-y-4" aria-hidden="true">
+          <div className="m-skel h-16 rounded-[18px]" />
+          <div className="m-skel h-24 rounded-[18px]" style={{ '--m-skel-delay': '0.15s' } as React.CSSProperties} />
+          <ListSkeleton rows={4} />
+        </div>
+      </main>
+    );
   }
   if (status === 'invalid' || !data) {
     return (
-      <main className="min-h-dvh bg-navy-900 flex flex-col items-center justify-center px-6 text-center">
-        <p className="text-white text-[15px] font-semibold">{t('kameti_witness_invalid')}</p>
-        <a href="/" className="mt-4 text-accent-500 text-[13px] font-semibold">{t('kameti_get_app')}</a>
+      <main className="min-h-dvh m-hero m-hero-gold flex flex-col items-center justify-center px-6 text-center">
+        <div className="m-plate m-gold mb-[18px]" aria-hidden="true">
+          <Glyph name="link" tone="gold" size={26} extrude />
+        </div>
+        <p className="text-white text-[15px] font-semibold max-w-[300px] leading-snug">{t('kameti_witness_invalid')}</p>
+        <a href="/" className="m-btn m-btn-primary mt-6 text-[13px]">{t('kameti_get_app')}</a>
       </main>
     );
   }
@@ -61,25 +88,26 @@ export function KametiWitnessPage() {
 
   return (
     <main className="min-h-dvh bg-cream-bg pb-12">
-      {/* Navy header */}
-      <div className="bg-navy-bloom px-5 pt-[max(20px,env(safe-area-inset-top))] pb-7">
-        <div className="flex items-center gap-1.5 text-white/70">
-          <Eye size={13} strokeWidth={2.2} />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.12em]">{t('kameti_witness_title')}</span>
+      <NavyHero accent="gold">
+        <div className="px-5 pt-2 pb-8">
+          <div className="flex items-center gap-1.5 text-white/70">
+            <Glyph name="eye" size={14} />
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.12em]">{t('kameti_witness_title')}</span>
+          </div>
+          <h1 className="text-[22px] font-semibold text-white mt-2 tracking-[-0.02em] leading-tight">{committee.name}</h1>
+          <p className="text-[12px] text-white/70 mt-1.5 tabular-nums">
+            {formatMoney(committee.contributionAmount, committee.currency)} · {members.length} {t('kameti_members').toLowerCase()} · {t('kameti_round_of').replace('{r}', String(round)).replace('{n}', String(committee.totalRounds))}
+          </p>
         </div>
-        <h1 className="text-[22px] font-bold text-white mt-2 tracking-tight">{committee.name}</h1>
-        <p className="text-[12px] text-white/60 mt-1 tabular-nums">
-          {formatMoney(committee.contributionAmount, committee.currency)} · {members.length} {t('kameti_members').toLowerCase()} · {t('kameti_round_of').replace('{r}', String(round)).replace('{n}', String(committee.totalRounds))}
-        </p>
-      </div>
+      </NavyHero>
 
-      <div className="px-5 pt-5 space-y-4">
+      <div className="sukoon-body px-5 pt-5 space-y-4">
         {/* Witness banner. The expiry and the initials-only notice ride along
             (audit UX-24): a link that dies in 90 days should say so, and
             initials must read as a deliberate privacy setting rather than as
             missing data. */}
-        <div className="flex items-start gap-2.5 rounded-2xl bg-receive-50 border border-receive-100 p-3">
-          <Shield size={16} className="text-receive-text shrink-0 mt-0.5" strokeWidth={2.2} />
+        <div className="m-card m-mint flex items-start gap-2.5 p-3.5">
+          <Glyph name="shield" size={16} tone="green" className="mt-0.5" />
           <div className="min-w-0">
             <p className="text-[11.5px] text-receive-text leading-relaxed">{t('kameti_witness_banner')}</p>
             {committee.witnessExpiresAt && (
@@ -91,18 +119,21 @@ export function KametiWitnessPage() {
         </div>
 
         {committee.witnessInitialsOnly && (
-          <p className="text-[11px] text-ink-500 leading-relaxed rounded-2xl bg-cream-card border border-cream-border p-3">
-            {t('kameti_witness_initials_note')}
-          </p>
+          <div className="m-card flex items-start gap-2.5 p-3.5">
+            <Glyph name="eye-off" size={15} tone="neutral" className="mt-0.5" />
+            <p className="text-[11px] text-ink-600 leading-relaxed">{t('kameti_witness_initials_note')}</p>
+          </div>
         )}
 
         {/* Pool */}
-        <div className="rounded-2xl bg-cream-card border border-cream-border p-4 flex items-baseline justify-between">
-          <div>
-            <p className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">{t('kameti_pool')}</p>
-            <p className="text-[24px] font-bold text-ink-900 tabular-nums tracking-tight">{formatMoney(pool, committee.currency)}</p>
+        <div className="m-card m-gold m-card-feature p-5 flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="m-label">{t('kameti_pool')}</p>
+            <div className="mt-2">
+              <MoneyDisplay amount={pool} currency={committee.currency} size={28} extrude="gold" />
+            </div>
           </div>
-          <span className="inline-flex items-center rounded-full bg-accent-50 text-accent-600 px-2 py-1 text-[10px] font-semibold">{t('kameti_sood_free')}</span>
+          <span className="m-chip m-chip-receive shrink-0">{t('kameti_sood_free')}</span>
         </div>
 
         {/* Provably-fair draw */}
@@ -110,37 +141,45 @@ export function KametiWitnessPage() {
 
         {/* This round's recipient */}
         {recipient && (
-          <div className="rounded-2xl bg-gradient-to-br from-accent-100 to-accent-50 border border-accent-100 p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-white/70 flex items-center justify-center shrink-0">
-              <Gift size={16} className="text-accent-600" strokeWidth={1.9} />
+          <div className="m-card m-gold p-4 flex items-center gap-3">
+            <div className="w-10 h-10 flex items-center justify-center shrink-0" aria-hidden="true">
+              <Glyph name="trophy" tone="gold" size={26} extrude />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-semibold text-accent-600 uppercase tracking-wide">{t('kameti_baari_label')}</p>
-              <p className="text-[15px] font-bold text-ink-900 truncate">{recipient.name}</p>
+              <p className="text-[10px] font-semibold text-warn-700 uppercase tracking-[0.1em]">{t('kameti_baari_label')}</p>
+              <p className="text-[15px] font-semibold text-ink-900 truncate mt-0.5">{recipient.name}</p>
             </div>
-            {recipient.payoutReceivedAt && <span className="text-[10px] font-semibold text-receive-text bg-receive-50 rounded-full px-2 py-0.5 shrink-0">{t('kameti_received')}</span>}
+            {recipient.payoutReceivedAt && (
+              <span className="m-chip m-chip-receive shrink-0">
+                <Glyph name="check" size={11} strokeWidth={3} /> {t('kameti_received')}
+              </span>
+            )}
           </div>
         )}
 
         {/* This round — read-only paid list */}
         <div>
           <div className="flex items-center justify-between mb-2.5">
-            <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">{t('kameti_this_round')}</h2>
+            <h2 className="m-label">{t('kameti_this_round')}</h2>
             <span className="text-[11px] font-semibold text-ink-700 tabular-nums">{t('kameti_collected').replace('{paid}', String(collected)).replace('{total}', String(members.length))}</span>
           </div>
-          <div className="rounded-2xl bg-cream-card border border-cream-border divide-y divide-cream-hairline overflow-hidden">
+          <div className="m-card overflow-hidden divide-y divide-cream-hairline">
             {members.map((m) => {
               const paid = hasPaid(payments, m.id, round);
               return (
                 <div key={m.id} className="flex items-center gap-2.5 px-3.5 py-3">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${paid ? 'bg-receive-600 text-white' : 'bg-cream-soft text-transparent border border-cream-border'}`}>
-                    <Check size={13} strokeWidth={3} />
+                  <span
+                    className={`w-[26px] h-[26px] rounded-full flex items-center justify-center shrink-0 ${paid ? 'm-stat-dot m-stat-dot-receive' : 'm-inset border border-field-border'}`}
+                    aria-hidden="true"
+                  >
+                    {paid && <Glyph name="check" size={13} strokeWidth={3} />}
                   </span>
-                  <p className="flex-1 text-[13px] font-medium text-ink-900 truncate">
-                    {m.name}
-                    {m.slot != null && <span className="ml-1.5 text-[9px] text-ink-400 font-semibold">#{m.slot}</span>}
+                  <UserAvatar name={m.name} size={34} />
+                  <p className="flex-1 min-w-0 text-[13.5px] font-medium text-ink-900 flex items-center gap-1.5">
+                    <span className="truncate">{m.name}</span>
+                    {m.slot != null && <span className="text-[10px] text-ink-400 font-semibold shrink-0 tabular-nums">#{m.slot}</span>}
                   </p>
-                  <span className={`text-[10px] font-semibold rounded-full px-2 py-0.5 shrink-0 ${paid ? 'text-receive-text bg-receive-50' : 'text-ink-400 bg-cream-soft'}`}>
+                  <span className={`m-chip shrink-0 ${paid ? 'm-chip-receive' : 'm-chip-pay'}`}>
                     {paid ? t('kameti_paid_badge') : t('kameti_unpaid_badge')}
                   </span>
                 </div>
@@ -151,15 +190,15 @@ export function KametiWitnessPage() {
 
         {/* Schedule */}
         <div>
-          <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2.5">{t('kameti_schedule')}</h2>
-          <div className="rounded-2xl bg-cream-card border border-cream-border divide-y divide-cream-hairline overflow-hidden">
+          <h2 className="m-label mb-2.5">{t('kameti_schedule')}</h2>
+          <div className="m-card overflow-hidden divide-y divide-cream-hairline">
             {Array.from({ length: committee.totalRounds }, (_, i) => i + 1).map((r) => {
               const rec = recipientForRound(members, r);
               return (
-                <div key={r} className={`flex items-center gap-3 px-3.5 py-2.5 ${r === round ? 'bg-accent-50/50' : ''}`}>
-                  <span className="text-[11px] font-bold text-ink-400 tabular-nums w-5">{r}</span>
+                <div key={r} className={`flex items-center gap-3 px-3.5 py-2.5 ${r === round ? 'bg-warn-50' : ''}`}>
+                  <span className={`text-[11px] font-bold tabular-nums w-5 ${r === round ? 'text-warn-700' : 'text-ink-400'}`}>{r}</span>
                   <span className="flex-1 text-[12.5px] text-ink-900 truncate">{rec?.name ?? '—'}</span>
-                  {rec?.payoutReceivedAt && <Check size={12} className="text-receive-text shrink-0" strokeWidth={2.6} />}
+                  {rec?.payoutReceivedAt && <Glyph name="check" size={13} tone="green" strokeWidth={3} />}
                   <span className="text-[10.5px] text-ink-400 tabular-nums shrink-0">{format(roundDate(committee.startDate, committee.cadence, r), 'd MMM')}</span>
                 </div>
               );
@@ -167,7 +206,7 @@ export function KametiWitnessPage() {
           </div>
         </div>
 
-        <a href="/" className="block text-center text-[12px] font-semibold text-accent-600 pt-2">{t('kameti_get_app')}</a>
+        <a href="/" className="m-btn m-btn-plain w-full text-[12.5px] text-accent-600">{t('kameti_get_app')}</a>
       </div>
     </main>
   );

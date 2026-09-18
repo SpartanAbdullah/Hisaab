@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus, Check, X } from 'lucide-react';
 import { useToast } from './Toast';
+import { Glyph } from './Glyph';
 import { useT } from '../lib/i18n';
 import { useCategoryOptions, withCurrentValue, type CategoryValidationError } from '../lib/mergedCategories';
 import { useCustomCategoryStore, CustomCategoryError } from '../stores/customCategoryStore';
@@ -53,16 +53,17 @@ export function CategoryPicker({ type, value, onChange, includeCurrent = false, 
     }
   };
 
+  // 1d pills: raised at rest, light-faced when picked; "+ New" is a brand-violet
+  // pill, and the inline editor is a recessed well edged in the brand violet.
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-2">
       {options.map((c) => (
         <button
           key={c}
           type="button"
           onClick={() => onChange(c)}
-          className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold border transition-colors active:scale-95 ${
-            value === c ? 'bg-ink-900 text-white border-ink-900' : 'bg-cream-card text-ink-600 border-cream-border'
-          }`}
+          aria-pressed={value === c}
+          className="m-pill"
         >
           {c}
         </button>
@@ -72,14 +73,14 @@ export function CategoryPicker({ type, value, onChange, includeCurrent = false, 
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="px-3 py-1.5 rounded-xl text-[11px] font-semibold border border-dashed border-accent-500/60 text-accent-600 bg-accent-50/60 active:scale-95 flex items-center gap-1 transition-colors"
+          className="m-pill text-accent-text"
         >
-          <Plus size={12} strokeWidth={2.6} /> {t('cat_add_new')}
+          <Glyph name="plus" size={12} strokeWidth={3} /> {t('cat_add_new')}
         </button>
       )}
 
       {allowCreate && adding && (
-        <span className="inline-flex items-center gap-1.5 rounded-xl border border-accent-500 bg-cream-card pl-2.5 pr-1.5 py-1">
+        <span className="m-inset inline-flex items-center gap-1 rounded-full border border-accent-500 pl-3 pr-1 py-0.5">
           <input
             autoFocus
             value={draft}
@@ -90,19 +91,19 @@ export function CategoryPicker({ type, value, onChange, includeCurrent = false, 
             }}
             placeholder={t('cat_new_placeholder')}
             maxLength={28}
-            className="w-28 text-[11px] bg-transparent outline-none text-ink-900 placeholder:text-ink-400"
+            className="w-28 bg-transparent outline-none text-ink-900 placeholder:text-ink-400"
           />
           <button
             type="button"
             disabled={saving}
             onClick={() => void submit()}
-            className="text-receive-600 disabled:opacity-40 press-xs"
+            className="w-8 h-8 flex items-center justify-center text-receive-text disabled:opacity-40 press-xs"
             aria-label={t('cat_save')}
           >
-            <Check size={14} strokeWidth={2.8} />
+            <Glyph name="check" size={15} strokeWidth={3} />
           </button>
-          <button type="button" onClick={cancelAdd} className="text-ink-400 press-xs" aria-label={t('cancel')}>
-            <X size={14} strokeWidth={2.6} />
+          <button type="button" onClick={cancelAdd} className="w-8 h-8 flex items-center justify-center text-ink-500 press-xs" aria-label={t('cancel')}>
+            <Glyph name="close" size={14} strokeWidth={2.8} />
           </button>
         </span>
       )}

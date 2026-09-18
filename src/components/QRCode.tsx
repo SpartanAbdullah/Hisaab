@@ -13,6 +13,14 @@ interface Props {
   title?: string;
 }
 
+// Module + quiet-zone paint. Fixed tokens, NOT theme-flipping ones: a QR must
+// be dark-on-light in both themes or scanners give up. The quiet zone is pure
+// white and the modules the navy-900 hero ink (#0A0A14) — ~19:1, which is the
+// contrast scanners want. Classes rather than inline hex, so the colours live
+// in the token layer (index.css @theme).
+const QR_QUIET_ZONE_CLASS = 'fill-white';
+const QR_MODULE_CLASS = 'fill-navy-900';
+
 // SVG rather than canvas: a QR is pure geometry, so vector output stays
 // razor-sharp on every DPR (a canvas at 1x is visibly soft on a 3x phone,
 // and soft modules are exactly what makes a scan take three tries). It also
@@ -29,7 +37,7 @@ export function QRCode({ value, size = 220, margin = 4, className = '', title }:
   if (!matrix) {
     return (
       <div
-        className={`rounded-2xl bg-cream-soft animate-pulse ${className}`}
+        className={`m-skel rounded-2xl ${className}`}
         style={{ width: size, height: size }}
         aria-hidden
       />
@@ -49,10 +57,10 @@ export function QRCode({ value, size = 220, margin = 4, className = '', title }:
       shapeRendering="crispEdges"
     >
       {/* Explicit white quiet zone. A transparent background would inherit
-          the cream card colour, and low-contrast quiet zones are a classic
-          cause of "it won't scan". */}
-      <rect width={matrix.extent} height={matrix.extent} fill="#FFFFFF" />
-      <path d={matrix.path} fill="#0B0E2A" />
+          the card colour, and low-contrast quiet zones are a classic cause
+          of "it won't scan". */}
+      <rect width={matrix.extent} height={matrix.extent} className={QR_QUIET_ZONE_CLASS} />
+      <path d={matrix.path} className={QR_MODULE_CLASS} />
     </svg>
   );
 }

@@ -1,7 +1,7 @@
 ﻿import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, UserPlus, Check, UserRoundPlus } from 'lucide-react';
 import { Modal } from '../components/Modal';
+import { Glyph } from '../components/Glyph';
 import { useDiscardGuard } from '../lib/useDiscardGuard';
 import { useSubmitGuard } from '../lib/useSubmitGuard';
 import { useSplitStore, type GuestMemberInput, type ResolvedMemberInput } from '../stores/splitStore';
@@ -179,25 +179,23 @@ export function CreateGroupModal({ open, onClose, onCreated }: Props) {
     } finally { setSaving(false); }
   };
 
-  const inputClass = "w-full border border-cream-border rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all";
-
   return (
     <Modal open={open} onClose={onClose} title={t('group_new')}
       confirmClose={() => guardClose(!!name.trim() || members.length > 0 || guests.length > 0 || !!codeInput.trim() || !!guestName.trim() || emoji !== '✈️')}
       footer={
-      <button onClick={handleSubmit} disabled={saving || !name.trim()}
-        className="w-full bg-accent-600 text-white rounded-2xl py-3.5 text-sm font-bold disabled:opacity-30 shadow-md shadow-accent-600/20">
+      <button onClick={handleSubmit} disabled={saving || !name.trim()} className="cta-primary">
         {saving ? t('group_creating') : t('group_create')}
       </button>
     }>
       <div className="space-y-5 p-5">
-        {/* Emoji picker */}
+        {/* Emoji picker — a grid of pressable tiles; the chosen one wears the
+            violet selected ring. */}
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_emoji')}</label>
-          <div className="flex flex-wrap gap-2 mt-2">
+          <label className="form-label">{t('group_emoji')}</label>
+          <div className="flex flex-wrap gap-2.5">
             {EMOJIS.map(e => (
-              <button key={e} onClick={() => setEmoji(e)}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-all ${emoji === e ? 'bg-accent-100 ring-2 ring-accent-500 scale-110' : 'bg-cream-soft active:scale-95'}`}>
+              <button key={e} type="button" onClick={() => setEmoji(e)} aria-pressed={emoji === e}
+                className={`m-tile w-10 h-10 min-h-0 p-0 rounded-[12px] flex items-center justify-center text-lg leading-none ${emoji === e ? 'm-tile-selected' : ''}`}>
                 {e}
               </button>
             ))}
@@ -206,32 +204,30 @@ export function CreateGroupModal({ open, onClose, onCreated }: Props) {
 
         {/* Name */}
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_name')}</label>
-          <input className={inputClass + ' mt-1.5'} value={name} onChange={e => setName(e.target.value)} placeholder={t('group_name_placeholder')} />
+          <label className="form-label">{t('group_name')}</label>
+          <input className="input-field" value={name} onChange={e => setName(e.target.value)} placeholder={t('group_name_placeholder')} />
         </div>
 
         {/* Currency */}
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('common_currency')}</label>
-          <div className="mt-1.5">
-            <CurrencyPicker
-              value={currency}
-              onChange={setCurrency}
-              primary={getPrimaryCurrency()}
-              used={usedCurrencies}
-            />
-          </div>
+          <label className="form-label">{t('common_currency')}</label>
+          <CurrencyPicker
+            value={currency}
+            onChange={setCurrency}
+            primary={getPrimaryCurrency()}
+            used={usedCurrencies}
+          />
         </div>
 
         {/* Members — by user code */}
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_members')}</label>
-          <p className="text-[11px] text-ink-500 mt-1">
+          <label className="form-label">{t('group_members')}</label>
+          <p className="text-[11px] text-ink-600 -mt-0.5 leading-relaxed">
             {t('group_code_hint')}
           </p>
-          <div className="flex gap-2 mt-2">
+          <div className="flex gap-2.5 mt-2.5">
             <input
-              className={inputClass + ' font-mono text-[12px]'}
+              className="input-field font-mono text-[12px]"
               value={codeInput}
               onChange={e => setCodeInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void addMember(); } }}
@@ -240,38 +236,58 @@ export function CreateGroupModal({ open, onClose, onCreated }: Props) {
               autoCorrect="off"
               spellCheck={false}
             />
+            {/* The composer's add button is the brand-violet primary, like the
+                handoff's member composer. */}
             <button
+              type="button"
               onClick={() => void addMember()}
               disabled={resolving || !codeInput.trim()}
-              className="shrink-0 w-12 h-12 rounded-2xl bg-accent-100 flex items-center justify-center active:scale-95 transition-all disabled:opacity-40"
+              aria-label={t('group_add_member')}
+              className="m-btn m-btn-primary shrink-0 w-12 h-12 min-h-0 p-0 rounded-[14px]"
             >
-              {resolving ? <div className="w-4 h-4 border-2 border-accent-500 border-t-transparent rounded-full animate-spin" /> : <UserPlus size={18} className="text-accent-600" />}
+              {resolving
+                ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                : <Glyph name="user-plus" size={19} strokeWidth={2.6} />}
             </button>
           </div>
 
-          {/* Owner chip + resolved member chips */}
-          <div className="flex flex-wrap gap-2 mt-3">
-            <div className="px-3 py-1.5 rounded-xl bg-accent-100 text-accent-600 text-[12px] font-semibold flex items-center gap-1.5">
-              {ownerName} <span className="text-[9px] opacity-60">{t('group_owner_you_tag')}</span>
-            </div>
+          {/* Owner chip + resolved member chips + staged guests */}
+          <div className="flex flex-wrap gap-2 mt-3.5">
+            <span className="m-chip m-chip-violet px-3 py-1.5 text-[12px]">
+              {ownerName} <span className="text-[10px] font-medium opacity-80">{t('group_owner_you_tag')}</span>
+            </span>
             {members.map(m => (
-              <div key={m.profileId} className="px-3 py-1.5 rounded-xl bg-receive-50 text-receive-text text-[12px] font-semibold flex items-center gap-1.5 border border-receive-100/60">
-                <Check size={11} strokeWidth={3} />
+              <span key={m.profileId} className="m-chip m-chip-receive ps-3 pe-1 py-1 text-[12px]">
+                <Glyph name="check" size={11} strokeWidth={3} />
                 {m.name}
-                <button onClick={() => removeMember(m.profileId)} className="ml-0.5 opacity-50 hover:opacity-100"><X size={12} /></button>
-              </div>
+                <button
+                  type="button"
+                  onClick={() => removeMember(m.profileId)}
+                  aria-label={t('split_remove_person').replace('{name}', m.name)}
+                  className="w-6 h-6 rounded-full flex items-center justify-center opacity-70 active:opacity-100"
+                >
+                  <Glyph name="close" size={12} />
+                </button>
+              </span>
             ))}
             {guests.map((g, i) => (
-              <div key={`guest-${i}`} className="px-3 py-1.5 rounded-xl bg-cream-soft text-ink-700 text-[12px] font-semibold flex items-center gap-1.5 border border-cream-hairline">
-                <UserRoundPlus size={11} strokeWidth={2.5} />
+              <span key={`guest-${i}`} className="m-chip m-chip-neutral ps-3 pe-1 py-1 text-[12px]">
+                <Glyph name="user-plus" size={11} strokeWidth={2.6} />
                 {g.name}
-                <span className="text-[9px] opacity-60 uppercase tracking-wide">{t('guest_tag')}</span>
-                <button onClick={() => removeGuest(i)} className="ml-0.5 opacity-50 hover:opacity-100"><X size={12} /></button>
-              </div>
+                <span className="text-[10px] uppercase tracking-[0.06em] text-ink-500">{t('guest_tag')}</span>
+                <button
+                  type="button"
+                  onClick={() => removeGuest(i)}
+                  aria-label={t('split_remove_person').replace('{name}', g.name)}
+                  className="w-6 h-6 rounded-full flex items-center justify-center opacity-70 active:opacity-100"
+                >
+                  <Glyph name="close" size={12} />
+                </button>
+              </span>
             ))}
           </div>
           {members.length === 0 && guests.length === 0 && (
-            <p className="text-[11px] text-ink-500 mt-2.5">
+            <p className="text-[11px] text-ink-500 mt-2.5 leading-relaxed">
               {t('group_no_members_yet_hint')}
             </p>
           )}
@@ -283,11 +299,11 @@ export function CreateGroupModal({ open, onClose, onCreated }: Props) {
             on screen said so. A guest is a full ledger participant — shares,
             payer, settlements — recorded on their behalf by real members. */}
         <div className="pt-1">
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('guest_add_title')}</label>
-          <p className="text-[11px] text-ink-500 mt-1">{t('guest_add_hint')}</p>
-          <div className="flex gap-2 mt-2">
+          <label className="form-label">{t('guest_add_title')}</label>
+          <p className="text-[11px] text-ink-600 -mt-0.5 leading-relaxed">{t('guest_add_hint')}</p>
+          <div className="flex gap-2.5 mt-2.5">
             <input
-              className={inputClass}
+              className="input-field"
               value={guestName}
               maxLength={MAX_GUEST_NAME_LENGTH}
               onChange={e => setGuestName(e.target.value)}
@@ -295,16 +311,17 @@ export function CreateGroupModal({ open, onClose, onCreated }: Props) {
               placeholder={t('guest_name_placeholder')}
             />
             <button
+              type="button"
               onClick={addGuest}
               disabled={!guestName.trim() || guests.length >= MAX_GROUP_GUESTS}
-              className="shrink-0 w-12 h-12 rounded-2xl bg-cream-soft flex items-center justify-center active:scale-95 transition-all disabled:opacity-40"
+              className="m-ctl shrink-0 w-12 h-12 rounded-[14px] flex items-center justify-center disabled:opacity-40"
               aria-label={t('guest_add_cta')}
             >
-              <UserRoundPlus size={18} className="text-ink-700" />
+              <Glyph name="user-plus" size={19} tone="neutral" />
             </button>
           </div>
           <input
-            className={inputClass + ' mt-2'}
+            className="input-field mt-2.5"
             value={guestPhone}
             onChange={e => setGuestPhone(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addGuest(); } }}
@@ -312,7 +329,7 @@ export function CreateGroupModal({ open, onClose, onCreated }: Props) {
             inputMode="tel"
             autoComplete="off"
           />
-          <p className="text-[11px] text-ink-500 mt-2">{t('guest_phone_hint')}</p>
+          <p className="text-[11px] text-ink-500 mt-2 leading-relaxed">{t('guest_phone_hint')}</p>
         </div>
       </div>
     </Modal>

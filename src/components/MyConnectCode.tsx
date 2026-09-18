@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Copy, Share2, Link2, QrCode } from 'lucide-react';
 import { useToast } from './Toast';
+import { Glyph } from './Glyph';
 import { useT } from '../lib/i18n';
 import { profilesDb } from '../lib/supabaseDb';
 import { buildAppShareUrl, generatePublicCodeCandidate, normalizePublicCode } from '../lib/collaboration';
@@ -62,26 +62,30 @@ export function MyConnectCode() {
     }
   };
 
+  // 1d (handoff Contacts): a violet-tinted card — linking is the violet domain
+  // — with a link glyph on a raised square, then one row of pressables: the
+  // code itself (a key in the violet identity ink, tap to copy), the QR, and the
+  // violet Share primary.
   return (
-    <div className="rounded-[18px] bg-gradient-to-br from-accent-50 to-cream-card border border-accent-100 p-4">
+    <div className="m-card m-violet p-4">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl bg-accent-100 flex items-center justify-center shrink-0">
-          <Link2 size={18} className="text-accent-600" strokeWidth={1.9} />
+        <div className="m-ctl w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0" aria-hidden>
+          <Glyph name="link" tone="violet" size={19} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-semibold text-ink-900 tracking-tight">{t('connect_my_code')}</p>
-          <p className="text-[11px] text-ink-500 mt-0.5 leading-relaxed">{t('connect_my_code_desc')}</p>
+          <p className="text-[11px] text-ink-600 mt-0.5 leading-relaxed">{t('connect_my_code_desc')}</p>
         </div>
       </div>
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3.5 flex gap-2">
         <button
           onClick={copy}
           disabled={!code}
-          className="flex-1 min-w-0 flex items-center justify-center gap-2 rounded-xl bg-cream-card border border-cream-border py-2.5 disabled:opacity-50 press"
+          className="m-key flex-1 min-w-0 min-h-[44px] flex items-center justify-center gap-2 rounded-[13px] px-2 disabled:opacity-50"
         >
           <span className="text-[9px] font-semibold text-ink-400 uppercase tracking-[0.12em]">{t('mcc_hsb_tag')}</span>
-          <span className="text-[14px] font-bold text-ink-900 tabular-nums">{code ? `@${code}` : '…'}</span>
-          {code && <Copy size={13} className="text-ink-400" />}
+          <span className="text-[14px] font-bold text-accent-600 tabular-nums truncate">{code ? `@${code}` : '…'}</span>
+          {code && <Glyph name="copy" size={13} className="text-ink-400" />}
         </button>
         {/* Show-my-QR sits next to the code, not behind a menu: in person,
             holding up a QR is the fastest possible handoff and it should be
@@ -89,17 +93,17 @@ export function MyConnectCode() {
         <button
           onClick={() => setShowQr(true)}
           disabled={!code}
-          className="w-11 shrink-0 rounded-xl bg-cream-card border border-cream-border flex items-center justify-center disabled:opacity-50 press-sm"
+          className="m-key w-11 min-h-[44px] shrink-0 rounded-[13px] flex items-center justify-center disabled:opacity-50"
           aria-label={t('qr_my_title')}
         >
-          <QrCode size={17} className="text-accent-600" strokeWidth={2} />
+          <Glyph name="qr" tone="violet" size={17} />
         </button>
         <button
           onClick={share}
           disabled={!code}
-          className="px-3.5 shrink-0 rounded-xl bg-ink-900 text-white text-[12.5px] font-semibold flex items-center gap-1.5 disabled:opacity-50 press-sm"
+          className="m-btn m-btn-primary shrink-0 min-h-[44px] rounded-[13px] px-3.5 py-2 text-[12.5px]"
         >
-          <Share2 size={14} /> {t('connect_share')}
+          <Glyph name="share" size={14} strokeWidth={2.6} /> {t('connect_share')}
         </button>
       </div>
 

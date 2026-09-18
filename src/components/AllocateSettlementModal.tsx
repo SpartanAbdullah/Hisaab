@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
 import { useAccountStore } from '../stores/accountStore';
 import { useSettlementRequestStore } from '../stores/settlementRequestStore';
 import { useLinkedRequestStore } from '../stores/linkedRequestStore';
@@ -196,20 +197,21 @@ export function AllocateSettlementModal({ open, onClose, loans, direction, curre
       }
     >
       <div className="space-y-4">
-        <p className="text-[12px] text-ink-500 leading-relaxed">
+        <p className="text-[12px] text-ink-600 leading-relaxed">
           {t('stl_bulk_intro').replace('{name}', personName)}
         </p>
 
         {/* Strategy */}
         <div>
           <label className="form-label">{t('alloc_strategy_label')}</label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2.5">
             {strategies.map((s) => (
               <button
                 key={s.value}
                 type="button"
                 onClick={() => setStrategy(s.value)}
-                className={`selector-base justify-center text-[12px] font-semibold ${strategy === s.value ? 'selector-selected' : ''}`}
+                aria-pressed={strategy === s.value}
+                className={`selector-base justify-center text-[12px] font-semibold text-ink-800 ${strategy === s.value ? 'selector-selected' : ''}`}
               >
                 {s.label}
               </button>
@@ -227,13 +229,16 @@ export function AllocateSettlementModal({ open, onClose, loans, direction, curre
               value={lump}
               onChange={(e) => setLump(e.target.value)}
               placeholder="0.00"
-              className="input-field text-center text-lg font-bold tabular-nums"
+              className="input-field text-center font-semibold tabular-nums tracking-[-0.02em]"
+              // Inline on purpose: index.css pins every <input> to 16px (iOS
+              // focus-zoom guard), which beats any font-size utility.
+              style={{ fontSize: 22 }}
               autoFocus
             />
             <button
               type="button"
               onClick={() => setLump(String(maxRemaining))}
-              className="mt-2 text-[11px] text-accent-600 font-bold active:opacity-70"
+              className="mt-2 min-h-[32px] text-[11.5px] text-accent-600 font-semibold active:opacity-70"
             >
               {t('repay_full_amount').replace('{amount}', formatMoney(maxRemaining, currency))}
             </button>
@@ -246,17 +251,17 @@ export function AllocateSettlementModal({ open, onClose, loans, direction, curre
         {/* Preview / manual entry — oldest first so it reads in fill order. */}
         <div>
           <label className="form-label">{t('alloc_preview')}</label>
-          <div className="space-y-2">
+          <div className="m-card overflow-hidden divide-y divide-cream-hairline">
             {previewOrder.map((l, i) => {
               const line = previewLines[i];
               return (
-                <div key={l.id} className="rounded-2xl bg-cream-card border border-cream-border p-3">
+                <div key={l.id} className="px-3.5 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-[12.5px] font-semibold text-ink-900 truncate">
                         {l.notes?.trim() || (direction === 'given' ? t('loan_receivable') : t('loan_payable'))}
                       </p>
-                      <p className="text-[10.5px] text-ink-500 tabular-nums">
+                      <p className="text-[10.5px] text-ink-600 tabular-nums mt-0.5">
                         {formatMoney(l.remainingAmount, l.currency)} {t('loan_remaining').toLowerCase()}
                       </p>
                     </div>
@@ -267,15 +272,18 @@ export function AllocateSettlementModal({ open, onClose, loans, direction, curre
                         value={manual[l.id] ?? ''}
                         onChange={(e) => setManual((m) => ({ ...m, [l.id]: e.target.value }))}
                         placeholder="0"
-                        className="w-24 input-field text-right text-[13px] font-bold tabular-nums py-2"
+                        className="w-24 input-field text-right font-semibold tabular-nums py-2"
                       />
                     ) : (
                       <div className="text-right shrink-0">
-                        <p className={`text-[13px] font-bold tabular-nums ${line.applied ? 'text-receive-text' : 'text-ink-400'}`}>
+                        <p className={`text-[13px] font-semibold tabular-nums ${line.applied ? 'text-receive-text' : 'text-ink-400'}`}>
                           {line.applied ? formatMoney(line.applied, l.currency) : '—'}
                         </p>
                         {line.cleared ? (
-                          <p className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-receive-text">{t('stl_bulk_clears')}</p>
+                          <span className="m-chip m-chip-receive m-chip-caps mt-1">
+                            <Glyph name="check" size={10} strokeWidth={3} />
+                            {t('stl_bulk_clears')}
+                          </span>
                         ) : null}
                       </div>
                     )}
@@ -302,22 +310,26 @@ export function AllocateSettlementModal({ open, onClose, loans, direction, curre
             counterparty accepts. */}
         {appMode === 'full_tracker' && eligibleAccounts.length > 0 && (
           <>
-            <label className="flex items-center gap-2.5 p-3 rounded-2xl border bg-cream-soft/80 border-cream-hairline cursor-pointer">
-              <input
-                type="checkbox"
-                checked={applyToBalance}
-                onChange={(e) => {
-                  setApplyToBalance(e.target.checked);
-                  if (!e.target.checked) setAccountId('');
-                }}
-                className="w-4 h-4 rounded border-slate-300 text-accent-600 accent-indigo-600"
-              />
-              <span className="text-[13px] text-ink-700 font-medium flex-1">{t('stl_apply_toggle_label')}</span>
-            </label>
+            {/* The whole row is the switch (role="switch"): the label is its
+                accessible name and the full row is the tap target. */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={applyToBalance}
+              onClick={() => {
+                const next = !applyToBalance;
+                setApplyToBalance(next);
+                if (!next) setAccountId('');
+              }}
+              className="m-card w-full flex items-center gap-3 px-4 py-3 text-left"
+            >
+              <span className="text-[13px] text-ink-800 font-medium flex-1">{t('stl_apply_toggle_label')}</span>
+              <span aria-hidden className={`m-switch block ${applyToBalance ? 'is-on' : ''}`} />
+            </button>
             {applyToBalance && (
               <div>
                 <label className="form-label">{t('stl_apply_pick_account')}</label>
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {eligibleAccounts.map((a) => {
                     const meta = currencyMeta[a.currency];
                     return (
@@ -325,12 +337,13 @@ export function AllocateSettlementModal({ open, onClose, loans, direction, curre
                         key={a.id}
                         type="button"
                         onClick={() => setAccountId(a.id)}
+                        aria-pressed={accountId === a.id}
                         className={accountId === a.id ? 'selector-base selector-selected' : 'selector-base'}
                       >
                         <span className="text-[13px] font-semibold text-ink-800 flex items-center gap-1.5">
                           <span>{meta?.flag}</span> {a.name}
                         </span>
-                        <span className="text-[12px] text-ink-500 tabular-nums">{formatSignedMoney(a.balance, a.currency)}</span>
+                        <span className="text-[12px] text-ink-600 tabular-nums">{formatSignedMoney(a.balance, a.currency)}</span>
                       </button>
                     );
                   })}
@@ -340,7 +353,9 @@ export function AllocateSettlementModal({ open, onClose, loans, direction, curre
           </>
         )}
 
-        <p className="text-[12px] text-accent-600 bg-accent-50 rounded-2xl p-3 leading-relaxed">
+        {/* Linked settlements go to the other side to confirm — violet, the
+            colour every linked surface wears. */}
+        <p className="m-card m-violet text-[12px] text-iris-text p-3 leading-relaxed">
           {t('stl_bulk_confirm_note').replace('{name}', personName)}
         </p>
       </div>

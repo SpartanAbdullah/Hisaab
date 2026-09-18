@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Bell, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Glyph } from './Glyph';
 import { useT } from '../lib/i18n';
 import { isNativeRuntime } from '../lib/runtime';
 import { remindersEnabled, enableRemindersFlow } from '../lib/notificationScheduler';
@@ -80,20 +80,23 @@ export function NotificationPermissionPrompt({ trigger }: Props) {
     }
   };
 
+  // 1d: the hero material in miniature — a navy band (dark in both themes, so
+  // it reads as a system moment over any sheet) with the bell glyph on a raised
+  // square and the brand-violet primary for "Allow".
   return (
     <div className="fixed left-4 right-4 bottom-24 z-50 max-w-[448px] mx-auto animate-fade-in">
-      <div className="bg-navy-900 rounded-2xl p-4 flex items-start gap-3 text-white shadow-xl shadow-black/30 border border-white/10">
-        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0 mt-0.5">
-          <Bell size={18} />
+      <div className="m-hero m-hero-violet rounded-[22px] p-4 flex items-start gap-3 shadow-2xl ring-1 ring-white/10">
+        <div className="m-ctl w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0 mt-0.5" aria-hidden>
+          <Glyph name="bell" tone="violet" size={19} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-bold">{t('notif_prompt_title')}</p>
-          <p className="text-[11px] text-white/70 mt-0.5 leading-relaxed">{t('notif_prompt_body')}</p>
+          <p className="text-[13.5px] font-semibold tracking-tight text-white">{t('notif_prompt_title')}</p>
+          <p className="text-[11.5px] text-white/70 mt-0.5 leading-relaxed">{t('notif_prompt_body')}</p>
           <div className="flex items-center gap-2 mt-3">
             <button
               onClick={() => void handleAllow()}
               disabled={busy}
-              className="min-h-[44px] px-4 rounded-xl bg-white text-navy-900 text-[12.5px] font-bold active:scale-95 transition-all disabled:opacity-60"
+              className="m-btn m-btn-primary px-4 py-2.5 text-[12.5px]"
             >
               {t('notif_prompt_allow')}
             </button>
@@ -109,9 +112,9 @@ export function NotificationPermissionPrompt({ trigger }: Props) {
         <button
           onClick={dismiss}
           aria-label={t('notif_prompt_not_now')}
-          className="relative w-6 h-6 -m-1 flex items-center justify-center text-white/50 active:text-white/90 shrink-0 before:absolute before:-inset-2.5 before:content-['']"
+          className="relative w-6 h-6 -m-1 flex items-center justify-center text-white/60 active:text-white/90 shrink-0 before:absolute before:-inset-2.5 before:content-['']"
         >
-          <X size={16} />
+          <Glyph name="close" size={15} />
         </button>
       </div>
     </div>

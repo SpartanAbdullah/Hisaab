@@ -1,22 +1,25 @@
 import { NavLink } from 'react-router-dom';
-import { Home, Users, HandCoins, Plus, History, Sparkles } from 'lucide-react';
+import { Glyph } from './Glyph';
 import { useUIStore } from '../stores/uiStore';
 import { useAppModeStore } from '../stores/appModeStore';
 import { useT } from '../lib/i18n';
+import type { GlyphName } from '../lib/glyphs';
 
 interface Props {
   onQuickEntry: () => void;
 }
 
-// Sukoon bottom nav: 4 tab slots + center FAB. Home far-left, then the
-// FAB, then Hisaab AI and Groups on the right in BOTH modes — the AI tab
-// is a money assistant AND a Hisaab guide, useful everywhere. Only slot 2
+// 1d bottom nav: 4 tab slots + the centre brand FAB. Home far-left, then the
+// FAB, then Hisaab AI and Groups on the right in BOTH modes. Only slot 2
 // changes by mode:
 //   full_tracker → Home · Loans · [+] · Hisaab AI · Groups
 //   splits_only  → Home · Activity · [+] · Hisaab AI · Groups
-// Transactions (full) and Loans (splits) move off the bar to make room;
-// both stay reachable from Home's cards. Inbox lives in the top-right page
-// chrome with its own coral pending-count badge; Settings via the avatar tap.
+// Inbox lives in the page chrome (the bell); Settings via the avatar tap.
+//
+// The handoff draws text-only tabs; each tab here carries its 3c glyph above
+// the label (the founder's standing "icons dominant, labels small" rule), in
+// the same white-active / muted-inactive colours. Hidden whenever a modal is
+// open — which also covers Quick Entry and New Kameti (modalCount > 0).
 export function BottomNav({ onQuickEntry }: Props) {
   const modalCount = useUIStore((s) => s.modalCount);
   const mode = useAppModeStore((s) => s.mode);
@@ -25,67 +28,47 @@ export function BottomNav({ onQuickEntry }: Props) {
   if (modalCount > 0) return null;
 
   const isSplits = mode === 'splits_only';
-  const leftPair = [
-    { to: '/', icon: Home, label: t('nav_home') },
+  const leftPair: NavTabProps[] = [
+    { to: '/', icon: 'home', label: t('nav_home') },
     isSplits
-      ? { to: '/activity', icon: History, label: t('nav_activity') }
-      : { to: '/loans', icon: HandCoins, label: t('nav_loans') },
+      ? { to: '/activity', icon: 'activity', label: t('nav_activity') }
+      : { to: '/loans', icon: 'swap', label: t('nav_loans') },
   ];
-  const rightTabs = [
-    { to: '/hisaab-ai', icon: Sparkles, label: 'Hisaab AI' },
-    { to: '/groups', icon: Users, label: t('nav_groups') },
+  const rightTabs: NavTabProps[] = [
+    { to: '/hisaab-ai', icon: 'sparkles', label: 'Hisaab AI' },
+    { to: '/groups', icon: 'groups', label: t('nav_groups') },
   ];
-  // Always 5 cols now (2 left + FAB + 2 right). Stable across modes.
-  const gridClass = 'grid-cols-5';
 
   return (
     <nav
       className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40"
       style={{
-        // Theme-aware surface (see --nav-surface in index.css): a near-opaque
-        // cream in light, near-opaque dark in dark mode, so the body stays
-        // just barely visible through it without the nav feeling detached.
+        // Theme-aware surface (--nav-surface in index.css): the handoff's dark
+        // translucent gradient in dark, a near-opaque ivory in light.
         background: 'var(--nav-surface)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        borderTop: '1px solid var(--color-cream-border)',
-        paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+        borderTop: '1px solid var(--nav-edge)',
+        paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
       }}
     >
-      <div className={`grid ${gridClass} items-center h-[62px]`}>
+      <div className="grid grid-cols-5 items-center h-[62px]">
         {leftPair.map((link) => (
           <NavTab key={link.to} {...link} />
         ))}
 
-        {/* Center FAB. -22px lift puts it above the nav surface; the cream-bg
-            ring matches the body so the FAB reads as floating, not pasted.
-            The 'Add' microlabel under it matches the other tabs' label
-            treatment so the FAB reads as a peer of the surrounding tabs. */}
+        {/* Centre FAB — the + keeps its brand violet-to-navy colour: lit edge,
+            one thin wall that collapses on press, violet glow. */}
         <div className="flex flex-col items-center justify-center">
           <button
             onClick={onQuickEntry}
             aria-label={t('a11y_quick_entry')}
-            className="w-[54px] h-[54px] rounded-full flex items-center justify-center text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 press-sm"
-            style={{
-              marginTop: -22,
-              // Accent-violet at the top (carrying the bloom hue from the
-              // navy hero) deepening into navy at the bottom — the FAB reads
-              // as a piece of the hero that's drifted down to the nav.
-              background:
-                'linear-gradient(160deg, var(--color-accent-500) 0%, var(--color-accent-600) 35%, var(--color-navy-800) 100%)',
-              boxShadow:
-                '0 10px 22px -4px rgba(11,14,42,0.45), 0 4px 10px -2px rgba(124,92,255,0.35), 0 0 0 4px var(--color-cream-bg)',
-            }}
+            className="m-fab w-[52px] h-[52px] rounded-full flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 focus-visible:ring-offset-cream-bg"
+            style={{ marginTop: -26 }}
           >
-            <Plus size={22} strokeWidth={2.4} />
+            <Glyph name="plus" size={24} strokeWidth={3} />
           </button>
-          {/* -2px pulls the label up into the gap freed by the FAB's lift so
-              it baseline-aligns with the sibling tab labels. */}
-          <span
-            className="text-[10px] tracking-tight text-ink-500 font-medium"
-            style={{ marginTop: -2 }}
-            aria-hidden
-          >
+          <span className="text-[10px] font-medium tracking-tight text-ink-500 mt-1" aria-hidden>
             {t('nav_add')}
           </span>
         </div>
@@ -100,37 +83,25 @@ export function BottomNav({ onQuickEntry }: Props) {
 
 interface NavTabProps {
   to: string;
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+  icon: GlyphName;
   label: string;
-  badge?: number;
 }
 
-function NavTab({ to, icon: Icon, label, badge = 0 }: NavTabProps) {
+function NavTab({ to, icon, label }: NavTabProps) {
   return (
     <NavLink
       to={to}
       end={to === '/'}
-      aria-label={badge > 0 ? `${label}, ${badge} pending` : undefined}
-      className="flex flex-col items-center justify-center gap-0.5 py-1.5 h-full transition-opacity active:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-inset rounded-xl"
+      className="flex flex-col items-center justify-center gap-1 h-full transition-opacity active:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-inset rounded-xl"
     >
       {({ isActive }) => (
         <>
-          <div className="relative">
-            <Icon
-              size={22}
-              strokeWidth={isActive ? 2.2 : 1.7}
-              className={`${isActive ? 'text-ink-900' : 'text-ink-500'}${to === '/hisaab-ai' ? ' animate-sparkle' : ''}`}
-            />
-            {badge > 0 && (
-              <span
-                className="absolute -top-1.5 -right-2 min-w-[14px] h-3.5 px-1 rounded-full text-white text-[9px] font-bold flex items-center justify-center tabular-nums ring-2 ring-white"
-                style={{ background: 'var(--color-pay-600)' }}
-                aria-hidden
-              >
-                {badge > 9 ? '9+' : badge}
-              </span>
-            )}
-          </div>
+          <Glyph
+            name={icon}
+            size={21}
+            strokeWidth={isActive ? 2.6 : 2.1}
+            className={`${isActive ? 'text-ink-900' : 'text-ink-500'}${to === '/hisaab-ai' ? ' animate-sparkle' : ''}`}
+          />
           <span
             className={`text-[10px] tracking-tight ${
               isActive ? 'text-ink-900 font-semibold' : 'text-ink-500 font-medium'

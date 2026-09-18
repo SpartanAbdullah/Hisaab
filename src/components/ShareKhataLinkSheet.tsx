@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link2, Copy, MessageCircle, ShieldOff, AlertTriangle, Lock } from 'lucide-react';
+import { ShieldOff } from 'lucide-react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
 import { useToast } from './Toast';
 import { useT } from '../lib/i18n';
 import { useKhataLinkStore } from '../stores/khataLinkStore';
@@ -132,15 +133,15 @@ export function ShareKhataLinkSheet({ open, onClose, personId, personName, phone
       onClose={onClose}
       title={t('khata_share_title')}
       footer={
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-3">
           {!link ? (
             <button
               type="button"
               onClick={handleCreate}
               disabled={busy}
-              className="w-full rounded-2xl py-3.5 text-sm font-bold text-white flex items-center justify-center gap-2 bg-accent-600 disabled:opacity-40 press"
+              className="m-btn m-btn-primary w-full py-3.5 text-[14px]"
             >
-              <Link2 size={16} strokeWidth={2.2} /> {busy ? t('khata_share_working') : t('khata_share_create_cta')}
+              <Glyph name="link" size={16} /> {busy ? t('khata_share_working') : t('khata_share_create_cta')}
             </button>
           ) : (
             <>
@@ -150,18 +151,17 @@ export function ShareKhataLinkSheet({ open, onClose, personId, personName, phone
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => toast.show({ type: 'success', title: t('reminder_wa_opening') })}
-                  className="flex-1 rounded-2xl py-3 text-[13px] font-bold flex items-center justify-center gap-2 press"
-                  style={{ background: '#1FA855', color: '#fff' }}
+                  className="m-btn m-btn-green flex-1 py-3 text-[13px]"
                 >
-                  <MessageCircle size={14} /> {t('khata_share_whatsapp')}
+                  <Glyph name="whatsapp" size={15} strokeWidth={2.6} /> {t('khata_share_whatsapp')}
                 </a>
                 <button
                   type="button"
                   onClick={handleCopy}
                   disabled={copying}
-                  className="px-4 rounded-2xl py-3 text-[13px] font-bold bg-cream-soft text-ink-700 flex items-center justify-center gap-2 active:bg-cream-border disabled:opacity-30"
+                  className="m-btn m-btn-plain px-4 py-3 text-[13px]"
                 >
-                  <Copy size={14} /> {copying ? t('khata_share_working') : t('khata_share_copy')}
+                  <Glyph name="copy" size={15} /> {copying ? t('khata_share_working') : t('khata_share_copy')}
                 </button>
               </div>
               <div className="flex gap-2.5">
@@ -169,17 +169,18 @@ export function ShareKhataLinkSheet({ open, onClose, personId, personName, phone
                   type="button"
                   onClick={handleCreate}
                   disabled={busy}
-                  className="flex-1 rounded-2xl py-2.5 text-[12px] font-bold bg-cream-soft text-ink-700 active:bg-cream-border disabled:opacity-30"
+                  className="m-btn m-btn-plain flex-1 py-2.5 text-[12px]"
                 >
-                  {t('khata_share_rotate_cta')}
+                  <Glyph name="refresh" size={14} /> {t('khata_share_rotate_cta')}
                 </button>
                 <button
                   type="button"
                   onClick={handleRevoke}
                   disabled={busy}
-                  className="flex-1 rounded-2xl py-2.5 text-[12px] font-bold bg-pay-50 text-pay-text flex items-center justify-center gap-1.5 disabled:opacity-30 press"
+                  className="m-btn m-btn-danger flex-1 py-2.5 text-[12px] gap-1.5"
                 >
-                  <ShieldOff size={13} strokeWidth={2.2} /> {t('khata_share_revoke_cta')}
+                  {/* No 3c glyph for "revoke" — lucide at the glyph stroke weight. */}
+                  <ShieldOff size={14} strokeWidth={2.4} className="shrink-0" /> {t('khata_share_revoke_cta')}
                 </button>
               </div>
             </>
@@ -193,40 +194,44 @@ export function ShareKhataLinkSheet({ open, onClose, personId, personName, phone
         </p>
 
         {/* Pre-mint options. Hidden once a link exists, because changing this
-            afterwards requires a rotate — which the rotate button already is. */}
+            afterwards requires a rotate — which the rotate button already is.
+            Each row is a switch (role="switch"): its label is the accessible
+            name and the full row is the tap target. */}
         {!link && (
-          <div className="space-y-2">
-            <label className="flex items-center justify-between gap-3 rounded-2xl bg-cream-card border border-cream-border px-4 py-3 cursor-pointer">
+          <div className="m-card overflow-hidden divide-y divide-cream-hairline">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={initialsOnly}
+              onClick={() => setInitialsOnly((v) => !v)}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left active:bg-cream-soft transition-colors"
+            >
               <span className="text-[12.5px] font-semibold text-ink-800">
                 {t('khata_share_initials_label')}
-                <span className="block text-[10.5px] font-normal text-ink-500 mt-0.5">
+                <span className="block text-[10.5px] font-normal text-ink-600 mt-0.5">
                   {t('khata_share_initials_sub')}
                 </span>
               </span>
-              <input
-                type="checkbox"
-                checked={initialsOnly}
-                onChange={(e) => setInitialsOnly(e.target.checked)}
-                className="w-4 h-4 accent-accent-600 shrink-0"
-              />
-            </label>
+              <span aria-hidden className={`m-switch block ${initialsOnly ? 'is-on' : ''}`} />
+            </button>
 
             {/* Off by default — notes are free text the owner wrote for
                 themselves, not written with a forwardable page in mind. */}
-            <label className="flex items-center justify-between gap-3 rounded-2xl bg-cream-card border border-cream-border px-4 py-3 cursor-pointer">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={showNotes}
+              onClick={() => setShowNotes((v) => !v)}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left active:bg-cream-soft transition-colors"
+            >
               <span className="text-[12.5px] font-semibold text-ink-800">
                 {t('khata_share_notes_label')}
-                <span className="block text-[10.5px] font-normal text-ink-500 mt-0.5">
+                <span className="block text-[10.5px] font-normal text-ink-600 mt-0.5">
                   {t('khata_share_notes_sub')}
                 </span>
               </span>
-              <input
-                type="checkbox"
-                checked={showNotes}
-                onChange={(e) => setShowNotes(e.target.checked)}
-                className="w-4 h-4 accent-accent-600 shrink-0"
-              />
-            </label>
+              <span aria-hidden className={`m-switch block ${showNotes ? 'is-on' : ''}`} />
+            </button>
           </div>
         )}
 
@@ -235,11 +240,11 @@ export function ShareKhataLinkSheet({ open, onClose, personId, personName, phone
         {link && (
           <div>
             <p className="form-label">{t('khata_share_link_label')}</p>
-            <div className="rounded-2xl bg-cream-soft border border-cream-hairline p-3.5">
+            <div className="m-inset p-3.5">
               <p className="text-[11.5px] text-ink-800 break-all leading-relaxed">{link.url}</p>
             </div>
             {expiryDays > 0 && (
-              <p className="text-[10.5px] text-ink-500 mt-2 tabular-nums">
+              <p className="text-[10.5px] text-ink-600 mt-2 tabular-nums">
                 {t('khata_share_expires').replace('{days}', String(expiryDays))}
               </p>
             )}
@@ -248,21 +253,21 @@ export function ShareKhataLinkSheet({ open, onClose, personId, personName, phone
 
         {/* A rotate silently killed a URL the user may already have sent. Say so. */}
         {link?.replacedPrevious && (
-          <div className="flex items-start gap-2.5 rounded-2xl bg-warn-50 border border-warn-50 p-3">
-            <AlertTriangle size={15} className="text-warn-700 shrink-0 mt-0.5" strokeWidth={2.2} />
+          <div className="m-card m-gold flex items-start gap-2.5 p-3.5">
+            <Glyph name="alert" size={15} tone="gold" className="mt-0.5" />
             <p className="text-[11.5px] text-warn-700 leading-relaxed">{t('khata_share_replaced')}</p>
           </div>
         )}
 
         {/* What the link does and does not reveal — the honest version, shown
             before the share, not buried in a settings screen. */}
-        <div className="rounded-2xl bg-cream-card border border-cream-border p-3.5 space-y-2">
+        <div className="m-card p-3.5 space-y-2.5">
           <div className="flex items-start gap-2.5">
-            <Lock size={14} className="text-ink-500 shrink-0 mt-0.5" strokeWidth={2.2} />
+            <Glyph name="lock" size={15} className="text-ink-500 mt-0.5" />
             <p className="text-[11.5px] text-ink-600 leading-relaxed">{t('khata_share_privacy')}</p>
           </div>
           <div className="flex items-start gap-2.5">
-            <AlertTriangle size={14} className="text-ink-500 shrink-0 mt-0.5" strokeWidth={2.2} />
+            <Glyph name="alert" size={15} className="text-ink-500 mt-0.5" />
             <p className="text-[11.5px] text-ink-600 leading-relaxed">{t('khata_share_capability_warning')}</p>
           </div>
         </div>

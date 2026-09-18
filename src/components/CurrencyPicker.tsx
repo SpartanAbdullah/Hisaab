@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Search } from 'lucide-react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
 import { useT, useI18nStore } from '../lib/i18n';
 import { useVisualViewportInset } from '../hooks/useVisualViewportInset';
 import {
@@ -117,12 +117,12 @@ function CurrencyRow({
         <span className="block text-[11px] text-ink-500 truncate">{meta.name[lang]}</span>
       </span>
       {!writable && (
-        <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider rounded-full px-1.5 py-0.5 bg-cream-soft text-ink-500">
+        <span className="m-chip m-chip-neutral m-chip-caps shrink-0">
           {comingSoonLabel}
         </span>
       )}
       {selected && writable && (
-        <Check size={16} className="shrink-0 text-accent-600" aria-label={selectedLabel} />
+        <Glyph name="check" size={16} strokeWidth={2.8} className="text-accent-600" label={selectedLabel} />
       )}
     </button>
   );
@@ -204,10 +204,11 @@ export function CurrencyPicker({
   const onDark = tone === 'on-dark';
   const chipClass = (selected: boolean) => {
     if (onDark) {
-      return `min-h-[44px] flex flex-col items-center justify-center gap-0.5 rounded-2xl border-2 px-2 py-2 transition-all duration-200 backdrop-blur-sm ${
-        selected
-          ? 'border-white/40 bg-white/15 shadow-lg shadow-white/5'
-          : 'border-white/10 bg-white/5 active:scale-[0.98]'
+      // 1d on the navy ground: the pressable tile material (the navy page
+      // re-scopes it to its dark values), violet-tinted with the violet ring
+      // when selected — the same selection treatment as every other tile.
+      return `m-tile min-h-[48px] flex flex-col items-center justify-center gap-0.5 px-2 py-2 text-center ${
+        selected ? 'm-violet m-tile-selected' : ''
       }`;
     }
     return `flex-col items-center justify-center gap-0 px-2 ${
@@ -244,7 +245,7 @@ export function CurrencyPicker({
                   ₨/₱/€ rather than in ISO codes. Suppressed when it is just
                   the code again (AED, SAR, …) so the chip isn't "AED AED". */}
               {meta && meta.symbol !== code && (
-                <span className={`text-[10px] ${onDark ? 'text-white/50' : 'text-ink-500'}`}>
+                <span className={`text-[10px] ${onDark ? 'text-white/60' : 'text-ink-500'}`}>
                   {meta.symbol}
                 </span>
               )}
@@ -263,11 +264,11 @@ export function CurrencyPicker({
               chip size the chevron alone is too quiet to say so. */}
           <span
             className={`text-[12px] font-semibold flex items-center gap-1 ${
-              onDark ? 'text-white/80' : 'text-accent-600'
+              onDark ? 'text-accent-text' : 'text-accent-600'
             }`}
           >
             {t('cur_other')}
-            <ChevronDown size={13} />
+            <Glyph name="chevron-down" size={13} strokeWidth={2.6} />
           </span>
         </button>
       </div>
@@ -283,9 +284,10 @@ export function CurrencyPicker({
             {t('cur_search_label')}
           </label>
           <div className="relative">
-            <Search
+            <Glyph
+              name="search"
               size={15}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 pointer-events-none"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500 pointer-events-none z-[1]"
             />
             <input
               id="currency-search"
@@ -300,7 +302,7 @@ export function CurrencyPicker({
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('cur_search_placeholder')}
               autoComplete="off"
-              className="w-full h-[42px] pl-9 pr-3 rounded-2xl border border-cream-border bg-cream-card text-[13px] text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all"
+              className="input-field h-[42px] py-0 pl-10 pr-3 text-[13px]"
             />
           </div>
         </div>
@@ -345,7 +347,7 @@ export function CurrencyPicker({
                       rendering glitch — and hairlined, so a stuck header is
                       still legibly a divider and not a floating letter. */}
                   <div
-                    className={`sticky z-10 bg-cream-bg border-b border-cream-hairline pb-1 text-[11px] font-bold uppercase tracking-widest text-ink-600 ${
+                    className={`m-label sticky z-10 bg-cream-bg border-b border-cream-hairline pb-1.5 px-1 ${
                       i === 0 ? 'pt-1' : 'pt-4'
                     }`}
                     style={{ top: SEARCH_BLOCK_H }}

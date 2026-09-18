@@ -1,16 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Receipt, Scale, HandCoins, KeyRound, Search, X, Mail, Archive } from 'lucide-react';
 import { useSplitStore } from '../stores/splitStore';
 import { useNotificationStore } from '../stores/notificationStore';
 import { NavyHero, TopBar } from '../components/NavyHero';
 import { MoneyDisplay } from '../components/MoneyDisplay';
 import { GroupCard } from '../components/GroupCard';
-import { Card3D } from '../components/Card3D';
-import { Tile3D } from '../components/Tile3D';
-import { Icon3D } from '../components/Icon3D';
+import { Glyph } from '../components/Glyph';
 import { PageErrorState } from '../components/PageErrorState';
-import { NextStepHint } from '../components/NextStepHint';
 import { CreateGroupModal } from './CreateGroupModal';
 import { JoinGroupModal } from './JoinGroupModal';
 import { useToast } from '../components/Toast';
@@ -20,73 +16,103 @@ import { track } from '../lib/telemetry';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
 import { formatMoney } from '../lib/constants';
 import { getPrimaryCurrency } from '../lib/primaryCurrency';
+import { skeletonDelay } from '../lib/material';
+import type { GlyphName } from '../lib/glyphs';
 
+// Header control on the blue hero: the 36px raised 1d button (same recipe as
+// TopBar's back button and the bell), with a 44px+ hit area.
+const HERO_CTL =
+  "m-ctl relative w-9 h-9 flex items-center justify-center shrink-0 before:absolute before:-inset-1 before:content-['']";
+
+// Wraps the `{token}` inside a translated sentence in a node, so the amount in
+// "Across groups, you should receive {amount}." can be set in the figure ink
+// without splitting the sentence into two keys (word order differs per
+// language, so the split has to follow the template, not the code).
+function emphasize(template: string, token: string, value: ReactNode): ReactNode {
+  const at = template.indexOf(token);
+  if (at < 0) return template;
+  return (
+    <>
+      {template.slice(0, at)}
+      {value}
+      {template.slice(at + token.length)}
+    </>
+  );
+}
+
+// Loading: group-card shells in the loaded list's exact geometry (emoji
+// square, name + members line, hairline, state + amount), so nothing jumps
+// when the list lands. Blocks breathe on the staggered 1d pulse.
 function GroupsListSkeleton() {
   return (
-    <div className="space-y-2.5">
-      {[0, 1, 2].map((i) => (
-        <div
-          key={i}
-          className="rounded-[18px] bg-cream-card border border-cream-border p-4 flex items-center gap-3"
-        >
-          <div className="w-11 h-11 rounded-2xl bg-cream-soft animate-pulse shrink-0" />
-          <div className="flex-1 space-y-2">
-            <div className="h-3.5 w-32 rounded-full bg-cream-hairline animate-pulse" />
-            <div className="h-2.5 w-20 rounded-full bg-cream-hairline animate-pulse" />
+    <div className="flex flex-col gap-2.5" aria-hidden="true">
+      {[0, 1, 2].map((i) => {
+        const delay = { '--m-skel-delay': skeletonDelay(i) } as CSSProperties;
+        return (
+          <div key={i} className="m-card p-3.5">
+            <div className="flex items-center gap-3">
+              <div className="m-skel w-11 h-11 rounded-[15px] shrink-0" style={delay} />
+              <div className="flex-1 min-w-0">
+                <div className="m-skel h-[11px] w-[46%]" style={delay} />
+                <div className="m-skel h-[9px] w-[30%] mt-2" style={delay} />
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-cream-hairline flex items-center justify-between">
+              <div className="m-skel h-[9px] w-[36%]" style={delay} />
+              <div className="m-skel h-[12px] w-16" style={delay} />
+            </div>
           </div>
-          <div className="h-3.5 w-14 rounded-full bg-cream-hairline animate-pulse" />
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-// Onboarding card for users with zero groups. Re-skinned to the Sukoon
-// cream-card pattern; copy unchanged.
+// Onboarding card for users with zero groups: the handoff's blue education
+// card — the groups glyph in a recessed well, the promise, the three benefits
+// and the solo-start hint. Copy unchanged; it wraps instead of truncating so
+// the whole promise is readable in both languages.
 function GroupsEducationCard() {
   const t = useT();
-  const benefits = [
-    { icon: Receipt, title: t('groups_edu_split_title'), body: t('groups_edu_split_body') },
-    { icon: Scale, title: t('groups_edu_track_title'), body: t('groups_edu_track_body') },
-    { icon: HandCoins, title: t('groups_edu_settle_title'), body: t('groups_edu_settle_body') },
+  const benefits: { glyph: GlyphName; title: string; body: string }[] = [
+    { glyph: 'split', title: t('groups_edu_split_title'), body: t('groups_edu_split_body') },
+    { glyph: 'swap', title: t('groups_edu_track_title'), body: t('groups_edu_track_body') },
+    { glyph: 'check', title: t('groups_edu_settle_title'), body: t('groups_edu_settle_body') },
   ];
   return (
-    // 3D clay tier 2, sky — the splits domain tint.
-    <Card3D tint="sky" padding="sm" className="rounded-[18px]">
+    <section className="m-card m-blue p-[18px]">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 flex items-center justify-center shrink-0">
-          <Icon3D name="chat" size="sm" />
+        <div className="w-10 h-10 rounded-[14px] bg-cobalt-50 shadow-[inset_0_1px_0_var(--m-hi)] flex items-center justify-center shrink-0">
+          <Glyph name="groups" size={20} className="text-cobalt-text" />
         </div>
-        <div className="min-w-0 leading-normal">
-          <p className="text-[14px] font-semibold text-ink-900 tracking-tight truncate">
+        <div className="min-w-0">
+          <p className="text-[14px] font-semibold text-ink-900 tracking-[-0.01em] leading-[1.35]">
             {t('groups_edu_title')}
           </p>
-          <p className="text-[11px] text-ink-500 mt-0.5 truncate">
+          <p className="text-[11px] text-ink-600 mt-1 leading-[1.55]">
             {t('groups_edu_subtitle')}
           </p>
         </div>
       </div>
 
-      <div className="mt-3 space-y-2">
-        {benefits.map(({ icon: Icon, title, body }) => (
-          <div key={title} className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-cream-soft border border-cream-hairline flex items-center justify-center shrink-0">
-              <Icon size={14} className="text-ink-600" />
+      <ul className="mt-4 space-y-2.5">
+        {benefits.map(({ glyph, title, body }) => (
+          <li key={title} className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-[10px] bg-cobalt-50 shadow-[inset_0_1px_0_var(--m-hi)] flex items-center justify-center shrink-0">
+              <Glyph name={glyph} size={14} className="text-cobalt-text" />
             </div>
             <div className="min-w-0 leading-normal">
-              <p className="text-[12px] font-semibold text-ink-900 tracking-tight truncate">
-                {title}
-              </p>
-              <p className="text-[11px] text-ink-500 truncate">{body}</p>
+              <p className="text-[12px] font-semibold text-ink-900 tracking-[-0.01em]">{title}</p>
+              <p className="text-[11px] text-ink-600">{body}</p>
             </div>
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
 
-      <p className="text-[11px] text-ink-400 mt-3 text-center leading-normal">
+      <p className="text-[11px] text-ink-500 mt-4 text-center leading-[1.55]">
         {t('groups_edu_hint')}
       </p>
-    </Card3D>
+    </section>
   );
 }
 
@@ -158,55 +184,58 @@ function PendingInvitationsSection() {
   };
 
   return (
-    <div>
-      <div className="flex items-center gap-1.5 mb-2.5 px-1">
-        <Mail size={12} className="text-warn-600" />
-        <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
-          {t('ginv_pending_heading')}
-        </h2>
-        <span className="text-[11px] text-ink-400 font-semibold tabular-nums ml-auto">
+    <section className="pt-2">
+      <div className="flex items-center gap-[7px] mb-2.5 px-0.5">
+        <Glyph name="mail" size={12} tone="violet" />
+        <h2 className="m-label">{t('ginv_pending_heading')}</h2>
+        <span className="text-[11px] text-ink-400 font-semibold tabular-nums ms-auto">
           {pendingInvitations.length}
         </span>
       </div>
-      <div className="space-y-2.5">
+      <div className="flex flex-col gap-2.5">
         {pendingInvitations.map((invitation) => (
-          <div
+          // Violet-tinted card: an invitation is waiting on YOU, the same
+          // attention tone the handoff gives it.
+          <article
             key={invitation.groupId}
-            className="rounded-[18px] bg-cream-card border border-warn-100 p-4 animate-fade-in"
+            className="m-card m-violet px-[15px] py-3.5 animate-fade-in"
           >
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-warn-50 border border-warn-100 flex items-center justify-center text-lg shrink-0">
+              <div className="w-10 h-10 rounded-[14px] bg-accent-50 shadow-[inset_0_1px_0_var(--m-hi)] flex items-center justify-center text-[18px] leading-none shrink-0">
                 {invitation.groupEmoji || '👥'}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[14px] font-medium text-ink-900 truncate tracking-tight">
+                <p className="text-[14px] font-medium text-ink-900 truncate tracking-[-0.01em]">
                   {invitation.groupName}
                 </p>
-                <p className="text-[11px] text-ink-500 mt-0.5">
+                <p className="text-[11px] text-ink-600 mt-0.5 leading-snug">
                   {t('ginv_pending_sub').replace('{name}', invitation.invitedByName)}
                 </p>
               </div>
             </div>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3.5 mb-1 flex gap-2.5">
               <button
+                type="button"
                 onClick={() => void handleAccept(invitation.groupId)}
                 disabled={busyGroupId !== null}
-                className="flex-1 rounded-[14px] bg-ink-900 text-white px-4 py-2.5 text-[12.5px] font-semibold disabled:opacity-40 press"
+                className="m-btn m-btn-green flex-1 min-h-[40px] py-2 text-[12.5px]"
               >
+                <Glyph name="check" size={14} strokeWidth={2.8} />
                 {t('ginv_accept')}
               </button>
               <button
+                type="button"
                 onClick={() => void handleDecline(invitation.groupId)}
                 disabled={busyGroupId !== null}
-                className="rounded-[14px] bg-cream-soft border border-cream-border text-ink-700 px-4 py-2.5 text-[12.5px] font-semibold disabled:opacity-40 press"
+                className="m-btn m-btn-plain min-h-[40px] py-2 px-4 text-[12.5px]"
               >
                 {t('ginv_decline')}
               </button>
             </div>
-          </div>
+          </article>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -291,9 +320,34 @@ export function SplitsPage() {
   const visibleGroups = matchingGroups.filter((g) => !g.archivedAt);
   const archivedGroups = matchingGroups.filter((g) => Boolean(g.archivedAt));
 
+  // Direction cue under the hero figure. The figure itself stays white and
+  // extruded; the WORD carries the direction (receive green / pay coral) so a
+  // negative net never rests on the minus sign alone. Withheld until the
+  // balances land (the net reads 0 until then) and when the net is zero —
+  // a +50 and a −50 group cancel to 0 without either being settled.
+  const netCue =
+    !balancesLoaded || Math.abs(primaryNet) <= 0.005
+      ? null
+      : primaryNet > 0
+        ? { label: t('group_you_owed'), tone: 'text-receive-text' }
+        : { label: t('group_you_owe'), tone: 'text-pay-text' };
+
+  // The status line in the summary card (was a NextStepHint; the handoff's
+  // plain sentence with the amount set in the figure ink).
+  const hintAmount = (value: number) => (
+    <span className="font-semibold text-ink-900 tabular-nums">{formatMoney(value, primaryCurrency)}</span>
+  );
+  const hintStatus: ReactNode = q
+    ? t(visibleGroups.length === 1 ? 'splits_hint_search_match_one' : 'splits_hint_search_match_many').replace('{n}', String(visibleGroups.length))
+    : primaryNet === 0
+    ? t('splits_hint_settled')
+    : primaryNet > 0
+    ? emphasize(t('splits_hint_receive'), '{amount}', hintAmount(primaryNet))
+    : emphasize(t('splits_hint_pay'), '{amount}', hintAmount(Math.abs(primaryNet)));
+
   return (
     <main className="min-h-dvh bg-cream-bg pb-28">
-      <NavyHero>
+      <NavyHero accent="blue">
         <TopBar
           title={t('groups_title')}
           action={
@@ -304,46 +358,60 @@ export function SplitsPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowSearch((v) => !v)}
-                className="w-9 h-9 rounded-xl bg-white/10 active:bg-white/15 flex items-center justify-center transition-colors"
+                className={HERO_CTL}
                 aria-label={t('a11y_search')}
+                aria-pressed={showSearch}
               >
-                <Search size={15} className="text-white" />
+                <Glyph name="search" size={15} className="text-white/90" />
               </button>
               <button
                 onClick={openJoin}
-                className="w-9 h-9 rounded-xl bg-white/10 active:bg-white/15 flex items-center justify-center transition-colors"
+                className={HERO_CTL}
                 aria-label={t('a11y_join_with_code')}
                 title={t('a11y_join_with_code')}
               >
-                <KeyRound size={14} className="text-white" strokeWidth={2.2} />
+                <Glyph name="key" size={15} className="text-white/90" />
               </button>
               <button
                 onClick={openCreate}
-                className="w-9 h-9 rounded-xl bg-white/10 active:bg-white/15 flex items-center justify-center transition-colors"
+                className={HERO_CTL}
                 aria-label={t('a11y_create_group')}
               >
-                <Plus size={15} className="text-white" strokeWidth={2.4} />
+                <Glyph name="plus" size={15} strokeWidth={2.6} className="text-white/90" />
               </button>
             </div>
           }
         />
 
-        <div className="px-5 pb-7">
-          <p className="text-[10.5px] font-semibold text-white/50 tracking-[0.12em] uppercase">
+        <div className="px-5 pb-[26px]">
+          <p className="text-[10.5px] font-semibold text-white/70 tracking-[0.12em] uppercase">
             {t('grp_hero_across').replace('{currency}', primaryCurrency)}
           </p>
-          {hasGroups ? (
+          {isInitialLoading ? (
+            <div aria-hidden="true">
+              <div className="m-skel mt-2.5 h-[38px] w-48 rounded-xl" />
+              <div className="m-skel mt-3 h-[11px] w-36" style={{ '--m-skel-delay': '0.15s' } as CSSProperties} />
+            </div>
+          ) : hasGroups ? (
             <>
-              <div className="mt-1.5">
+              <div className="mt-2">
+                {/* Extruded like every hero figure, in the section's blue. */}
                 <MoneyDisplay
                   amount={primaryNet}
                   currency={primaryCurrency}
-                  size={36}
+                  size={38}
                   tone="on-navy"
                   signed
+                  extrude="blue"
                 />
               </div>
-              <p className="text-[12px] text-white/55 mt-2">
+              <p className="text-[12px] text-white/70 mt-2.5">
+                {netCue && (
+                  <>
+                    <span className={`font-semibold ${netCue.tone}`}>{netCue.label}</span>
+                    {' · '}
+                  </>
+                )}
                 {groups.length} {groups.length === 1 ? t('grp_unit_split') : t('grp_unit_splits')}
                 {otherCcyGroups.length > 0 && (
                   <> {t('grp_other_currencies').replace('{n}', String(otherCcyGroups.length))}</>
@@ -352,10 +420,10 @@ export function SplitsPage() {
             </>
           ) : (
             <>
-              <p className="text-white text-[22px] font-semibold tracking-tight mt-1.5 leading-tight">
+              <p className="text-white text-[22px] font-semibold tracking-[-0.02em] mt-2 leading-[1.25]">
                 {t('grp_no_splits_title')}
               </p>
-              <p className="text-[12px] text-white/55 mt-1.5 max-w-[260px] leading-relaxed">
+              <p className="text-[12px] text-white/70 mt-2 max-w-[260px] leading-[1.55]">
                 {t('grp_no_splits_body')}
               </p>
             </>
@@ -363,24 +431,28 @@ export function SplitsPage() {
         </div>
       </NavyHero>
 
-      <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-4">
+      <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-3.5">
         {showSearch && (
           <div className="relative">
-            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" />
+            <Glyph
+              name="search"
+              size={14}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none"
+            />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('grp_search_placeholder')}
-              className="w-full bg-cream-card border border-cream-border rounded-2xl pl-10 pr-10 py-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all"
+              className="input-field pl-10 pr-11 text-[13px]"
               autoFocus
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-ink-400 press-xs"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-ink-400 press-xs"
                 aria-label={t('a11y_clear_search')}
               >
-                <X size={14} />
+                <Glyph name="close" size={14} />
               </button>
             )}
           </div>
@@ -395,57 +467,51 @@ export function SplitsPage() {
           />
         )}
 
-        {/* Primary action buttons when groups exist — visible but not headline.
-            For empty state the GroupsEducationCard carries the explanation. */}
-        {hasGroups && (
-          // Stacked ("top") clay tiles: two short labels under centred
-          // floating art. pt-5 is the headroom the 40% overhang needs (§10.8);
-          // `sm` art keeps the pair from dominating the page's first screen.
-          <div className="grid grid-cols-2 gap-2.5 pt-5">
-            <Tile3D
-              tint="sky"
-              /* Literal art for the two verbs: a `plus` for "make a new one",
-                 a `key` for "let me in with this code". The pair used to be
-                 `chat`/`handshake` (a speech bubble and a thumbs-up), which
-                 said nothing about creating or joining. */
-              icon="plus"
-              iconPlacement="top"
-              iconSize="sm"
-              title={t('groups_action_create_title')}
-              onClick={openCreate}
-            />
-            <Tile3D
-              tint="neutral"
-              icon="key"
-              iconPlacement="top"
-              iconSize="sm"
-              title={t('groups_action_join_title')}
-              onClick={openJoin}
-            />
+        {/* Create / Join — two pressable tiles, the glyph on the tile face
+            with no container behind it: a blue `plus` for "make a new one",
+            a neutral `key` for "let me in with this code". Shown on the empty
+            screen too (as in the handoff), so the first action is right there
+            next to the education card instead of only in the header. */}
+        {(hasGroups || showEducation) && (
+          <div className="grid grid-cols-2 gap-2.5">
+            <button type="button" onClick={openCreate} className="m-tile m-blue rounded-[16px] p-3.5 text-left">
+              <Glyph name="plus" size={24} extrude className="block mb-2.5 text-cobalt-text" />
+              <span className="block text-[13px] font-semibold text-ink-900 tracking-[-0.01em]">
+                {t('groups_action_create_title')}
+              </span>
+              <span className="block mt-[3px] text-[10.5px] text-ink-600 leading-snug">
+                {t('groups_action_create_sub')}
+              </span>
+            </button>
+            <button type="button" onClick={openJoin} className="m-tile rounded-[16px] p-3.5 text-left">
+              <Glyph name="key" size={24} tone="neutral" extrude className="block mb-2.5" />
+              <span className="block text-[13px] font-semibold text-ink-900 tracking-[-0.01em]">
+                {t('groups_action_join_title')}
+              </span>
+              <span className="block mt-[3px] text-[10.5px] text-ink-600 leading-snug">
+                {t('groups_action_join_sub')}
+              </span>
+            </button>
           </div>
         )}
 
         {status === 'ready' && hasGroups && (
-          <NextStepHint
-            icon={primaryNet === 0 ? Scale : HandCoins}
-            tone={primaryNet > 0 ? 'receive' : primaryNet < 0 ? 'pay' : 'info'}
-            status={
-              q
-                ? t(visibleGroups.length === 1 ? 'splits_hint_search_match_one' : 'splits_hint_search_match_many').replace('{n}', String(visibleGroups.length))
-                : primaryNet === 0
-                ? t('splits_hint_settled')
-                : primaryNet > 0
-                ? t('splits_hint_receive').replace('{amount}', formatMoney(primaryNet, primaryCurrency))
-                : t('splits_hint_pay').replace('{amount}', formatMoney(Math.abs(primaryNet), primaryCurrency))
-            }
-            next={
-              q
-                ? t('splits_hint_next_search')
-                : t('splits_hint_next_open')
-            }
-            actionLabel={q ? t('splits_hint_clear_search') : undefined}
-            onAction={q ? () => setSearchQuery('') : undefined}
-          />
+          <div className="m-card px-[15px] py-[13px]">
+            <p className="text-[11.5px] text-ink-600 leading-[1.55]">
+              {hintStatus}{' '}
+              {q ? t('splits_hint_next_search') : t('splits_hint_next_open')}
+            </p>
+            {q && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="mt-1.5 inline-flex items-center gap-1.5 min-h-[32px] text-[12px] font-semibold text-accent-600 active:opacity-70 transition-opacity"
+              >
+                {t('splits_hint_clear_search')}
+                <Glyph name="arrow-right" size={12} />
+              </button>
+            )}
+          </div>
         )}
 
         {isInitialLoading && <GroupsListSkeleton />}
@@ -457,21 +523,19 @@ export function SplitsPage() {
             a lie. */}
         {hasGroups && (visibleGroups.length > 0 || archivedGroups.length === 0) && (() => {
           return (
-            <div>
-              <div className="flex items-center justify-between mb-2.5 px-1">
-                <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
-                  {t('groups_list_heading')}
-                </h2>
+            <section className="pt-2">
+              <div className="flex items-center justify-between mb-2.5 px-0.5">
+                <h2 className="m-label">{t('groups_list_heading')}</h2>
                 <span className="text-[11px] text-ink-400 font-semibold tabular-nums">
                   {visibleGroups.length}
                 </span>
               </div>
               {visibleGroups.length === 0 ? (
-                <p className="text-[12px] text-ink-400 text-center py-6">
+                <p className="text-[12px] text-ink-500 text-center py-6">
                   {t('grp_no_matches_for').replace('{q}', searchQuery)}
                 </p>
               ) : (
-                <div className="space-y-2.5">
+                <div className="flex flex-col gap-2.5">
                   {visibleGroups.map((g) => {
                     // Outstanding count from this user's per-group net: a
                     // non-zero balance means one balance still to settle in
@@ -496,27 +560,31 @@ export function SplitsPage() {
                   })}
                 </div>
               )}
-            </div>
+            </section>
           );
         })()}
 
         {archivedGroups.length > 0 && (
-          <div>
+          <section className="pt-2">
             <button
               onClick={() => setShowArchived((v) => !v)}
-              className="w-full flex items-center gap-1.5 mb-2.5 px-1 text-left"
+              className="w-full min-h-[44px] flex items-center gap-[7px] px-0.5 text-left"
               aria-expanded={showArchived}
             >
-              <Archive size={12} className="text-ink-400" />
-              <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
-                {t('grp_archived_section')}
-              </h2>
-              <span className="text-[11px] text-ink-400 font-semibold tabular-nums ml-auto">
+              <Glyph name="archive" size={13} className="text-ink-400" />
+              {/* span, not h2 — heading content inside a <button> is invalid. */}
+              <span className="m-label">{t('grp_archived_section')}</span>
+              <span className="ms-auto flex items-center gap-1.5 text-[11px] text-ink-400 font-semibold tabular-nums">
                 {archivedGroups.length}
+                <Glyph
+                  name="chevron-down"
+                  size={12}
+                  className={`transition-transform ${showArchived ? 'rotate-180' : ''}`}
+                />
               </span>
             </button>
             {showArchived && (
-              <div className="space-y-2.5">
+              <div className="flex flex-col gap-2.5 mt-1">
                 {archivedGroups.map((g) => {
                   const groupBalance = balances[g.id] ?? 0;
                   return (
@@ -536,7 +604,7 @@ export function SplitsPage() {
                 })}
               </div>
             )}
-          </div>
+          </section>
         )}
 
         {showEducation && <GroupsEducationCard />}

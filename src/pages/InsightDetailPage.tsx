@@ -65,7 +65,9 @@ export function InsightDetailPage() {
         const day = new Date(t.createdAt).getDate();
         weeks[Math.min(4, Math.floor((day - 1) / 7))] += t.amount;
       }
-      weekBars = weeks.map((amt, i) => ({ name: `Wk ${i + 1}`, amt }));
+      // The week NUMBER is the name; it is formatted ("Wk 2" / "Hafta 2")
+      // at render time so this memo does not depend on the language.
+      weekBars = weeks.map((amt, i) => ({ name: String(i + 1), amt }));
       while (weekBars.length > 1 && weekBars[weekBars.length - 1].amt === 0) weekBars.pop();
     }
 
@@ -96,9 +98,9 @@ export function InsightDetailPage() {
 
   return (
     <main className="min-h-dvh bg-cream-bg pb-28">
-      <PageHeader title={cat || 'Category'} back />
+      <PageHeader title={cat || t('category')} back />
 
-      <div className="px-5 pt-5 space-y-4">
+      <div className="px-5 pt-5 space-y-3">
         {status === 'error' && (
           <PageErrorState
             variant="inline"
@@ -109,53 +111,62 @@ export function InsightDetailPage() {
         )}
 
         {status === 'loading' && transactions.length === 0 ? (
-          <ListSkeleton rows={3} withAvatar={false} />
+          <div className="space-y-3" aria-hidden="true">
+            <div className="m-skel rounded-[18px] h-[108px]" />
+            <div className="m-skel rounded-[22px] h-[168px]" style={{ '--m-skel-delay': '0.15s' } as React.CSSProperties} />
+            <ListSkeleton rows={3} withAvatar={false} />
+          </div>
         ) : data.count === 0 ? (
           status === 'ready' ? (
             <EmptyState
               icon={TrendingUp}
-              tone="accent"
-              title={`No ${cat} spending in this period`}
-              description="Try a wider range on Analytics, or log expenses in this category to see the breakdown."
+              clayIcon="analytics"
+              tone="violet"
+              title={t('mv_idp_empty_title').replace('{cat}', cat)}
+              description={t('mv_idp_empty_desc')}
             />
           ) : null
         ) : (
           <>
-            {/* total */}
-            <div className="rounded-2xl bg-cream-card border border-cream-border p-4">
-              <p className="text-[11px] text-ink-500 font-semibold tracking-[0.12em] uppercase">
+            {/* total — the coral "money out" stat card */}
+            <div className="m-card m-coral p-4">
+              <p className="text-[10px] text-pay-text font-semibold tracking-[0.12em] uppercase">
                 {t('idp_total_spent')}
               </p>
-              <p className="text-[28px] font-bold text-ink-900 tabular-nums mt-1">
+              <p className="text-[28px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em] mt-1.5 leading-tight">
                 {formatMoney(data.total, data.cur)}
               </p>
-              <p className="text-[11px] text-ink-500 mt-1">
+              <p className="text-[11.5px] text-ink-600 mt-1">
                 {data.count === 1
                   ? t('idp_across_one')
                   : t('idp_across_many').replace('{n}', String(data.count))}
               </p>
             </div>
 
-            {/* by week */}
+            {/* by week / month — extruded bars, as on Analytics */}
             {data.weekBars.length > 0 && (
-              <div className="rounded-2xl bg-cream-card border border-cream-border p-4">
-                <p className="text-[11px] text-ink-500 font-semibold tracking-[0.12em] uppercase mb-3">
-                  {data.byMonth ? 'By month' : 'By week'}
+              <div className="m-card m-card-feature p-[18px]">
+                <p className="text-[10.5px] text-ink-500 font-semibold tracking-[0.12em] uppercase mb-3">
+                  {data.byMonth ? t('mv_idp_by_month') : t('mv_idp_by_week')}
                 </p>
-                <div className="flex items-end gap-2.5 h-28">
+                <div className="flex items-end gap-2.5 h-[124px]">
                   {data.weekBars.map((w) => (
-                    <div key={w.name} className="flex-1 flex flex-col items-center justify-end gap-1.5 h-full">
-                      <span className="text-[10px] font-semibold text-ink-700 tabular-nums">
+                    <div key={w.name} className="flex-1 min-w-0 flex flex-col items-center justify-end gap-1.5 h-full">
+                      <span className="text-[10.5px] font-semibold text-ink-800 tabular-nums">
                         {Math.round(w.amt)}
                       </span>
                       <div
-                        className="w-full max-w-[34px] rounded-lg"
+                        className="w-full max-w-[34px]"
                         style={{
                           height: `${Math.max(6, Math.round((w.amt / maxWeek) * 80))}px`,
-                          background: 'var(--color-accent-500)',
+                          backgroundImage: 'linear-gradient(var(--color-iris-500), var(--color-iris-600))',
+                          borderRadius: '7px 7px 3px 3px',
+                          boxShadow: 'inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 2px 0 0 rgba(255, 255, 255, 0.16), inset -3px 0 0 rgba(0, 0, 0, 0.22), 0 2px 0 color-mix(in srgb, var(--color-iris-600) 55%, black)',
                         }}
                       />
-                      <span className="text-[9.5px] text-ink-500">{w.name}</span>
+                      <span className="text-[9.5px] font-medium text-ink-500 mt-0.5 whitespace-nowrap">
+                        {data.byMonth ? w.name : t('mv_idp_week_n').replace('{n}', w.name)}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -163,28 +174,30 @@ export function InsightDetailPage() {
             )}
 
             {/* by merchant */}
-            <div className="rounded-2xl bg-cream-card border border-cream-border overflow-hidden">
-              <p className="text-[11px] text-ink-500 font-semibold tracking-[0.12em] uppercase px-4 pt-4 pb-1">
+            <div className="m-card m-card-feature overflow-hidden">
+              <p className="text-[10.5px] text-ink-500 font-semibold tracking-[0.12em] uppercase px-4 pt-4 pb-1.5">
                 {t('idp_where_it_went')}
               </p>
-              {data.merchants.map((m, i) => (
-                <div
-                  key={m.name}
-                  className={`flex items-center justify-between gap-3 px-4 py-3 ${
-                    i ? 'border-t border-cream-hairline' : ''
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-semibold text-ink-900 truncate">{m.name}</p>
-                    <p className="text-[11px] text-ink-500">
-                      {m.count} {m.count === 1 ? 'charge' : 'charges'}
+              <div className="divide-y divide-cream-hairline">
+                {data.merchants.map((m) => (
+                  <div
+                    key={m.name}
+                    className="flex items-center justify-between gap-3 px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-ink-900 truncate tracking-tight">{m.name}</p>
+                      <p className="text-[11px] text-ink-500 mt-0.5">
+                        {m.count === 1
+                          ? t('mv_idp_charge_one')
+                          : t('mv_idp_charge_many').replace('{n}', String(m.count))}
+                      </p>
+                    </div>
+                    <p className="text-[13px] font-semibold text-pay-text tabular-nums shrink-0">
+                      −{formatMoney(m.amt, data.cur).replace(`${data.cur} `, '')}
                     </p>
                   </div>
-                  <p className="text-[13px] font-semibold text-pay-text tabular-nums shrink-0">
-                    −{formatMoney(m.amt, data.cur).replace(`${data.cur} `, '')}
-                  </p>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </>
         )}

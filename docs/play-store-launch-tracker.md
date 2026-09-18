@@ -51,6 +51,10 @@ we always know who's on what. Pair this with the step-by-step in
 | T4 | IARC content rating (Kameti = savings-rotation, not gambling) | ⏳ | Everyone rating |
 | T5 | Upload AAB → closed test → (14 days) → production | ⏳ | First upload is versionCode 1 / 1.0.0 to **closed testing** (new developer account: 12 testers, 14 days); Play App Signing is mandatory for AAB (enrolled on that upload — then do Y7 slot 1). Staged rollout after |
 
+## 🧭 Founder feedback round — 2026-09-06
+
+Ten observations from the founder's end-to-end walk after the Vercel apex flip, each grounded in the code and tracked with its own decision in [`founder-feedback-2026-09-06.md`](founder-feedback-2026-09-06.md) (F1–F10, D-F1…D-F10). Two of them touch closed testing directly: the "discovery is off by default" wording in the Data Safety docs and the privacy page is **false** (F2/F6 — it is on when a number is saved) and must be corrected before T2 is submitted; and F7 (Quick Entry order) plus the F9 contrast core sit on branch `founder-round-2026-09-06` and, once approved from screenshots, must be in the AAB that Y5 rebuilds.
+
 ## 💤 Deferred (post-v1 backlog)
 
 - Android home-screen widget (native Kotlin — `docs/android-home-widget-spec.md`)

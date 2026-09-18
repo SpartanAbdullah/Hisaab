@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Ban, Check, Flag, ShieldAlert } from 'lucide-react';
+import { Ban, Flag } from 'lucide-react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
 import { useToast } from './Toast';
 import { useT } from '../lib/i18n';
 import { useSubmitGuard } from '../lib/useSubmitGuard';
@@ -166,13 +167,13 @@ export function BlockReportSheet({
           : t('rep_sheet_title').replace('{name}', targetName)
       }
       footer={
+        // Block is the loud, destructive choice (solid coral); reporting is
+        // this sheet's primary action (brand violet).
         <button
           type="button"
           onClick={mode === 'block' ? runBlock : runReport}
           disabled={saving}
-          className={`w-full py-3 rounded-2xl text-[13px] font-bold disabled:opacity-40 press ${
-            mode === 'block' ? 'bg-pay-600 text-white' : 'bg-ink-900 text-white'
-          }`}
+          className={`m-btn w-full py-3.5 text-[13.5px] ${mode === 'block' ? 'm-btn-coral' : 'm-btn-primary'}`}
         >
           {mode === 'block' ? t('blk_confirm_cta') : t('rep_submit_cta')}
         </button>
@@ -181,11 +182,11 @@ export function BlockReportSheet({
       {mode === 'block' ? (
         <div className="space-y-3">
           {openBalanceText && (
-            <div className="rounded-2xl bg-warn-50 border border-warn-100 p-3.5">
-              <p className="text-[12.5px] font-semibold text-warn-600 flex items-center gap-1.5">
-                <ShieldAlert size={14} strokeWidth={2.2} /> {t('blk_settle_first_title')}
+            <div className="m-card m-gold p-3.5">
+              <p className="text-[12.5px] font-semibold text-warn-700 flex items-center gap-1.5">
+                <Glyph name="shield" size={15} tone="gold" /> {t('blk_settle_first_title')}
               </p>
-              <p className="text-[11.5px] text-ink-600 mt-1 leading-relaxed">
+              <p className="text-[11.5px] text-ink-700 mt-1 leading-relaxed">
                 {t('blk_settle_first_body')
                   .replace('{name}', targetName)
                   .replace('{amount}', openBalanceText)}
@@ -193,20 +194,20 @@ export function BlockReportSheet({
             </div>
           )}
 
-          <div className="rounded-2xl bg-cream-soft border border-cream-hairline p-3.5 space-y-2">
-            <p className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">
+          <div className="m-inset p-3.5 space-y-2">
+            <p className="m-label text-[10px]">
               {t('blk_what_happens')}
             </p>
             {points.map((line) => (
               <div key={line} className="flex items-start gap-2">
-                <Check size={12} strokeWidth={3} className="text-ink-400 shrink-0 mt-[3px]" />
+                <Glyph name="check" size={12} strokeWidth={3} className="text-ink-400 mt-[3px]" />
                 <p className="text-[11.5px] text-ink-600 leading-relaxed">{line}</p>
               </div>
             ))}
           </div>
 
           <div>
-            <label htmlFor="block-reason" className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">
+            <label htmlFor="block-reason" className="form-label">
               {t('blk_reason_label')}
             </label>
             <input
@@ -215,22 +216,23 @@ export function BlockReportSheet({
               onChange={(e) => setReason(e.target.value)}
               maxLength={BLOCK_REASON_MAX}
               placeholder={t('blk_reason_ph')}
-              className="w-full mt-1.5 border border-cream-border rounded-xl px-4 py-3 text-[13px] bg-cream-bg focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all"
+              className="input-field"
             />
           </div>
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-[11.5px] text-ink-500 leading-relaxed flex items-start gap-2">
-            <Flag size={13} className="text-ink-400 shrink-0 mt-[2px]" strokeWidth={2.2} />
+          <p className="text-[11.5px] text-ink-600 leading-relaxed flex items-start gap-2">
+            {/* No 3c glyph for a flag — lucide at the glyph stroke weight. */}
+            <Flag size={13} className="text-ink-400 shrink-0 mt-[2px]" strokeWidth={2.4} />
             <span>{t('rep_intro')}</span>
           </p>
 
           <div>
-            <p className="text-[10px] font-bold text-ink-500 uppercase tracking-widest mb-1.5">
+            <p className="form-label">
               {t('rep_reason_label')}
             </p>
-            <div className="rounded-2xl bg-cream-card border border-cream-border divide-y divide-cream-hairline overflow-hidden">
+            <div className="m-card divide-y divide-cream-hairline overflow-hidden">
               {REPORT_REASONS.map((value) => (
                 <button
                   key={value}
@@ -239,12 +241,13 @@ export function BlockReportSheet({
                   aria-pressed={reportReason === value}
                   className="w-full flex items-center gap-2.5 px-3.5 py-3 text-left active:bg-cream-soft transition-colors"
                 >
+                  {/* Radio dot — brand violet when chosen (the primary accent). */}
                   <span
-                    className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-                      reportReason === value ? 'bg-ink-900 border-ink-900 text-white' : 'border-cream-border text-transparent'
+                    className={`w-[18px] h-[18px] rounded-full border flex items-center justify-center shrink-0 ${
+                      reportReason === value ? 'bg-accent-600 border-accent-600 text-white' : 'border-field-border text-transparent'
                     }`}
                   >
-                    <Check size={10} strokeWidth={3.2} />
+                    <Glyph name="check" size={11} strokeWidth={3.2} />
                   </span>
                   <span className="text-[12.5px] text-ink-800">{t(REASON_LABEL_KEY[value])}</span>
                 </button>
@@ -253,7 +256,7 @@ export function BlockReportSheet({
           </div>
 
           <div>
-            <label htmlFor="report-details" className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">
+            <label htmlFor="report-details" className="form-label">
               {t('rep_details_label')}
             </label>
             <textarea
@@ -263,26 +266,23 @@ export function BlockReportSheet({
               rows={3}
               maxLength={REPORT_DETAILS_MAX}
               placeholder={t('rep_details_ph')}
-              className="w-full mt-1.5 border border-cream-border rounded-2xl px-4 py-3 text-sm bg-cream-card focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all resize-none"
+              className="input-field resize-none"
             />
           </div>
 
+          {/* The whole row is the switch (role="switch"): its label is the
+              accessible name and the full row is the tap target. */}
           <button
             type="button"
+            role="switch"
+            aria-checked={alsoBlock}
             onClick={() => setAlsoBlock(!alsoBlock)}
-            aria-pressed={alsoBlock}
-            className="w-full flex items-center gap-2.5 rounded-2xl bg-cream-soft border border-cream-hairline px-3.5 py-3 text-left"
+            className="m-card w-full flex items-center gap-3 px-4 py-3 text-left"
           >
-            <span
-              className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                alsoBlock ? 'bg-pay-600 border-pay-600 text-white' : 'border-cream-border text-transparent'
-              }`}
-            >
-              <Check size={10} strokeWidth={3.2} />
+            <span className="text-[12.5px] text-ink-800 flex items-center gap-1.5 flex-1">
+              <Ban size={13} className="text-glyph-coral shrink-0" strokeWidth={2.4} /> {t('rep_also_block')}
             </span>
-            <span className="text-[12.5px] text-ink-800 flex items-center gap-1.5">
-              <Ban size={12} className="text-ink-400" /> {t('rep_also_block')}
-            </span>
+            <span aria-hidden className={`m-switch block ${alsoBlock ? 'is-on' : ''}`} />
           </button>
         </div>
       )}

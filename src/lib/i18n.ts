@@ -55,7 +55,7 @@ const S = {
   intent_move: { ur: "Paisay Move Karein", en: "Move Money" },
   intent_move_sub: { ur: "Apne accounts ke darmiyan", en: "Between your accounts" },
   intent_person: { ur: "Kisi Ke Sath Paisay", en: "Money With Someone" },
-  intent_person_sub: { ur: "Diya, liya ya wapsi", en: "Give, borrow, or pay back" },
+  intent_person_sub: { ur: "Udhaar dein, lein ya wapas karein", en: "Lend, borrow, or pay back" },
   intent_group: { ur: "Group Kharcha", en: "Group Expense" },
   intent_group_sub: { ur: "Group mein split karein", en: "Split with a group" },
   // Ad-hoc split gets its own first-class tile: "split the coffee" must be
@@ -5026,18 +5026,17 @@ const S = {
   guest_renamed: { ur: "Naam badal diya gaya", en: "Renamed" },
   gev_guest_added: { ur: "App ke baghair member add hua", en: "Added someone without the app" },
 
-  // ── 3D clay: home page — quick-tile labels + surfaces that lost their
-  // hardcoded English when the tiles became Tile3D.
+  // ── Home page quick-tile labels + surfaces that lost their hardcoded
+  // English when the tiles became Tile3D.
   //
-  // Short on purpose, and the lengths are MEASURED, not guessed: the 4-up
-  // grid on a 360px phone gives each tile 74px, of which 62px is label. At
-  // the stacked tile's 12px type that is ~9 characters. The full page titles
-  // ("Subscription Tracker", "Investment Tracker", "Your Contacts") overflow
-  // it, and so do "Subscriptions" (78.1px) and "Investments" (70.1px) — hence
-  // the two abbreviations. They abbreviate the same word rather than renaming
-  // the feature, and the destination page states its full title on arrival.
+  // Keep them to one word: the 4-up grid on a 360dp phone leaves a 64px
+  // label box per tile. "Subscriptions" is the longest (the founder wants it
+  // in full, 2026-09-19, not "Subs"): 69px at the tile's 10.5px, so the label
+  // fits itself to the tile (.m-tile-label in index.css) and dips to ~9.5px
+  // on a 360dp phone. The full page titles ("Subscription Tracker",
+  // "Investment Tracker") still don't fit and are stated on arrival instead.
   home_tile_budget: { ur: "Budget", en: "Budget" },
-  home_tile_subs: { ur: "Subs", en: "Subs" },
+  home_tile_subs: { ur: "Subscriptions", en: "Subscriptions" },
   home_tile_contacts: { ur: "Contacts", en: "Contacts" },
   home_tile_invest: { ur: "Invest", en: "Invest" },
   // The calm "nothing needs you" status card. Was two hardcoded English
@@ -5075,6 +5074,129 @@ const S = {
     en: "This currency can't be saved here yet — coming soon.",
   },
   cur_selected: { ur: "Muntakhab", en: "Selected" },
+
+  // ════ 1d redesign (2026-09-18) — one block per screen group. Each group
+  // adds its keys ONLY directly above its own END marker, so parallel edits
+  // never touch the same lines. ════
+  // ── 1d: loans + inbox ──
+  // Loans hero explainer under the net stance (was hardcoded English).
+  loans_stance_receive_more: { ur: "Aap ko dene se zyada lena hai", en: "You'll receive more than you owe" },
+  loans_stance_owe_more: { ur: "Aap ko lene se zyada dena hai", en: "You owe more than you'll receive" },
+  // Guidance line above the Loans person list (was hardcoded English).
+  loans_tap_hint: {
+    ur: "Kisi bande par tap karein — alag alag qarz, wapsi ka hisaab aur yaad-dehani wahan milegi.",
+    en: "Tap a person to see individual loans, repayment progress, and reminder options.",
+  },
+  loans_other_only_hint: {
+    ur: "Is tab mein abhi sirf doosri currencies ke qarz hain — neeche wala hissa dekhein.",
+    en: "This tab only has other-currency loans right now; review the pocket section below.",
+  },
+  loans_switch_tabs_hint: {
+    ur: "Doosri taraf ka hisaab dekhne ke liye tab badlein.",
+    en: "Switch tabs to review the other side of your IOUs.",
+  },
+  // Home's pending-settlement banner header (was hardcoded English).
+  snb_title_one: { ur: "Ek settlement intezar mein hai", en: "Pending settlement waiting" },
+  snb_title_many: { ur: "{n} settlements intezar mein hain", en: "{n} settlements waiting" },
+  // Statement headline entry count (was hardcoded English).
+  soa_entry_one: { ur: "1 entry", en: "1 entry" },
+  soa_entry_many: { ur: "{n} entries", en: "{n} entries" },
+  // Loan detail when the id resolves to nothing (designed empty state).
+  ldp_not_found_desc: {
+    ur: "Yeh qarz shayad delete ho chuka hai, ya is account mein nahi hai.",
+    en: "It may have been deleted, or it isn't on this account.",
+  },
+  inbox_filter_label: { ur: "Qisam se dekhein", en: "Filter by type" },
+  inbox_filter_all: { ur: "Sab", en: "All" },
+  inbox_filter_loans: { ur: "Qarz", en: "Loans" },
+  inbox_filter_payments: { ur: "Adaigiyan", en: "Payments" },
+  inbox_filter_contacts: { ur: "Contacts", en: "Contacts" },
+  // ── 1d: loans + inbox END ──
+  // ── 1d: money views ──
+  // Analytics: the bar readout names the selected day of the daily chart.
+  mv_day_n: { ur: "Din {n}", en: "Day {n}" },
+  // Activity tabs + hero line (were hardcoded English).
+  mv_act_tab_shared: { ur: "Shared", en: "Shared" },
+  mv_act_tab_personal: { ur: "Apni", en: "Personal" },
+  mv_act_hero_shared: { ur: "{n} shared", en: "{n} shared" },
+  mv_act_hero_unread: { ur: "{n} naye", en: "{n} unread" },
+  mv_act_hero_personal_one: { ur: "1 apni activity", en: "1 personal event" },
+  mv_act_hero_personal_many: { ur: "{n} apni activities", en: "{n} personal events" },
+  // Insight drill-in (were hardcoded English).
+  mv_idp_empty_title: { ur: "Is waqt mein {cat} par koi kharcha nahi", en: "No {cat} spending in this period" },
+  mv_idp_empty_desc: {
+    ur: "Analytics par lamba waqt chunein, ya is category mein kharche likhein — phir yahan tafseel dikhegi.",
+    en: "Try a wider range on Analytics, or log expenses in this category to see the breakdown.",
+  },
+  mv_idp_by_month: { ur: "Maheene ke hisaab se", en: "By month" },
+  mv_idp_by_week: { ur: "Hafte ke hisaab se", en: "By week" },
+  mv_idp_week_n: { ur: "Hafta {n}", en: "Wk {n}" },
+  mv_idp_charge_one: { ur: "1 kharcha", en: "1 charge" },
+  mv_idp_charge_many: { ur: "{n} kharche", en: "{n} charges" },
+  // Subscriptions status line (was hardcoded English).
+  mv_subs_status_paused: { ur: "ruki hui", en: "paused" },
+  mv_subs_status_overdue: { ur: "{n} din der se", en: "overdue {n}d" },
+  mv_subs_status_due_ago: { ur: "{n} din pehle due thi", en: "due {n}d ago" },
+  mv_subs_status_next_in: { ur: "agli {n} din mein", en: "next in {n}d" },
+  // Recurring entry modal + due prompt (were hardcoded English).
+  mv_arm_title_edit: { ur: "Recurring entry badlein", en: "Edit recurring entry" },
+  mv_arm_title_new: { ur: "Nayi recurring entry", en: "New recurring entry" },
+  mv_arm_update_cta: { ur: "Update karein", en: "Update" },
+  mv_unknown_account: { ur: "Na-maloom", en: "Unknown" },
+  mv_rec_skipped: { ur: "{name}: is dafa chhor diya", en: "{name}: skipped" },
+  // Upcoming-bill reminder chips (were Urdu-only literals).
+  mv_days_before: { ur: "{n} din pehle", en: "{n} days before" },
+  // Monthly wrap fallback category (was hardcoded English).
+  mv_uncategorised: { ur: "Bina category", en: "Uncategorised" },
+  // Add-account name placeholders (were hardcoded).
+  mv_acct_name_ph_cash: { ur: "Jaise: Jaib Kharcha", en: "e.g. Pocket cash" },
+  mv_acct_name_ph_bank: { ur: "Jaise: Mera Account", en: "e.g. My Account" },
+  mv_acct_name_ph_wallet: { ur: "Jaise: Mera Wallet", en: "e.g. My Wallet" },
+  // ── 1d: money views END ──
+  // ── 1d: kameti ──
+  // Kameti list hero: what you've signed up to pay in across every round of
+  // your active kametis (contribution × rounds, per currency).
+  kameti_total_committed: { ur: "Kul committed raqam", en: "Total committed" },
+  // Kameti list card: the next round date on the calendar.
+  kameti_next_payout: { ur: "Agli baari · {date}", en: "Next payout · {date}" },
+  // Kameti detail: a link to a kameti that no longer exists (was hardcoded "Not found.").
+  kameti_not_found: { ur: "Ye kameti nahi mili", en: "Committee not found" },
+  // New-kameti member composer.
+  kameti_quick_add_hint: {
+    ur: "Saved contact par tap karein — naam aur number saath aa jayenge",
+    en: "Tap a saved contact — their name and number come with them",
+  },
+  kameti_enter_to_add: {
+    ur: "Enter dabayein, member add ho jayega — phir agla naam likhein",
+    en: "Press Enter to add, then type the next name",
+  },
+  // ── 1d: kameti END ──
+  // ── 1d: groups ──
+  // JoinGroupModal confirm card: what was resolved when the input was an
+  // invite link rather than a group code (was a hardcoded English literal).
+  grp_invite_link_label: { ur: "Invite link", en: "Invite link" },
+  // ── 1d: groups END ──
+  // ── 1d: investments + ai ──
+  // ── 1d: investments + ai END ──
+  // ── 1d: settings + shell ──
+  set_pw_update_cta: { ur: "Password update karein", en: "Update password" },
+  set_pw_new_ph: { ur: "Naya password (kam az kam {n} characters)", en: "New password (min {n} characters)" },
+  cts_find_cta: { ur: "Dhoondein", en: "Find" },
+  cts_adding: { ur: "Add ho raha hai…", en: "Adding…" },
+  cts_added_connected: { ur: "{name} add aur connect ho gaye", en: "{name} added & connected" },
+  cbc_notfound_body: {
+    ur: "Code dobara check karein, ya unhein apna QR dobara dikhane ko kahein.",
+    en: "Double-check the code, or ask them to show their QR again.",
+  },
+  cbc_go_contacts: { ur: "Contacts par jayein", en: "Go to Contacts" },
+  cbc_connecting: { ur: "Connect ho raha hai…", en: "Connecting…" },
+  gs_scope_txn: { ur: "Lenden", en: "Transaction" },
+  gs_scope_loan: { ur: "Qarz", en: "Loan" },
+  gs_scope_group_expense: { ur: "Group kharcha", en: "Group expense" },
+  gs_group_fallback: { ur: "Group", en: "Group" },
+  a11y_verified: { ur: "Tasdeeq shuda", en: "Verified" },
+  cp_saved_locally: { ur: "Sirf aap ke paas saved", en: "Saved locally" },
+  // ── 1d: settings + shell END ──
 } as const;
 
 type Key = keyof typeof S;

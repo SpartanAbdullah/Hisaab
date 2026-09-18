@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Check, Phone, X } from 'lucide-react';
 import { useToast } from './Toast';
+import { Glyph } from './Glyph';
 import { useT } from '../lib/i18n';
 import { phoneDiscoveryDb, profilesDb } from '../lib/supabaseDb';
 import { formatE164, toE164 } from '../lib/phoneIdentity';
@@ -110,109 +110,116 @@ export function PhoneDiscoverySection({ sectionClass, rowClass }: Props) {
 
   if (available !== true) return null;
 
+  // 1d: the caller's settings card + row classes (SettingsPage owns the card
+  // material); inside, the row wears the standard raised icon square, the
+  // number edits in the sunken .input-field well, and discoverability is the
+  // 48×28 material switch (role="switch").
   return (
     <div className={sectionClass}>
-      <div className={rowClass}>
-        <div className="w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center shrink-0">
-          <Phone size={16} className="text-accent-600" />
+      {/* One child, so the card's hairline dividers never split the row from
+          its own panel. */}
+      <div>
+        <div className={rowClass}>
+          <div className="m-ctl w-9 h-9 flex items-center justify-center shrink-0" aria-hidden>
+            <Glyph name="phone" tone="green" size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13.5px] font-semibold text-ink-900">{t('disc_my_phone_title')}</p>
+            <p className="text-[11px] text-ink-600 mt-0.5 leading-relaxed">{t('disc_my_phone_desc')}</p>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold text-ink-900">{t('disc_my_phone_title')}</p>
-          <p className="text-[11px] text-ink-500 leading-relaxed">{t('disc_my_phone_desc')}</p>
-        </div>
-      </div>
 
-      <div className="px-4 pb-4 space-y-3">
-        {editing ? (
-          <>
-            <div className="flex items-center gap-2">
-              <input
-                autoFocus
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && previewed) { e.preventDefault(); void save(); }
-                  if (e.key === 'Escape') setEditing(false);
-                }}
-                placeholder={t('disc_my_phone_placeholder')}
-                inputMode="tel"
-                className="flex-1 min-w-0 bg-cream-bg border border-cream-border rounded-xl px-3.5 py-2.5 text-[13px] outline-none focus:border-accent-500"
-              />
-              <button
-                type="button"
-                disabled={busy || !previewed}
-                onClick={() => void save()}
-                className="w-9 h-9 rounded-xl bg-receive-50 text-receive-text flex items-center justify-center disabled:opacity-40 press-xs"
-                aria-label={t('cat_save')}
-              >
-                <Check size={16} strokeWidth={2.8} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditing(false)}
-                className="w-9 h-9 rounded-xl bg-cream-soft text-ink-400 flex items-center justify-center press-xs"
-                aria-label={t('cancel')}
-              >
-                <X size={16} />
-              </button>
-            </div>
-            {previewed ? (
-              <p className="text-[11px] text-ink-500">
-                {t('disc_my_phone_confirm').replace('{number}', formatE164(previewed))}
+        <div className="px-4 pb-4 pt-0.5 space-y-3">
+          {editing ? (
+            <>
+              <div className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && previewed) { e.preventDefault(); void save(); }
+                    if (e.key === 'Escape') setEditing(false);
+                  }}
+                  placeholder={t('disc_my_phone_placeholder')}
+                  inputMode="tel"
+                  className="input-field flex-1 min-w-0 py-2.5"
+                />
+                <button
+                  type="button"
+                  disabled={busy || !previewed}
+                  onClick={() => void save()}
+                  className="m-ctl w-10 h-10 shrink-0 flex items-center justify-center disabled:opacity-40"
+                  aria-label={t('cat_save')}
+                >
+                  <Glyph name="check" tone="green" size={17} strokeWidth={2.8} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  className="m-ctl w-10 h-10 shrink-0 flex items-center justify-center"
+                  aria-label={t('cancel')}
+                >
+                  <Glyph name="close" size={16} className="text-ink-500" />
+                </button>
+              </div>
+              {previewed ? (
+                <p className="text-[11px] text-ink-600">
+                  {t('disc_my_phone_confirm').replace('{number}', formatE164(previewed))}
+                </p>
+              ) : draftHasDigits ? (
+                <p className="text-[11px] text-warn-700 leading-relaxed">{t('disc_my_phone_invalid')}</p>
+              ) : null}
+            </>
+          ) : (
+            <div className="flex items-center gap-3">
+              <p className="flex-1 min-w-0 text-[13px] text-ink-900 tabular-nums truncate">
+                {saved ? formatE164(saved) : (
+                  <span className="text-ink-400">{t('disc_my_phone_none')}</span>
+                )}
               </p>
-            ) : draftHasDigits ? (
-              <p className="text-[11px] text-warn-700 leading-relaxed">{t('disc_my_phone_invalid')}</p>
-            ) : null}
-          </>
-        ) : (
-          <div className="flex items-center gap-2">
-            <p className="flex-1 min-w-0 text-[13px] text-ink-900 truncate">
-              {saved ? formatE164(saved) : (
-                <span className="text-ink-400">{t('disc_my_phone_none')}</span>
-              )}
-            </p>
-            <button
-              type="button"
-              onClick={() => { setDraft(saved ?? ''); setEditing(true); }}
-              className="shrink-0 text-[11.5px] font-semibold text-accent-600"
-            >
-              {saved ? t('contact_whatsapp_edit') : t('contact_whatsapp_add')}
-            </button>
-            {saved && (
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => void remove()}
-                className="shrink-0 text-[11.5px] font-semibold text-pay-text disabled:opacity-50"
+                onClick={() => { setDraft(saved ?? ''); setEditing(true); }}
+                className="shrink-0 min-h-[36px] text-[11.5px] font-semibold text-accent-600"
               >
-                {t('cat_remove')}
+                {saved ? t('contact_whatsapp_edit') : t('contact_whatsapp_add')}
               </button>
-            )}
-          </div>
-        )}
-
-        {saved && !editing && (
-          <div className="flex items-center gap-3 pt-1 border-t border-cream-hairline">
-            <p className="flex-1 min-w-0 text-[11.5px] text-ink-600 leading-relaxed pt-3">
-              {t('disc_my_phone_toggle')}
-              {!discoverable && (
-                <span className="block text-[10.5px] text-ink-400 mt-0.5">
-                  {t('disc_my_phone_hidden')}
-                </span>
+              {saved && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void remove()}
+                  className="shrink-0 min-h-[36px] text-[11.5px] font-semibold text-pay-text disabled:opacity-50"
+                >
+                  {t('cat_remove')}
+                </button>
               )}
-            </p>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void toggleDiscoverable()}
-              aria-pressed={discoverable}
-              aria-label={t('disc_my_phone_toggle')}
-              className={`relative w-12 h-7 rounded-full transition-colors shrink-0 mt-3 disabled:opacity-50 ${discoverable ? 'bg-receive-600' : 'bg-cream-border'}`}
-            >
-              <span className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-all ${discoverable ? 'left-6' : 'left-1'}`} />
-            </button>
-          </div>
-        )}
+            </div>
+          )}
+
+          {saved && !editing && (
+            <div className="flex items-center gap-3 pt-3 border-t border-cream-hairline">
+              <p className="flex-1 min-w-0 text-[12px] text-ink-800 leading-relaxed">
+                {t('disc_my_phone_toggle')}
+                {!discoverable && (
+                  <span className="block text-[10.5px] text-ink-500 mt-0.5">
+                    {t('disc_my_phone_hidden')}
+                  </span>
+                )}
+              </p>
+              <button
+                type="button"
+                role="switch"
+                disabled={busy}
+                onClick={() => void toggleDiscoverable()}
+                aria-checked={discoverable}
+                aria-label={t('disc_my_phone_toggle')}
+                className="m-switch"
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

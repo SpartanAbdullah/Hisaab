@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
-import { CheckCircle, AlertCircle, Info, X, Undo2 } from 'lucide-react';
 import { create } from 'zustand';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useT } from '../lib/i18n';
+import { Glyph } from './Glyph';
+import type { GlyphName } from '../lib/glyphs';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -40,11 +41,15 @@ export const useToast = create<ToastStore>((set) => ({
   dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));
 
-const icons = { success: CheckCircle, error: AlertCircle, info: Info };
-const bgColors = {
-  success: 'bg-receive-600 shadow-receive-600/25',
-  error: 'bg-pay-600 shadow-pay-600/25',
-  info: 'bg-info-600 shadow-info-600/25',
+// 1d toast: a tinted material card (lit face + hard walls) in the semantic
+// tone — money-in green for success, coral (never red) for errors, blue for
+// info — keyed by a gradient stat-dot carrying the glyph, so the meaning never
+// rests on colour alone. Title/subtitle stay on the ink ramp, which is AA on
+// every tint face in both themes.
+const TONES: Record<ToastType, { card: string; dot: string; glyph: GlyphName }> = {
+  success: { card: 'm-mint', dot: 'm-stat-dot m-stat-dot-receive', glyph: 'check' },
+  error: { card: 'm-coral', dot: 'm-stat-dot m-stat-dot-pay', glyph: 'alert' },
+  info: { card: 'm-blue', dot: 'm-ctl w-[26px] h-[26px] rounded-[9px] inline-flex items-center justify-center shrink-0', glyph: 'info' },
 };
 
 function ToastItem({ toast }: { toast: ToastData }) {
@@ -65,12 +70,12 @@ function ToastItem({ toast }: { toast: ToastData }) {
     return () => clearTimeout(timer);
   }, [handleDismiss, toast.duration, toast.action]);
 
-  const Icon = icons[toast.type];
+  const tone = TONES[toast.type];
   const reduced = useReducedMotion();
 
   return (
     <div
-      className={`${bgColors[toast.type]} text-white rounded-2xl px-4 py-3 flex items-start gap-3 shadow-lg transition-all duration-300 ${
+      className={`m-card ${tone.card} px-3.5 py-3 flex items-start gap-3 transition-all duration-300 ${
         visible && !exiting ? 'translate-y-0 opacity-100 scale-100' : '-translate-y-3 opacity-0 scale-95'
       }`}
       style={{
@@ -84,10 +89,17 @@ function ToastItem({ toast }: { toast: ToastData }) {
             : 'cubic-bezier(0.34, 1.56, 0.64, 1)',
       }}
     >
-      <Icon size={18} className="shrink-0 mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-semibold tracking-tight">{toast.title}</p>
-        {toast.subtitle && <p className="text-xs opacity-75 mt-0.5">{toast.subtitle}</p>}
+      <span className={tone.dot} aria-hidden>
+        <Glyph
+          name={tone.glyph}
+          size={14}
+          strokeWidth={3}
+          className={toast.type === 'info' ? 'text-glyph-blue' : undefined}
+        />
+      </span>
+      <div className="flex-1 min-w-0 pt-[3px]">
+        <p className="text-[13px] font-semibold tracking-tight text-ink-900">{toast.title}</p>
+        {toast.subtitle && <p className="text-[11.5px] text-ink-600 mt-0.5 leading-relaxed">{toast.subtitle}</p>}
       </div>
       {toast.action && (
         <button
@@ -95,18 +107,18 @@ function ToastItem({ toast }: { toast: ToastData }) {
             toast.action?.onPress();
             handleDismiss();
           }}
-          className="relative shrink-0 -my-1 px-2.5 py-1.5 rounded-lg bg-white/20 active:bg-white/30 text-white text-[12px] font-bold flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          className="m-pill relative shrink-0 -my-0.5 px-3 text-ink-900 text-[12px] font-bold"
         >
-          <Undo2 size={13} strokeWidth={2.6} />
+          <Glyph name="undo" size={13} strokeWidth={2.6} />
           {toast.action.label}
         </button>
       )}
       <button
         onClick={handleDismiss}
         aria-label={t('a11y_dismiss')}
-        className="relative shrink-0 mt-0.5 opacity-50 active:opacity-100 transition-opacity before:absolute before:-inset-2.5 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded"
+        className="relative shrink-0 mt-[5px] text-ink-400 active:text-ink-800 transition-colors before:absolute before:-inset-2.5 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 rounded"
       >
-        <X size={14} />
+        <Glyph name="close" size={14} />
       </button>
     </div>
   );

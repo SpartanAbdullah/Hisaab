@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Sparkles, Share2 } from 'lucide-react';
+import { useId, useState } from 'react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
 import { markWrapShown, type WrapStats } from '../lib/monthlyWrap';
 import { formatMoney } from '../lib/constants';
 import { generateWrapCard } from '../lib/wrapCard';
@@ -27,6 +27,7 @@ interface Props {
 // mounts this component once it has real stats to render.
 export function MonthlyWrapModal({ stats, onClose }: Props) {
   const t = useT();
+  const totalsLabelId = useId();
   const [open, setOpen] = useState(true);
   const [includeTotals, setIncludeTotals] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -64,41 +65,41 @@ export function MonthlyWrapModal({ stats, onClose }: Props) {
       : '↑';
   const trendLabel = stats.spendChangePercent == null
     ? ''
-    : `${trendArrow} ${Math.abs(stats.spendChangePercent).toFixed(0)}% vs last month`;
+    : `${trendArrow} ${Math.abs(stats.spendChangePercent).toFixed(0)}% ${t('mh_vs_last')}`;
 
   return (
     <Modal open={open} onClose={handleClose} title={stats.monthLabel}>
-      <div className="space-y-4">
-        {/* Lead card */}
-        <div className="rounded-2xl bg-navy-800 text-white p-5 bg-navy-bloom">
-          <div className="flex items-center gap-2 text-white/70">
-            <Sparkles size={14} />
-            <p className="text-[10.5px] font-bold uppercase tracking-[0.12em]">
+      <div className="space-y-3">
+        {/* Lead card — the one dark "hero" surface in the sheet. */}
+        <div className="bg-navy-bloom rounded-[22px] text-white p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_16px_28px_-18px_rgba(0,0,0,0.9)]">
+          <div className="flex items-center gap-2">
+            <Glyph name="sparkles" size={15} tone="violet" extrude />
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-white/70">
               {t('mwm_your_wrap')}
             </p>
           </div>
-          <p className="text-[20px] font-semibold tracking-tight mt-2 leading-snug">
+          <p className="text-[20px] font-semibold tracking-tight mt-2.5 leading-snug">
             {stats.headline}
           </p>
           {trendLabel && (
-            <p className="text-[12px] text-white/65 mt-2 tabular-nums">{trendLabel}</p>
+            <p className="text-[12px] text-white/70 mt-2 tabular-nums">{trendLabel}</p>
           )}
         </div>
 
-        {/* Three-up stat strip */}
+        {/* Three-up stat strip — tinted stat cards */}
         <div className="grid grid-cols-3 gap-2.5">
           <StatCard
-            label="Spent"
+            label={t('flex_spent_word')}
             value={formatMoney(stats.totalSpent, stats.primaryCurrency)}
             tone="pay"
           />
           <StatCard
-            label="Earned"
+            label={t('tx_income')}
             value={formatMoney(stats.totalIncome, stats.primaryCurrency)}
             tone="receive"
           />
           <StatCard
-            label="Net"
+            label={t('analytics_net')}
             value={`${stats.net >= 0 ? '+' : ''}${formatMoney(stats.net, stats.primaryCurrency)}`}
             tone={stats.net >= 0 ? 'receive' : 'pay'}
           />
@@ -106,23 +107,23 @@ export function MonthlyWrapModal({ stats, onClose }: Props) {
 
         {/* Top categories */}
         {stats.topCategories.length > 0 && (
-          <div className="rounded-2xl bg-cream-card border border-cream-border p-4">
-            <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-ink-500">
+          <div className="m-card p-4">
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink-500">
               {t('mwm_where_it_went')}
             </p>
-            <div className="mt-2.5 space-y-2">
+            <div className="mt-3 space-y-2.5">
               {stats.topCategories.map((c) => (
                 <div key={c.category}>
-                  <div className="flex items-baseline justify-between tabular-nums">
-                    <p className="text-[13px] font-semibold text-ink-900">{c.category}</p>
-                    <p className="text-[12px] text-ink-700">
+                  <div className="flex items-baseline justify-between gap-2 tabular-nums">
+                    <p className="text-[13px] font-semibold text-ink-900 truncate">{c.category}</p>
+                    <p className="text-[12px] text-ink-700 shrink-0">
                       {formatMoney(c.amount, stats.primaryCurrency)}
-                      <span className="text-ink-400 ml-1.5">· {c.share.toFixed(0)}%</span>
+                      <span className="text-ink-500 ml-1.5">· {c.share.toFixed(0)}%</span>
                     </p>
                   </div>
-                  <div className="mt-1 h-1.5 rounded-full bg-cream-soft overflow-hidden">
+                  <div className="m-inset mt-1.5 h-2 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-accent-500"
+                      className="h-full rounded-full bg-gradient-to-r from-accent-500 to-accent-600"
                       style={{ width: `${Math.min(c.share, 100)}%` }}
                     />
                   </div>
@@ -135,27 +136,27 @@ export function MonthlyWrapModal({ stats, onClose }: Props) {
         {/* Biggest + busiest day */}
         <div className="grid grid-cols-2 gap-2.5">
           {stats.biggestExpense && (
-            <div className="rounded-2xl bg-cream-card border border-cream-border p-3.5">
-              <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-ink-500">
+            <div className="m-card p-3.5 min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-500">
                 {t('mwm_biggest_hit')}
               </p>
-              <p className="text-[16px] font-semibold text-ink-900 tabular-nums mt-1">
+              <p className="text-[16px] font-semibold text-ink-900 tabular-nums mt-1 truncate">
                 {formatMoney(stats.biggestExpense.amount, stats.biggestExpense.currency)}
               </p>
-              <p className="text-[11px] text-ink-500 truncate">
-                {stats.biggestExpense.category || 'Uncategorised'}
+              <p className="text-[11px] text-ink-600 truncate">
+                {stats.biggestExpense.category || t('mv_uncategorised')}
               </p>
             </div>
           )}
           {stats.bigSpendDay && (
-            <div className="rounded-2xl bg-cream-card border border-cream-border p-3.5">
-              <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-ink-500">
+            <div className="m-card p-3.5 min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-500">
                 {t('mwm_busiest_day')}
               </p>
-              <p className="text-[16px] font-semibold text-ink-900 tabular-nums mt-1">
+              <p className="text-[16px] font-semibold text-ink-900 tabular-nums mt-1 truncate">
                 {formatMoney(stats.bigSpendDay.amount, stats.primaryCurrency)}
               </p>
-              <p className="text-[11px] text-ink-500">
+              <p className="text-[11px] text-ink-600">
                 {new Date(stats.bigSpendDay.date).toLocaleDateString(undefined, {
                   weekday: 'short',
                   day: 'numeric',
@@ -167,23 +168,25 @@ export function MonthlyWrapModal({ stats, onClose }: Props) {
         </div>
 
         {/* Privacy: default to "proud numbers"; exact totals are opt-in. */}
-        <label className="flex items-center justify-between rounded-2xl bg-cream-card border border-cream-border px-4 py-3 cursor-pointer">
-          <span className="text-[12.5px] font-semibold text-ink-800">{t('mwm_include_totals')}</span>
-          <input
-            type="checkbox"
-            checked={includeTotals}
-            onChange={(e) => setIncludeTotals(e.target.checked)}
-            className="w-4 h-4 accent-accent-600"
+        <div className="m-card flex items-center justify-between gap-3 px-4 py-3">
+          <span id={totalsLabelId} className="text-[12.5px] font-semibold text-ink-800">{t('mwm_include_totals')}</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={includeTotals}
+            aria-labelledby={totalsLabelId}
+            onClick={() => setIncludeTotals((v) => !v)}
+            className="m-switch"
           />
-        </label>
+        </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2.5 pt-1">
           <button
             onClick={handleShare}
             disabled={sharing}
-            className="cta-secondary flex-1 flex items-center justify-center gap-1.5 disabled:opacity-50"
+            className="cta-secondary flex-1"
           >
-            <Share2 size={12} /> {sharing ? t('mwm_preparing') : t('mwm_share_card')}
+            <Glyph name="share" size={15} /> {sharing ? t('mwm_preparing') : t('mwm_share_card')}
           </button>
           <button onClick={handleClose} className="cta-primary flex-1">
             {t('mwm_see_next_month')}
@@ -200,17 +203,19 @@ interface StatCardProps {
   tone: 'receive' | 'pay';
 }
 
+// Tinted stat card: the tint + label colour carry direction, the figure
+// stays in primary ink.
 function StatCard({ label, value, tone }: StatCardProps) {
   return (
-    <div className="rounded-2xl bg-cream-card border border-cream-border p-3">
-      <p className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-ink-500">
-        {label}
-      </p>
+    <div className={`m-card ${tone === 'receive' ? 'm-mint' : 'm-coral'} rounded-[16px] p-3 min-w-0`}>
       <p
-        className={`text-[15px] font-semibold tabular-nums mt-1 ${
+        className={`text-[9.5px] font-semibold uppercase tracking-[0.12em] ${
           tone === 'receive' ? 'text-receive-text' : 'text-pay-text'
         }`}
       >
+        {label}
+      </p>
+      <p className="text-[14px] font-semibold text-ink-900 tabular-nums mt-1.5 truncate">
         {value}
       </p>
     </div>

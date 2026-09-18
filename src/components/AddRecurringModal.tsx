@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
 import { useDiscardGuard } from '../lib/useDiscardGuard';
 import { useSubmitGuard } from '../lib/useSubmitGuard';
 import { useRecurringStore } from '../stores/recurringStore';
@@ -171,30 +172,36 @@ export function AddRecurringModal({ open, onClose, defaultCategory, title, templ
     : !!label.trim() || !!amount.trim() || !!accountId;
 
   return (
-    <Modal open={open} onClose={onClose} title={isEdit ? 'Edit recurring entry' : (title ?? 'New recurring entry')}
+    <Modal open={open} onClose={onClose} title={isEdit ? t('mv_arm_title_edit') : (title ?? t('mv_arm_title_new'))}
       confirmClose={() => guardClose(isDirty)}>
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2.5">
           <button
+            type="button"
             onClick={() => {
               setType('expense');
               setCategory(seedCategory);
             }}
-            className={`selector-base justify-center text-[12.5px] font-semibold ${
+            aria-pressed={type === 'expense'}
+            className={`selector-base justify-center gap-2 text-[12.5px] font-semibold ${
               type === 'expense' ? 'selector-selected' : ''
             }`}
           >
+            <Glyph name="arrow-up" size={15} tone="coral" />
             {t('arm_type_expense')}
           </button>
           <button
+            type="button"
             onClick={() => {
               setType('income');
               setCategory(INCOME_CATEGORIES[0]);
             }}
-            className={`selector-base justify-center text-[12.5px] font-semibold ${
+            aria-pressed={type === 'income'}
+            className={`selector-base justify-center gap-2 text-[12.5px] font-semibold ${
               type === 'income' ? 'selector-selected' : ''
             }`}
           >
+            <Glyph name="arrow-down" size={15} tone="green" />
             {t('arm_type_income')}
           </button>
         </div>
@@ -222,7 +229,7 @@ export function AddRecurringModal({ open, onClose, defaultCategory, title, templ
         </div>
 
         <div>
-          <label className="form-label">{type === 'expense' ? 'From account' : 'To account'}</label>
+          <label className="form-label">{type === 'expense' ? t('quick_from') : t('quick_to')}</label>
           <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="input-field">
             <option value="">{t('arm_pick_account')}</option>
             {groupAccountsByType(accounts).map((g) => (
@@ -274,7 +281,7 @@ export function AddRecurringModal({ open, onClose, defaultCategory, title, templ
         </div>
 
         <button onClick={handleSave} disabled={saving || !canSave} className="cta-primary">
-          {saving ? 'Saving…' : isEdit ? 'Update' : 'Save'}
+          {saving ? t('bud_saving') : isEdit ? t('mv_arm_update_cta') : t('common_save')}
         </button>
       </div>
     </Modal>

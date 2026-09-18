@@ -1,43 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  Shield,
-  Download,
-  Upload,
-  Globe,
-  Smartphone,
-  Info,
-  ChevronRight,
-  Lock,
-  Unlock,
-  User,
-  Mail,
-  Phone,
-  KeyRound,
-  LogOut,
-  Users,
-  AlertTriangle,
-  Trash2,
-  Share2,
-  Sparkles,
-  Copy,
-  Wallet2,
-  Repeat,
-  Tags,
-  Moon,
-  Coins,
-  Lightbulb,
-  FileText,
-  Bell,
-  BellRing,
-  Clock,
-  Ban,
-  BellOff,
-} from "lucide-react";
+import { Unlock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useSupabaseAuthStore } from "../stores/supabaseAuthStore";
 import { NavyHero, TopBar } from "../components/NavyHero";
 import { UserAvatar } from "../components/UserAvatar";
 import { LanguageToggle } from "../components/LanguageToggle";
+import { Glyph } from "../components/Glyph";
+import type { GlyphName, GlyphTone } from "../lib/glyphs";
 import { useAppModeStore } from "../stores/appModeStore";
 import { useAccountStore } from "../stores/accountStore";
 import { useAuthStore } from "../stores/authStore";
@@ -146,6 +115,39 @@ function readUnsettledBalancesBlocker(error: unknown): { blocked: boolean; detai
   return { blocked: true, detail: details.includes(UNSETTLED_BALANCES_MARKER) ? "" : details };
 }
 
+// ── 1d row anatomy (handoff §5 Settings) ────────────────────────────────
+// Every row: a 36px raised control square holding a toned 3c glyph, a
+// 13.5px/600 title over an 11px ink-600 subtitle, and a chevron glyph when the
+// row navigates. Hoisted so the page body stays a list of rows.
+function RowIcon({ glyph, tone }: { glyph: GlyphName; tone: GlyphTone }) {
+  return (
+    <div className="m-ctl w-9 h-9 flex items-center justify-center shrink-0" aria-hidden>
+      <Glyph name={glyph} tone={tone} size={18} />
+    </div>
+  );
+}
+
+function RowText({ title, sub, danger = false }: { title: React.ReactNode; sub?: React.ReactNode; danger?: boolean }) {
+  return (
+    <div className="flex-1 min-w-0">
+      <p className={`text-[13.5px] font-semibold tracking-[-0.005em] ${danger ? "text-pay-text" : "text-ink-900"}`}>
+        {title}
+      </p>
+      {sub ? <p className="text-[11px] text-ink-600 mt-0.5 leading-snug">{sub}</p> : null}
+    </div>
+  );
+}
+
+function RowChevron({ open = false, danger = false }: { open?: boolean; danger?: boolean }) {
+  return (
+    <Glyph
+      name="chevron-right"
+      size={15}
+      className={`transition-transform ${danger ? "text-pay-text" : "text-ink-400"} ${open ? "rotate-90" : ""}`}
+    />
+  );
+}
+
 function readOwnedGroupsBlocker(error: unknown): { blocked: boolean; names: string } {
   const parts: string[] = [];
   if (typeof error === "string") {
@@ -181,7 +183,7 @@ export function SettingsPage() {
   const toast = useToast();
   const { mode, setMode } = useAppModeStore();
   const { accounts } = useAccountStore();
-  const { lang, setLang } = useI18nStore();
+  const lang = useI18nStore((st) => st.lang);
   const { hasPin, setPin, removePin } = useAuthStore();
   const { signOut, deleteAccount, user } = useSupabaseAuthStore();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -539,18 +541,15 @@ export function SettingsPage() {
     }
   };
 
-  // 3D clay tier 2, neutral: a settings group is informational chrome around
-  // rows that are individually tappable — the group itself is not, so it is a
-  // card, never a tile. `.clay-card` + `.clay-neutral` are the utility form of
-  // <Card3D tint="neutral">; used as a class string here because this is a
-  // shared className constant applied to ~15 <div>s, not a component call.
-  // Radius stays 18px (between the tile's 16 and the card's 24) so the
-  // Settings rhythm is unchanged, and overflow-hidden keeps the divided rows
-  // clipped to it — safe, because no group here carries a floating icon.
+  // 1d: a settings group is the standard card surface (lit face + ambient
+  // shadow, 18px) holding hairline-divided rows — the group itself is not
+  // pressable, so it is a card, never a tile. overflow-hidden keeps the row
+  // press-flash clipped to the radius. Shared with PhoneDiscoverySection.
   const sectionClass =
-    "clay-card clay-neutral rounded-[18px] overflow-hidden divide-y divide-cream-hairline";
+    "m-card overflow-hidden divide-y divide-cream-hairline";
   const rowClass =
     "row-base row-interactive px-4 py-3.5";
+  const groupLabelClass = "m-label px-1 pt-3";
 
   // A window is "on" only when both edges are set and distinct — matches the
   // server's own reading of the global row (docs/notifications.md §3: "Both
@@ -606,280 +605,253 @@ export function SettingsPage() {
           back
           action={<LanguageToggle />}
         />
-        <div className="px-5 pb-7">
-          <div className="flex items-center gap-3">
-            <UserAvatar name={userName || email || "User"} size={56} />
+        {/* Profile header (handoff §5): the violet self-avatar, name + email,
+            then the copyable user-code chip on a raised control. */}
+        <div className="px-5 pb-[26px]">
+          <div className="flex items-center gap-3.5">
+            <UserAvatar name={userName || email || "User"} size={56} self />
             <div className="min-w-0 flex-1">
-              <p className="text-white text-[16px] font-semibold tracking-tight truncate">
-                {userName || "Hisaab user"}
+              <p className="text-white text-[16px] font-semibold tracking-[-0.01em] truncate">
+                {userName || t("blk_unknown_person")}
               </p>
               {email && (
-                <p className="text-[11px] text-white/55 truncate mt-0.5">{email}</p>
+                <p className="text-[11px] text-white/70 truncate mt-[3px]">{email}</p>
               )}
             </div>
           </div>
 
-          {/* Copyable user-code chip — Sukoon's identity surface. Stays
-              minimal until the public_code is ready; tap copies @code. */}
+          {/* Copyable user-code chip — the identity surface. Stays minimal
+              until the public_code is ready; tap copies @code. */}
           <button
             onClick={copyUserCode}
             disabled={!publicCode}
-            className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/15 px-3 py-1.5 text-[11px] font-semibold text-white active:bg-white/20 transition-colors disabled:opacity-50"
+            className="m-ctl mt-4 inline-flex items-center gap-2 rounded-full px-3 py-[7px] disabled:opacity-50"
           >
-            <span className="text-white/55 uppercase tracking-[0.12em] text-[9px]">
+            <span className="text-white/60 uppercase tracking-[0.12em] text-[9px] font-semibold">
               {t('set_code_chip_label')}
             </span>
-            <span className="tabular-nums">
+            <span className="text-[11px] font-semibold text-white tabular-nums">
               {publicCode ? `@${publicCode}` : "—"}
             </span>
-            {publicCode && <Copy size={11} strokeWidth={2.2} />}
+            {publicCode && <Glyph name="copy" tone="violet" size={11} strokeWidth={2.6} />}
           </button>
         </div>
       </NavyHero>
 
-      <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-4">
-        {/* Group header — Account & security. Lightweight visual chunking only;
-            no behaviour change. */}
-        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-500 px-1 pt-1">
+      <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-3">
+        {/* ── Account & security ─────────────────────────────────────── */}
+        <p className="m-label px-1 pt-0.5">
           {t('settings_grp_account')}
         </p>
 
-        {/* My Account */}
+        {/* My Account · Language · Appearance */}
         <div className={sectionClass}>
-          <button
-            onClick={() => setShowProfile(!showProfile)}
-            className={rowClass + " w-full text-left"}
-          >
-            <div className="w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center">
-              <User size={16} className="text-accent-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">
-                {t("settings_my_account")}
-              </p>
-              <p className="text-[11px] text-ink-500">
-                {userName || t("settings_my_account_desc")}
-              </p>
-            </div>
-            <ChevronRight
-              size={16}
-              className={`text-ink-300 transition-transform ${showProfile ? "rotate-90" : ""}`}
-            />
-          </button>
-          {showProfile && (
-            <div className="p-4 space-y-3 animate-fade-in">
-              <div>
-                <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
-                  <Mail size={10} /> {t("settings_email")}
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  readOnly
-                  className="w-full border border-cream-border rounded-xl px-4 py-3 text-[13px] bg-cream-soft text-ink-600 cursor-not-allowed"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
-                  <Phone size={10} /> {t("settings_mobile")}
-                </label>
-                <input
-                  type="tel"
-                  value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
-                  placeholder="+971 50 123 4567"
-                  className="w-full border border-cream-border rounded-xl px-4 py-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
-                  <User size={10} /> {t('set_user_code_label')}
-                </label>
-                <div className="flex gap-2">
+          <div>
+            <button
+              onClick={() => setShowProfile(!showProfile)}
+              className={rowClass + " w-full text-left"}
+              aria-expanded={showProfile}
+            >
+              <RowIcon glyph="person" tone="violet" />
+              <RowText
+                title={t("settings_my_account")}
+                sub={userName || t("settings_my_account_desc")}
+              />
+              <RowChevron open={showProfile} />
+            </button>
+            {showProfile && (
+              <div className="px-4 pb-4 pt-1 space-y-3.5 animate-fade-in">
+                <div>
+                  <label htmlFor="settings-email" className="form-label">{t("settings_email")}</label>
                   <input
-                    type="text"
-                    value={publicCode ? `@${publicCode}` : ""}
+                    id="settings-email"
+                    type="email"
+                    value={email}
                     readOnly
-                    placeholder={t('set_code_generating')}
-                    className="flex-1 border border-cream-border rounded-xl px-4 py-3 text-[13px] bg-cream-soft text-ink-900"
+                    className="input-field text-ink-600 cursor-not-allowed"
                   />
-                  <button
-                    onClick={async () => {
-                      if (!publicCode) return;
-                      await navigator.clipboard.writeText(`@${publicCode}`);
-                      toast.show({
-                        type: "success",
-                        title: t('set_code_copied'),
-                      });
-                    }}
-                    disabled={!publicCode}
-                    className="px-4 rounded-xl bg-accent-100 text-accent-600 text-[12px] font-semibold disabled:opacity-40"
-                  >
-                    {t('set_copy')}
-                  </button>
                 </div>
-                <p className="text-[10px] text-ink-500 mt-1.5">
-                  {t('set_code_help')}
-                </p>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
-                  <KeyRound size={10} /> {t("settings_password")}
-                </label>
-                <input
-                  type="password"
-                  value="••••••••"
-                  readOnly
-                  className="w-full border border-cream-border rounded-xl px-4 py-3 text-[13px] bg-cream-soft text-ink-600 cursor-not-allowed"
-                />
-                <button
-                  onClick={() => setShowPasswordChange(!showPasswordChange)}
-                  className="text-[11px] text-accent-600 font-semibold mt-1.5"
-                >
-                  {t("settings_reset_password")}
-                </button>
-              </div>
-              {showPasswordChange && (() => {
-                const policy = validatePassword(newPassword);
-                return (
-                  <div className="space-y-2 animate-fade-in bg-accent-50 rounded-xl p-3 border border-cream-border">
-                    {/* Re-auth: the current password must be proven before the
-                        new one is accepted (audit SEC-12). */}
+                <div>
+                  <label htmlFor="settings-mobile" className="form-label">{t("settings_mobile")}</label>
+                  <input
+                    id="settings-mobile"
+                    type="tel"
+                    value={mobile}
+                    onChange={(e) => setMobile(e.target.value)}
+                    placeholder="+971 50 123 4567"
+                    className="input-field"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="settings-user-code" className="form-label">{t('set_user_code_label')}</label>
+                  <div className="flex gap-2">
                     <input
-                      type="password"
-                      autoComplete="current-password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      placeholder={t("reauth_current_password")}
-                      className="w-full border border-cream-border rounded-xl px-4 py-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all bg-cream-card"
+                      id="settings-user-code"
+                      type="text"
+                      value={publicCode ? `@${publicCode}` : ""}
+                      readOnly
+                      placeholder={t('set_code_generating')}
+                      className="input-field flex-1 min-w-0 text-accent-600 font-semibold tabular-nums"
                     />
-                    <p className="text-[10.5px] text-ink-500 leading-relaxed">
-                      {t("reauth_why")}
-                    </p>
-                    <input
-                      type="password"
-                      autoComplete="new-password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder={`New password (min ${PASSWORD_MIN_LENGTH} chars)`}
-                      className="w-full border border-cream-border rounded-xl px-4 py-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all bg-cream-card"
-                    />
-                    <p className={`text-[10.5px] leading-relaxed ${
-                      newPassword.length === 0 ? 'text-ink-500'
-                      : policy.valid ? 'text-receive-text font-semibold'
-                      : 'text-pay-text font-semibold'
-                    }`}>
-                      {newPassword.length === 0
-                        ? t('password_hint_12')
-                        : policy.code === 'too_short'
-                          ? t('password_too_short')
-                          : policy.code === 'missing_complexity'
-                            ? t('password_missing_complexity')
-                            : t('password_hint_12')}
-                    </p>
                     <button
-                      onClick={handlePasswordReset}
-                      disabled={passwordSaving || !policy.valid || !currentPassword}
-                      className="w-full py-2.5 rounded-xl bg-ink-900 text-white text-[12px] font-semibold disabled:opacity-30"
+                      onClick={async () => {
+                        if (!publicCode) return;
+                        await navigator.clipboard.writeText(`@${publicCode}`);
+                        toast.show({
+                          type: "success",
+                          title: t('set_code_copied'),
+                        });
+                      }}
+                      disabled={!publicCode}
+                      className="m-btn m-btn-plain shrink-0 px-4 text-[12px]"
                     >
-                      {passwordSaving ? "Updating..." : "Update Password"}
+                      <Glyph name="copy" size={14} className="text-ink-600" />
+                      {t('set_copy')}
                     </button>
                   </div>
-                );
-              })()}
-              <button
-                onClick={handleSaveProfile}
-                className="w-full py-2.5 rounded-xl bg-ink-900 text-white text-[12px] font-semibold"
-              >
-                {t("settings_save_profile")}
-              </button>
-            </div>
-          )}
-        </div>
+                  <p className="text-[10.5px] text-ink-600 mt-1.5 leading-relaxed">
+                    {t('set_code_help')}
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="settings-password" className="form-label">{t("settings_password")}</label>
+                  <input
+                    id="settings-password"
+                    type="password"
+                    value="••••••••"
+                    readOnly
+                    className="input-field text-ink-600 cursor-not-allowed"
+                  />
+                  <button
+                    onClick={() => setShowPasswordChange(!showPasswordChange)}
+                    className="text-[11.5px] text-accent-600 font-semibold mt-2 min-h-[32px]"
+                  >
+                    {t("settings_reset_password")}
+                  </button>
+                </div>
+                {showPasswordChange && (() => {
+                  const policy = validatePassword(newPassword);
+                  return (
+                    <div className="space-y-2.5 animate-fade-in rounded-[16px] bg-accent-50 p-3.5">
+                      {/* Re-auth: the current password must be proven before the
+                          new one is accepted (audit SEC-12). */}
+                      <input
+                        type="password"
+                        autoComplete="current-password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder={t("reauth_current_password")}
+                        className="input-field"
+                      />
+                      <p className="text-[10.5px] text-ink-600 leading-relaxed">
+                        {t("reauth_why")}
+                      </p>
+                      <input
+                        type="password"
+                        autoComplete="new-password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder={t("set_pw_new_ph").replace("{n}", String(PASSWORD_MIN_LENGTH))}
+                        className="input-field"
+                      />
+                      <p className={`text-[10.5px] leading-relaxed ${
+                        newPassword.length === 0 ? 'text-ink-600'
+                        : policy.valid ? 'text-receive-text font-semibold'
+                        : 'text-pay-text font-semibold'
+                      }`}>
+                        {newPassword.length === 0
+                          ? t('password_hint_12')
+                          : policy.code === 'too_short'
+                            ? t('password_too_short')
+                            : policy.code === 'missing_complexity'
+                              ? t('password_missing_complexity')
+                              : t('password_hint_12')}
+                      </p>
+                      <button
+                        onClick={handlePasswordReset}
+                        disabled={passwordSaving || !policy.valid || !currentPassword}
+                        className="m-btn m-btn-primary w-full py-2.5 text-[12.5px]"
+                      >
+                        {passwordSaving ? t("cds_working") : t("set_pw_update_cta")}
+                      </button>
+                    </div>
+                  );
+                })()}
+                <button
+                  onClick={handleSaveProfile}
+                  className="m-btn m-btn-primary w-full py-3 text-[13px]"
+                >
+                  {t("settings_save_profile")}
+                </button>
+              </div>
+            )}
+          </div>
 
-        {/* Language */}
-        <div className={sectionClass}>
-          <button
-            onClick={() => setLang(lang === "ur" ? "en" : "ur")}
-            className={rowClass + " w-full text-left"}
-          >
-            <div className="w-9 h-9 rounded-xl bg-info-50 flex items-center justify-center">
-              <Globe size={16} className="text-info-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">
-                {t("settings_language")}
-              </p>
-              <p className="text-[11px] text-ink-500">
-                {lang === "ur" ? "Roman Urdu" : "English"}
-              </p>
-            </div>
-            <ChevronRight size={16} className="text-ink-300" />
-          </button>
-        </div>
+          {/* Language — the handoff's EN/UR segmented switch, in-row. */}
+          <div className="row-base px-4 py-3.5">
+            <RowIcon glyph="globe" tone="neutral" />
+            <RowText
+              title={t("settings_language")}
+              sub={lang === "ur" ? t("lang_ur") : t("lang_en")}
+            />
+            <LanguageToggle tone="on-cream" />
+          </div>
 
-        {/* Appearance */}
-        <div className={sectionClass}>
-          <div className={rowClass}>
-            <div className="w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center">
-              <Moon size={16} className="text-accent-600" />
+          {/* Appearance — Light / Dark / System on a segmented track. */}
+          <div>
+            <div className="row-base px-4 pt-3.5 pb-3">
+              <RowIcon glyph="sun" tone="violet" />
+              <RowText title={t("settings_appearance")} sub={t("settings_appearance_desc")} />
             </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">{t("settings_appearance")}</p>
-              <p className="text-[11px] text-ink-500">{t("settings_appearance_desc")}</p>
+            <div className="px-4 pb-4">
+              <div role="group" aria-label={t("settings_appearance")} className="m-seg flex w-full">
+                {(["light", "dark", "system"] as ThemeMode[]).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setThemeMode(m)}
+                    aria-pressed={themeMode === m}
+                    className="flex-1"
+                  >
+                    {m === "light" ? t("theme_light") : m === "dark" ? t("theme_dark") : t("theme_system")}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="p-4 pt-0 flex gap-2">
-            {(["light", "dark", "system"] as ThemeMode[]).map((m) => (
-              <button
-                key={m}
-                onClick={() => setThemeMode(m)}
-                className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold transition-all ${themeMode === m ? "bg-ink-900 text-white" : "bg-cream-soft text-ink-500"}`}
-              >
-                {m === "light" ? t("theme_light") : m === "dark" ? t("theme_dark") : t("theme_system")}
-              </button>
-            ))}
-          </div>
         </div>
 
-        {/* Daily money wisdom */}
+        {/* Notifications — daily wisdom, reminders, mute, quiet hours, push.
+            One card of switches (handoff §5); each switch is the 48×28
+            material control, role="switch", green when on. */}
         <div className={sectionClass}>
+          {/* Daily money wisdom */}
           <div className={rowClass}>
-            <div className="w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center">
-              <Lightbulb size={16} className="text-accent-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">{t("settings_daily_quote")}</p>
-              <p className="text-[11px] text-ink-500">{t("settings_daily_quote_desc")}</p>
-            </div>
+            <RowIcon glyph="sparkle" tone="violet" />
+            <RowText title={t("settings_daily_quote")} sub={t("settings_daily_quote_desc")} />
             <button
+              type="button"
+              role="switch"
               onClick={() => {
                 const next = !dailyQuoteOn;
                 setDailyQuoteOn(next);
                 localStorage.setItem("hisaab_daily_quote_enabled", next ? "true" : "false");
               }}
-              aria-pressed={dailyQuoteOn}
+              aria-checked={dailyQuoteOn}
               aria-label={t("settings_daily_quote")}
-              className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${dailyQuoteOn ? "bg-receive-600" : "bg-cream-border"}`}
-            >
-              <span className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-all ${dailyQuoteOn ? "left-6" : "left-1"}`} />
-            </button>
+              className="m-switch"
+            />
           </div>
-        </div>
 
-        {/* Payment reminders — Android local notifications, derived from
-            live state (a paid bill never rings). Native-only surface. */}
-        {isNativeRuntime() && (
-          <div className={sectionClass}>
+          {/* Payment reminders — Android local notifications, derived from
+              live state (a paid bill never rings). Native-only surface. */}
+          {isNativeRuntime() && (
             <div className={rowClass}>
-              <div className="w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center">
-                <Bell size={16} className="text-accent-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[13px] font-semibold text-ink-900">{t("settings_reminders")}</p>
-                <p className="text-[11px] text-ink-500">{t("settings_reminders_desc")}</p>
-              </div>
+              <RowIcon glyph="calendar" tone="blue" />
+              <RowText title={t("settings_reminders")} sub={t("settings_reminders_desc")} />
               <button
+                type="button"
+                role="switch"
                 disabled={remindersBusy}
                 onClick={() => {
                   void (async () => {
@@ -914,32 +886,25 @@ export function SettingsPage() {
                     }
                   })();
                 }}
-                aria-pressed={remindersOn}
+                aria-checked={remindersOn}
                 aria-label={t("settings_reminders")}
-                className={`relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50 ${remindersOn ? "bg-receive-600" : "bg-cream-border"}`}
-              >
-                <span className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-all ${remindersOn ? "left-6" : "left-1"}`} />
-              </button>
+                className="m-switch"
+              />
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Global mute — M5 (docs/notifications.md §8.2). Same server-side
-            row as the per-group mute in GroupDetailPage, just group_id null:
-            suppresses every `notifications` row (and therefore every push)
-            for this user. The in-app Inbox / Activity feed are unaffected —
-            copy below says so explicitly, same honesty rule as the per-group
-            mute. Mode-agnostic like the rest of §3/§7. */}
-        <div className={sectionClass}>
+          {/* Global mute — M5 (docs/notifications.md §8.2). Same server-side
+              row as the per-group mute in GroupDetailPage, just group_id null:
+              suppresses every `notifications` row (and therefore every push)
+              for this user. The in-app Inbox / Activity feed are unaffected —
+              copy below says so explicitly, same honesty rule as the per-group
+              mute. Mode-agnostic like the rest of §3/§7. */}
           <div className={rowClass}>
-            <div className="w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center">
-              <BellOff size={16} className="text-accent-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">{t("settings_mute_all")}</p>
-              <p className="text-[11px] text-ink-500">{t("settings_mute_all_desc")}</p>
-            </div>
+            <RowIcon glyph="bell" tone="coral" />
+            <RowText title={t("settings_mute_all")} sub={t("settings_mute_all_desc")} />
             <button
+              type="button"
+              role="switch"
               disabled={globalMuteBusy}
               onClick={() => {
                 void (async () => {
@@ -953,125 +918,109 @@ export function SettingsPage() {
                   }
                 })();
               }}
-              aria-pressed={globalMuted}
+              aria-checked={globalMuted}
               aria-label={t("settings_mute_all")}
-              className={`relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50 ${globalMuted ? "bg-receive-600" : "bg-cream-border"}`}
-            >
-              <span className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-all ${globalMuted ? "left-6" : "left-1"}`} />
-            </button>
+              className="m-switch"
+            />
           </div>
-        </div>
 
-        {/* Quiet hours — M5 (docs/notifications.md §8.2). Mode-agnostic and not
-            native-only: it governs a server-side push delivery decision, so a
-            web user can set it even though they'll never see the effect
-            themselves. Mute suppresses the notifications row entirely; quiet
-            hours only soften how a push rings — the in-app Inbox always gets
-            every item regardless. */}
-        <div className={sectionClass}>
-          <div className={rowClass}>
-            <div className="w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center">
-              <Clock size={16} className="text-accent-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">{t("settings_quiet_hours")}</p>
-              <p className="text-[11px] text-ink-500">{t("settings_quiet_hours_desc")}</p>
-            </div>
-            <button
-              disabled={quietHoursBusy}
-              onClick={() => {
-                void (async () => {
-                  setQuietHoursBusy(true);
-                  try {
-                    if (quietHoursEnabled) {
-                      await setQuietHoursPref(null, null);
-                    } else {
-                      await setQuietHoursPref(DEFAULT_QUIET_START_HOUR, DEFAULT_QUIET_END_HOUR);
+          {/* Quiet hours — M5 (docs/notifications.md §8.2). Mode-agnostic and
+              not native-only: it governs a server-side push delivery decision,
+              so a web user can set it even though they'll never see the effect
+              themselves. Mute suppresses the notifications row entirely; quiet
+              hours only soften how a push rings — the in-app Inbox always gets
+              every item regardless. */}
+          <div>
+            <div className={rowClass}>
+              <RowIcon glyph="moon" tone="violet" />
+              <RowText title={t("settings_quiet_hours")} sub={t("settings_quiet_hours_desc")} />
+              <button
+                type="button"
+                role="switch"
+                disabled={quietHoursBusy}
+                onClick={() => {
+                  void (async () => {
+                    setQuietHoursBusy(true);
+                    try {
+                      if (quietHoursEnabled) {
+                        await setQuietHoursPref(null, null);
+                      } else {
+                        await setQuietHoursPref(DEFAULT_QUIET_START_HOUR, DEFAULT_QUIET_END_HOUR);
+                      }
+                    } catch {
+                      toast.show({ type: "error", title: t("settings_quiet_hours_failed") });
+                    } finally {
+                      setQuietHoursBusy(false);
                     }
-                  } catch {
-                    toast.show({ type: "error", title: t("settings_quiet_hours_failed") });
-                  } finally {
-                    setQuietHoursBusy(false);
-                  }
-                })();
-              }}
-              aria-pressed={quietHoursEnabled}
-              aria-label={t("settings_quiet_hours")}
-              className={`relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50 ${quietHoursEnabled ? "bg-receive-600" : "bg-cream-border"}`}
-            >
-              <span className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-all ${quietHoursEnabled ? "left-6" : "left-1"}`} />
-            </button>
-          </div>
-          {quietHoursEnabled && (
-            <div className={rowClass}>
-              <div className="flex-1 flex items-center gap-3">
-                <label className="flex-1">
-                  <span className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-widest mb-1">
-                    {t("settings_quiet_hours_start")}
-                  </span>
-                  <input
-                    type="time"
-                    step={3600}
-                    disabled={quietHoursBusy}
-                    value={hourToTimeInput(quietHours.start, DEFAULT_QUIET_START_HOUR)}
-                    onChange={(e) => {
-                      const hour = timeInputToHour(e.target.value);
-                      if (hour === null) return;
-                      void setQuietHoursPref(hour, quietHours.end ?? DEFAULT_QUIET_END_HOUR).catch(() =>
-                        toast.show({ type: "error", title: t("settings_quiet_hours_failed") }),
-                      );
-                    }}
-                    className="w-full bg-cream-soft border border-cream-border rounded-lg px-3 py-2 text-[13px] text-ink-900 outline-none focus:border-accent-500 disabled:opacity-50"
-                  />
-                </label>
-                <label className="flex-1">
-                  <span className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-widest mb-1">
-                    {t("settings_quiet_hours_end")}
-                  </span>
-                  <input
-                    type="time"
-                    step={3600}
-                    disabled={quietHoursBusy}
-                    value={hourToTimeInput(quietHours.end, DEFAULT_QUIET_END_HOUR)}
-                    onChange={(e) => {
-                      const hour = timeInputToHour(e.target.value);
-                      if (hour === null) return;
-                      void setQuietHoursPref(quietHours.start ?? DEFAULT_QUIET_START_HOUR, hour).catch(() =>
-                        toast.show({ type: "error", title: t("settings_quiet_hours_failed") }),
-                      );
-                    }}
-                    className="w-full bg-cream-soft border border-cream-border rounded-lg px-3 py-2 text-[13px] text-ink-900 outline-none focus:border-accent-500 disabled:opacity-50"
-                  />
-                </label>
-              </div>
+                  })();
+                }}
+                aria-checked={quietHoursEnabled}
+                aria-label={t("settings_quiet_hours")}
+                className="m-switch"
+              />
             </div>
-          )}
-          {quietHoursEnabled && (
-            <p className="px-4 pb-3.5 text-[10.5px] text-ink-400 leading-relaxed">
-              {t("settings_quiet_hours_tz").replace("{tz}", quietHoursTz)}
-            </p>
-          )}
-        </div>
+            {quietHoursEnabled && (
+              <div className="px-4 pb-4 animate-fade-in">
+                <div className="flex items-center gap-3">
+                  <label className="flex-1">
+                    <span className="form-label">
+                      {t("settings_quiet_hours_start")}
+                    </span>
+                    <input
+                      type="time"
+                      step={3600}
+                      disabled={quietHoursBusy}
+                      value={hourToTimeInput(quietHours.start, DEFAULT_QUIET_START_HOUR)}
+                      onChange={(e) => {
+                        const hour = timeInputToHour(e.target.value);
+                        if (hour === null) return;
+                        void setQuietHoursPref(hour, quietHours.end ?? DEFAULT_QUIET_END_HOUR).catch(() =>
+                          toast.show({ type: "error", title: t("settings_quiet_hours_failed") }),
+                        );
+                      }}
+                      className="input-field py-2.5 tabular-nums disabled:opacity-50"
+                    />
+                  </label>
+                  <label className="flex-1">
+                    <span className="form-label">
+                      {t("settings_quiet_hours_end")}
+                    </span>
+                    <input
+                      type="time"
+                      step={3600}
+                      disabled={quietHoursBusy}
+                      value={hourToTimeInput(quietHours.end, DEFAULT_QUIET_END_HOUR)}
+                      onChange={(e) => {
+                        const hour = timeInputToHour(e.target.value);
+                        if (hour === null) return;
+                        void setQuietHoursPref(quietHours.start ?? DEFAULT_QUIET_START_HOUR, hour).catch(() =>
+                          toast.show({ type: "error", title: t("settings_quiet_hours_failed") }),
+                        );
+                      }}
+                      className="input-field py-2.5 tabular-nums disabled:opacity-50"
+                    />
+                  </label>
+                </div>
+                <p className="pt-2.5 text-[10.5px] text-ink-500 leading-relaxed">
+                  {t("settings_quiet_hours_tz").replace("{tz}", quietHoursTz)}
+                </p>
+              </div>
+            )}
+          </div>
 
-        {/* Dedicated push opt-in — audit N-6: push used to be welded to the
-            local-reminders toggle above with no way to enable one without the
-            other. Native only; a PWA tab has no OS-level push channel here. */}
-        {isNativeRuntime() && (
-          <div className={sectionClass}>
+          {/* Dedicated push opt-in — audit N-6: push used to be welded to the
+              local-reminders toggle above with no way to enable one without the
+              other. Native only; a PWA tab has no OS-level push channel here. */}
+          {isNativeRuntime() && (
             <div className={rowClass}>
-              <div className="w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center">
-                <BellRing size={16} className="text-accent-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[13px] font-semibold text-ink-900">{t("push_title")}</p>
-                <p className="text-[11px] text-ink-500">{t("push_desc")}</p>
-              </div>
+              <RowIcon glyph="send" tone="green" />
+              <RowText title={t("push_title")} sub={t("push_desc")} />
               {pushPermission === "granted" ? (
-                <span className="text-[10.5px] font-bold uppercase tracking-widest text-receive-text bg-receive-50 rounded-full px-2.5 py-1 shrink-0">
+                <span className="m-chip m-chip-receive m-chip-caps shrink-0">
                   {t("push_status_on")}
                 </span>
               ) : pushPermission === "denied" ? (
-                <span className="text-[10.5px] font-bold uppercase tracking-widest text-pay-text bg-pay-50 rounded-full px-2.5 py-1 shrink-0">
+                <span className="m-chip m-chip-pay m-chip-caps shrink-0">
                   {t("push_status_denied")}
                 </span>
               ) : (
@@ -1088,14 +1037,14 @@ export function SettingsPage() {
                       }
                     })();
                   }}
-                  className="shrink-0 px-3.5 py-2 rounded-xl bg-ink-900 text-white text-[11.5px] font-bold disabled:opacity-50"
+                  className="m-btn m-btn-primary shrink-0 min-h-[36px] rounded-xl px-3.5 py-2 text-[11.5px]"
                 >
                   {pushBusy ? t("cds_working") : t("push_enable_cta")}
                 </button>
               )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Phone discovery — opt-in, and the ONLY contact-matching Hisaab
             does. No address-book access anywhere in the app. */}
@@ -1105,40 +1054,35 @@ export function SettingsPage() {
             they did; a block with no visible list is an action they can never
             take back. The blocked party can never read these rows. */}
         <div className={sectionClass}>
-          <div className={rowClass}>
-            <div className="w-9 h-9 rounded-xl bg-pay-50 flex items-center justify-center">
-              <Ban size={16} className="text-pay-text" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-semibold text-ink-900">{t('blk_list_title')}</p>
-              <p className="text-[11px] text-ink-500">{t('blk_list_sub')}</p>
-            </div>
+          <div className="row-base px-4 py-3.5">
+            <RowIcon glyph="shield" tone="coral" />
+            <RowText title={t('blk_list_title')} sub={t('blk_list_sub')} />
           </div>
           {blocks.length === 0 ? (
-            <p className="px-4 py-3.5 text-[11.5px] text-ink-500 leading-relaxed">
+            <p className="px-4 py-3.5 text-[11.5px] text-ink-600 leading-relaxed">
               {blocksLoading ? t('gdp_loading') : t('blk_list_empty')}
             </p>
           ) : (
             blocks.map((entry) => (
-              <div key={entry.blockedId} className={rowClass}>
+              <div key={entry.blockedId} className="row-base px-4 py-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold text-ink-900 truncate">
                     {blockedName(entry.blockedId)}
                   </p>
-                  <p className="text-[10.5px] text-ink-500 tabular-nums">
+                  <p className="text-[10.5px] text-ink-600 tabular-nums">
                     {t('blk_list_since').replace(
                       '{date}',
                       new Date(entry.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
                     )}
                   </p>
                   {entry.reason && (
-                    <p className="text-[10.5px] text-ink-400 italic truncate">{entry.reason}</p>
+                    <p className="text-[10.5px] text-ink-500 italic truncate">{entry.reason}</p>
                   )}
                 </div>
                 <button
                   type="button"
                   onClick={() => handleUnblock(entry.blockedId)}
-                  className="shrink-0 px-3 py-2 rounded-xl bg-cream-soft border border-cream-hairline text-ink-700 text-[11px] font-bold active:bg-cream-hairline transition-colors"
+                  className="m-btn m-btn-plain shrink-0 min-h-[36px] rounded-xl px-3 py-2 text-[11px]"
                 >
                   {t('blk_action_unblock')}
                 </button>
@@ -1149,249 +1093,210 @@ export function SettingsPage() {
 
         {/* App Mode */}
         <div className={sectionClass}>
-          <div className={rowClass}>
-            <div className="w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center">
-              <Smartphone size={16} className="text-accent-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">
-                {t("settings_app_mode")}
-              </p>
-              <p className="text-[11px] text-ink-500">
-                {t("settings_mode_current")}:{" "}
-                {mode === "splits_only"
-                  ? t("mode_splits_title")
-                  : t("mode_full_title")}
-              </p>
-            </div>
-          </div>
-          <div className="p-4 flex gap-2">
-            <button
-              onClick={() => {
-                const unsettled = accounts.filter((a) => a.balance !== 0);
-                if (unsettled.length > 0) {
-                  toast.show({
-                    type: "error",
-                    title: t("mode_switch_blocked"),
-                    subtitle: t("mode_switch_blocked_desc"),
-                  });
-                  return;
+          <div>
+            <div className="row-base px-4 pt-3.5 pb-3">
+              <RowIcon glyph="sliders" tone="blue" />
+              <RowText
+                title={t("settings_app_mode")}
+                sub={
+                  <>
+                    {t("settings_mode_current")}:{" "}
+                    {mode === "splits_only"
+                      ? t("mode_splits_title")
+                      : t("mode_full_title")}
+                  </>
                 }
-                setMode("splits_only");
-                void profilesDb.updateCurrent({ app_mode: "splits_only" }).catch(() => {});
-              }}
-              className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold transition-all ${mode === "splits_only" ? "bg-ink-900 text-white" : "bg-cream-soft text-ink-500"}`}
-            >
-              {t("mode_splits_title")}
-            </button>
-            <button
-              onClick={() => {
-                setMode("full_tracker");
-                void profilesDb.updateCurrent({ app_mode: "full_tracker" }).catch(() => {});
-              }}
-              className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold transition-all ${mode === "full_tracker" ? "bg-ink-900 text-white" : "bg-cream-soft text-ink-500"}`}
-            >
-              {t("mode_full_title")}
-            </button>
-          </div>
-        </div>
-
-        {/* Security */}
-        <div className={sectionClass}>
-          <div className={rowClass}>
-            <div className="w-9 h-9 rounded-xl bg-warn-50 flex items-center justify-center">
-              <Shield size={16} className="text-warn-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">
-                {t("settings_security")}
-              </p>
-              <p className="text-[11px] text-ink-500">
-                {t("settings_pin_desc")}
-              </p>
-            </div>
-          </div>
-          {showPinSetup ? (
-            <div className="p-4 space-y-3">
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                placeholder={t("pin_set_title")}
-                value={pin1}
-                onChange={(e) => setPin1(e.target.value.replace(/\D/g, ""))}
-                className="w-full border border-cream-border rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] font-bold"
               />
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                placeholder={t("pin_confirm")}
-                value={pin2}
-                onChange={(e) => setPin2(e.target.value.replace(/\D/g, ""))}
-                className="w-full border border-cream-border rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] font-bold"
-              />
-              <div className="flex gap-2">
+            </div>
+            <div className="px-4 pb-4">
+              <div role="group" aria-label={t("settings_app_mode")} className="m-seg flex w-full">
                 <button
+                  type="button"
                   onClick={() => {
-                    setShowPinSetup(false);
-                    setPin1("");
-                    setPin2("");
+                    const unsettled = accounts.filter((a) => a.balance !== 0);
+                    if (unsettled.length > 0) {
+                      toast.show({
+                        type: "error",
+                        title: t("mode_switch_blocked"),
+                        subtitle: t("mode_switch_blocked_desc"),
+                      });
+                      return;
+                    }
+                    setMode("splits_only");
+                    void profilesDb.updateCurrent({ app_mode: "splits_only" }).catch(() => {});
                   }}
-                  className="flex-1 py-2.5 rounded-xl bg-cream-soft text-ink-500 text-[12px] font-bold"
+                  aria-pressed={mode === "splits_only"}
+                  className="flex-1"
                 >
-                  {t('set_pin_cancel')}
+                  {t("mode_splits_title")}
                 </button>
                 <button
-                  onClick={handleSetPin}
-                  disabled={pin1.length !== 4 || pin2.length !== 4}
-                  className="flex-1 py-2.5 rounded-xl bg-ink-900 text-white text-[12px] font-semibold disabled:opacity-30"
+                  type="button"
+                  onClick={() => {
+                    setMode("full_tracker");
+                    void profilesDb.updateCurrent({ app_mode: "full_tracker" }).catch(() => {});
+                  }}
+                  aria-pressed={mode === "full_tracker"}
+                  className="flex-1"
                 >
-                  {t('set_pin_save')}
+                  {t("mode_full_title")}
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="p-4 flex gap-2">
-              {hasPin ? (
-                <>
-                  <button
-                    onClick={() => setShowPinSetup(true)}
-                    className="flex-1 py-2.5 rounded-xl bg-cream-soft text-ink-600 text-[12px] font-bold flex items-center justify-center gap-1.5"
-                  >
-                    <Lock size={12} /> {t("settings_change_pin")}
-                  </button>
-                  <button
-                    onClick={handleRemovePin}
-                    className="flex-1 py-2.5 rounded-xl bg-pay-50 text-pay-text text-[12px] font-semibold flex items-center justify-center gap-1.5"
-                  >
-                    <Unlock size={12} /> {t("settings_remove_pin")}
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => setShowPinSetup(true)}
-                  className="flex-1 py-2.5 rounded-xl bg-ink-900 text-white text-[12px] font-semibold flex items-center justify-center gap-1.5"
-                >
-                  <Lock size={12} /> {t("settings_set_pin")}
-                </button>
-              )}
-            </div>
-          )}
+          </div>
         </div>
 
-        {/* Group header — Your money */}
-        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-500 px-1 pt-2">
+        {/* Security — the device PIN (handoff "App Lock"). */}
+        <div className={sectionClass}>
+          <div>
+            <div className="row-base px-4 pt-3.5 pb-3">
+              <RowIcon glyph="lock" tone="blue" />
+              <RowText title={t("settings_security")} sub={t("settings_pin_desc")} />
+            </div>
+            {showPinSetup ? (
+              <div className="px-4 pb-4 space-y-2.5">
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder={t("pin_set_title")}
+                  value={pin1}
+                  onChange={(e) => setPin1(e.target.value.replace(/\D/g, ""))}
+                  className="input-field text-center tracking-[0.5em] font-bold"
+                />
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder={t("pin_confirm")}
+                  value={pin2}
+                  onChange={(e) => setPin2(e.target.value.replace(/\D/g, ""))}
+                  className="input-field text-center tracking-[0.5em] font-bold"
+                />
+                <div className="flex gap-2.5 pt-1">
+                  <button
+                    onClick={() => {
+                      setShowPinSetup(false);
+                      setPin1("");
+                      setPin2("");
+                    }}
+                    className="m-btn m-btn-plain flex-1 py-2.5 text-[12.5px]"
+                  >
+                    {t('set_pin_cancel')}
+                  </button>
+                  <button
+                    onClick={handleSetPin}
+                    disabled={pin1.length !== 4 || pin2.length !== 4}
+                    className="m-btn m-btn-primary flex-1 py-2.5 text-[12.5px]"
+                  >
+                    {t('set_pin_save')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="px-4 pb-4 flex gap-2.5">
+                {hasPin ? (
+                  <>
+                    <button
+                      onClick={() => setShowPinSetup(true)}
+                      className="m-btn m-btn-plain flex-1 py-2.5 text-[12px]"
+                    >
+                      <Glyph name="lock" size={13} className="text-ink-600" /> {t("settings_change_pin")}
+                    </button>
+                    <button
+                      onClick={handleRemovePin}
+                      className="m-btn m-btn-danger flex-1 py-2.5 text-[12px]"
+                    >
+                      <Unlock size={13} strokeWidth={2.4} aria-hidden /> {t("settings_remove_pin")}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setShowPinSetup(true)}
+                    className="m-btn m-btn-primary flex-1 py-2.5 text-[12.5px]"
+                  >
+                    <Glyph name="lock" size={14} strokeWidth={2.6} /> {t("settings_set_pin")}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Your money ──────────────────────────────────────────────── */}
+        <p className={groupLabelClass}>
           {t('settings_grp_money')}
         </p>
 
-        {/* Phase 3: Money tools — only meaningful in full_tracker mode.
-            Each row deep-links to the matching feature page. */}
-        {mode === 'full_tracker' && (
-          <div className={sectionClass}>
-            <button
-              onClick={() => navigate('/budgets')}
-              className={rowClass + " w-full text-left"}
-            >
-              <div className="w-9 h-9 rounded-xl bg-receive-50 flex items-center justify-center">
-                <Wallet2 size={16} className="text-receive-text" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[13px] font-semibold text-ink-900">{t('set_row_budgets')}</p>
-                <p className="text-[11px] text-ink-500">{t('set_row_budgets_sub')}</p>
-              </div>
-              <ChevronRight size={16} className="text-ink-300" />
-            </button>
-            <button
-              onClick={() => navigate('/subscriptions')}
-              className={rowClass + " w-full text-left"}
-            >
-              <div className="w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center">
-                <Repeat size={16} className="text-accent-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[13px] font-semibold text-ink-900">{t('set_row_subs')}</p>
-                <p className="text-[11px] text-ink-500">{t('set_row_subs_sub')}</p>
-              </div>
-              <ChevronRight size={16} className="text-ink-300" />
-            </button>
-            <button
-              onClick={() => setShowCategories(true)}
-              className={rowClass + " w-full text-left"}
-            >
-              <div className="w-9 h-9 rounded-xl bg-receive-50 flex items-center justify-center">
-                <Tags size={16} className="text-receive-text" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[13px] font-semibold text-ink-900">{t('cat_manage_row')}</p>
-                <p className="text-[11px] text-ink-500">{t('cat_manage_sub')}</p>
-              </div>
-              <ChevronRight size={16} className="text-ink-300" />
-            </button>
-          </div>
-        )}
-
-        {/* Contacts */}
+        {/* Money tools (full_tracker only — each presupposes accounts) plus
+            Contacts, Kameti and the share-invite row, one card. */}
         <div className={sectionClass}>
+          {mode === 'full_tracker' && (
+            <>
+              <button
+                onClick={() => navigate('/budgets')}
+                className={rowClass + " w-full text-left"}
+              >
+                <RowIcon glyph="wallet" tone="violet" />
+                <RowText title={t('set_row_budgets')} sub={t('set_row_budgets_sub')} />
+                <RowChevron />
+              </button>
+              <button
+                onClick={() => navigate('/subscriptions')}
+                className={rowClass + " w-full text-left"}
+              >
+                <RowIcon glyph="card" tone="blue" />
+                <RowText title={t('set_row_subs')} sub={t('set_row_subs_sub')} />
+                <RowChevron />
+              </button>
+              <button
+                onClick={() => setShowCategories(true)}
+                className={rowClass + " w-full text-left"}
+              >
+                <RowIcon glyph="tag" tone="green" />
+                <RowText title={t('cat_manage_row')} sub={t('cat_manage_sub')} />
+                <RowChevron />
+              </button>
+            </>
+          )}
           <button
             onClick={() => navigate('/contacts')}
             className={rowClass + " w-full text-left"}
           >
-            <div className="w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center">
-              <Users size={16} className="text-accent-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">
-                {t("settings_contacts_tile")}
-              </p>
-              <p className="text-[11px] text-ink-500">
-                {t("settings_contacts_tile_desc")}
-              </p>
-            </div>
-            <ChevronRight size={16} className="text-ink-300" />
+            <RowIcon glyph="person" tone="pink" />
+            <RowText title={t("settings_contacts_tile")} sub={t("settings_contacts_tile_desc")} />
+            <RowChevron />
           </button>
           <button
             onClick={() => navigate('/kameti')}
             className={rowClass + " w-full text-left"}
           >
-            <div className="w-9 h-9 rounded-xl bg-receive-50 flex items-center justify-center">
-              <Coins size={16} className="text-receive-text" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">{t('kameti_title')}</p>
-              <p className="text-[11px] text-ink-500">{t('kameti_tile_desc')}</p>
-            </div>
-            <ChevronRight size={16} className="text-ink-300" />
+            <RowIcon glyph="coins" tone="gold" />
+            <RowText title={t('kameti_title')} sub={t('kameti_tile_desc')} />
+            <RowChevron />
           </button>
           <button
             onClick={handleShareApp}
             className={rowClass + " w-full text-left"}
           >
-            <div className="relative w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center">
-              <Share2 size={16} className="text-accent-600" />
-              <span className="absolute -right-1 -top-1 w-4 h-4 rounded-full bg-warn-50 border border-warn-50 flex items-center justify-center">
-                <Sparkles size={10} className="text-warn-600" />
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="text-[13px] font-semibold text-ink-900 truncate">
-                  {t("settings_share_app")}
-                </p>
-                <span className="shrink-0 rounded-full bg-accent-100 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-accent-600">
-                  {t("settings_share_app_badge")}
+            <RowIcon glyph="arrow-up" tone="green" />
+            <RowText
+              title={
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="truncate">{t("settings_share_app")}</span>
+                  <span className="m-chip m-chip-violet m-chip-caps shrink-0">
+                    {t("settings_share_app_badge")}
+                  </span>
                 </span>
-              </div>
-              <p className="text-[11px] text-ink-500 leading-relaxed">
-                {t("settings_share_app_desc")}
-              </p>
-            </div>
-            <ChevronRight size={16} className="text-ink-300" />
+              }
+              sub={t("settings_share_app_desc")}
+            />
+            <RowChevron />
           </button>
         </div>
 
-        {/* Group header — Data & backup */}
-        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-500 px-1 pt-2">
+        {/* ── Data & backup ───────────────────────────────────────────── */}
+        <p className={groupLabelClass}>
           {t('settings_grp_data')}
         </p>
 
@@ -1400,37 +1305,19 @@ export function SettingsPage() {
           <button
             onClick={handleExport}
             disabled={exporting}
-            className={rowClass + " w-full text-left"}
+            className={rowClass + " w-full text-left disabled:opacity-60"}
           >
-            <div className="w-9 h-9 rounded-xl bg-receive-50 flex items-center justify-center">
-              <Download size={16} className="text-receive-text" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">
-                {t("settings_export")}
-              </p>
-              <p className="text-[11px] text-ink-500">
-                {t("settings_export_desc")}
-              </p>
-            </div>
-            <ChevronRight size={16} className="text-ink-300" />
+            <RowIcon glyph="download" tone="violet" />
+            <RowText title={t("settings_export")} sub={t("settings_export_desc")} />
+            <RowChevron />
           </button>
           <button
             onClick={() => fileRef.current?.click()}
             className={rowClass + " w-full text-left"}
           >
-            <div className="w-9 h-9 rounded-xl bg-info-50 flex items-center justify-center">
-              <Upload size={16} className="text-info-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">
-                {t("settings_import")}
-              </p>
-              <p className="text-[11px] text-ink-500">
-                {t("settings_import_desc")}
-              </p>
-            </div>
-            <ChevronRight size={16} className="text-ink-300" />
+            <RowIcon glyph="database" tone="neutral" />
+            <RowText title={t("settings_import")} sub={t("settings_import_desc")} />
+            <RowChevron />
           </button>
           <input
             ref={fileRef}
@@ -1445,8 +1332,8 @@ export function SettingsPage() {
             amounts (audit report 10 §5.2). Self-contained card. */}
         <TelemetryConsentToggle />
 
-        {/* Group header — About & legal */}
-        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-500 px-1 pt-2">
+        {/* ── About & legal ───────────────────────────────────────────── */}
+        <p className={groupLabelClass}>
           {t('settings_grp_about')}
         </p>
 
@@ -1454,33 +1341,20 @@ export function SettingsPage() {
             user has (audit report 10, F3). Self-contained card. */}
         <FeedbackCard />
 
-        {/* About */}
-        <div className={sectionClass}>
-          <div className={rowClass}>
-            <div className="w-9 h-9 rounded-xl bg-cream-soft flex items-center justify-center">
-              <Info size={16} className="text-ink-500" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">
-                {t("settings_about")}
-              </p>
-              <p className="text-[11px] text-ink-500">
-                {t("settings_about_desc")}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Trust — the security/philosophy work translated into human
-            sentences, plus the business-model-as-feature answer to
+        {/* About + Trust — the security/philosophy work translated into
+            human sentences, plus the business-model-as-feature answer to
             "why is this free?". Plain-speech, both languages. */}
         <div className={sectionClass}>
+          <div className="row-base px-4 py-3.5">
+            <RowIcon glyph="info" tone="neutral" />
+            <RowText title={t("settings_about")} sub={t("settings_about_desc")} />
+          </div>
           <div className="px-4 py-3.5">
             <p className="text-[13px] font-semibold text-ink-900 mb-2.5">{t('trust_title')}</p>
             <div className="space-y-2">
               {[t('trust_line_1'), t('trust_line_2'), t('trust_line_3'), t('trust_line_4')].map((line) => (
                 <div key={line} className="flex items-start gap-2.5">
-                  <span className="text-receive-text text-[12px] mt-px shrink-0">✓</span>
+                  <Glyph name="check" tone="green" size={13} strokeWidth={3} className="mt-[3px]" />
                   <p className="text-[12px] text-ink-700 leading-relaxed">{line}</p>
                 </div>
               ))}
@@ -1498,127 +1372,98 @@ export function SettingsPage() {
             onClick={() => navigate('/privacy')}
             className={rowClass + " w-full text-left"}
           >
-            <div className="w-9 h-9 rounded-xl bg-info-50 flex items-center justify-center">
-              <Shield size={16} className="text-info-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">{t('set_row_privacy')}</p>
-              <p className="text-[11px] text-ink-500">{t('set_row_privacy_sub')}</p>
-            </div>
-            <ChevronRight size={16} className="text-ink-300" />
+            <RowIcon glyph="shield-check" tone="green" />
+            <RowText title={t('set_row_privacy')} sub={t('set_row_privacy_sub')} />
+            <RowChevron />
           </button>
           <button
             onClick={() => navigate('/terms')}
             className={rowClass + " w-full text-left"}
           >
-            <div className="w-9 h-9 rounded-xl bg-cream-soft flex items-center justify-center">
-              <FileText size={16} className="text-ink-500" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">{t('set_row_terms')}</p>
-              <p className="text-[11px] text-ink-500">{t('set_row_terms_sub')}</p>
-            </div>
-            <ChevronRight size={16} className="text-ink-300" />
+            <RowIcon glyph="document" tone="neutral" />
+            <RowText title={t('set_row_terms')} sub={t('set_row_terms_sub')} />
+            <RowChevron />
           </button>
           <button
             onClick={() => navigate('/contact')}
             className={rowClass + " w-full text-left"}
           >
-            <div className="w-9 h-9 rounded-xl bg-receive-50 flex items-center justify-center">
-              <Mail size={16} className="text-receive-text" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">{t('set_row_contact')}</p>
-              <p className="text-[11px] text-ink-500">{t('set_row_contact_sub')}</p>
-            </div>
-            <ChevronRight size={16} className="text-ink-300" />
+            <RowIcon glyph="mail" tone="blue" />
+            <RowText title={t('set_row_contact')} sub={t('set_row_contact_sub')} />
+            <RowChevron />
           </button>
           <button
             onClick={() => navigate('/delete-account')}
             className={rowClass + " w-full text-left"}
           >
-            <div className="w-9 h-9 rounded-xl bg-pay-50 flex items-center justify-center">
-              <Trash2 size={16} className="text-pay-text" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-ink-900">{t('set_row_deletion')}</p>
-              <p className="text-[11px] text-ink-500">{t('set_row_deletion_sub')}</p>
-            </div>
-            <ChevronRight size={16} className="text-ink-300" />
+            <RowIcon glyph="trash" tone="coral" />
+            <RowText title={t('set_row_deletion')} sub={t('set_row_deletion_sub')} danger />
+            <RowChevron danger />
           </button>
         </div>
 
-        {/* Danger Zone */}
+        {/* Danger Zone — coral-tinted card; the form expands inside it. */}
         {user && (
-          <div className="rounded-[18px] bg-cream-card overflow-hidden border border-pay-100 divide-y divide-pay-100/60">
+          <div className="m-card m-coral overflow-hidden">
             <button
               onClick={() => setShowDeleteAccount(!showDeleteAccount)}
               className="row-base row-interactive px-4 py-3.5 w-full text-left"
+              aria-expanded={showDeleteAccount}
             >
-              <div className="w-9 h-9 rounded-xl bg-pay-50 flex items-center justify-center">
-                <AlertTriangle size={16} className="text-pay-text" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[13px] font-semibold text-pay-text">
-                  {t('set_delete_account')}
-                </p>
-                <p className="text-[11px] text-ink-500">
-                  {t('set_delete_account_sub')}
-                </p>
-              </div>
-              <ChevronRight
-                size={16}
-                className={`text-pay-text/60 transition-transform ${showDeleteAccount ? "rotate-90" : ""}`}
-              />
+              <RowIcon glyph="alert" tone="coral" />
+              <RowText title={t('set_delete_account')} sub={t('set_delete_account_sub')} danger />
+              <RowChevron open={showDeleteAccount} danger />
             </button>
             {showDeleteAccount && (
-              <div className="p-4 space-y-3 bg-pay-50 animate-fade-in">
-                <div className="rounded-xl border border-pay-100 bg-cream-card px-3.5 py-3">
+              <div className="px-4 pb-4 pt-1 space-y-3.5 animate-fade-in">
+                <div className="m-inset px-3.5 py-3">
                   <p className="text-[12px] font-bold text-pay-text">
                     {t('set_delete_irreversible')}
                   </p>
-                  <p className="text-[11px] text-ink-500 mt-1 leading-relaxed">
+                  <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">
                     {t('set_delete_body')}
                   </p>
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-pay-text uppercase tracking-widest mb-1.5 block">
+                  <label htmlFor="settings-delete-confirm" className="form-label text-pay-text">
                     {t('set_delete_type_label')}
                   </label>
                   <input
+                    id="settings-delete-confirm"
                     value={deleteConfirm}
                     onChange={(event) => setDeleteConfirm(event.target.value)}
                     disabled={deleteSaving}
-                    className="w-full border border-pay-100 rounded-xl px-4 py-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-pay-600/20 focus:border-pay-text transition-all bg-cream-card"
+                    className="input-field"
                     placeholder={t('set_delete_placeholder')}
                   />
                 </div>
                 {/* Re-auth: irreversible destruction of years of khata history
                     must not be one tap away on an unlocked phone (SEC-12). */}
                 <div>
-                  <label className="text-[10px] font-bold text-pay-text uppercase tracking-widest mb-1.5 block">
+                  <label htmlFor="settings-delete-password" className="form-label text-pay-text">
                     {t("reauth_current_password")}
                   </label>
                   <input
+                    id="settings-delete-password"
                     type="password"
                     autoComplete="current-password"
                     value={deletePassword}
                     onChange={(event) => setDeletePassword(event.target.value)}
                     disabled={deleteSaving}
-                    className="w-full border border-pay-100 rounded-xl px-4 py-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-pay-600/20 focus:border-pay-text transition-all bg-cream-card"
+                    className="input-field"
                     placeholder={t("reauth_current_password")}
                   />
-                  <p className="text-[10.5px] text-ink-500 mt-1.5 leading-relaxed">
+                  <p className="text-[10.5px] text-ink-600 mt-1.5 leading-relaxed">
                     {t("reauth_why")}
                   </p>
                 </div>
                 <button
                   onClick={handleDeleteAccount}
                   disabled={deleteConfirm !== "DELETE" || !deletePassword || deleteSaving}
-                  className="w-full py-2.5 rounded-xl bg-pay-600 text-white text-[12px] font-semibold disabled:opacity-30 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                  className="m-btn m-btn-coral w-full py-3 text-[12.5px]"
                 >
-                  <Trash2 size={13} />
-                  {deleteSaving ? "Deleting..." : "Delete my account"}
+                  <Glyph name="trash" size={14} strokeWidth={2.6} />
+                  {deleteSaving ? t("cds_working") : t("set_delete_account")}
                 </button>
               </div>
             )}
@@ -1642,20 +1487,15 @@ export function SettingsPage() {
               }}
               className={rowClass + " w-full text-left"}
             >
-              <div className="w-9 h-9 rounded-xl bg-pay-50 flex items-center justify-center">
-                <LogOut size={16} className="text-pay-text" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[13px] font-semibold text-pay-text">{t('set_logout')}</p>
-                <p className="text-[11px] text-ink-500">{user.email}</p>
-              </div>
+              <RowIcon glyph="logout" tone="coral" />
+              <RowText title={t('set_logout')} sub={user.email} danger />
             </button>
           </div>
         )}
 
         {/* Footer */}
-        <div className="text-center pt-4 pb-2">
-          <p className="text-[11px] text-ink-500">
+        <div className="text-center pt-3 pb-2">
+          <p className="text-[10.5px] text-ink-500">
             {t('set_footer_credit')}
           </p>
         </div>

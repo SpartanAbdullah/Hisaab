@@ -45,7 +45,8 @@ import {
   type AppVersionIdentity,
 } from './lib/versionGate';
 import { useT, useI18nStore, reconcileProfileLang } from './lib/i18n';
-import { Globe } from 'lucide-react';
+import { Glyph } from './components/Glyph';
+import { LanguageToggle } from './components/LanguageToggle';
 
 // Lazy-loaded pages for code splitting
 const AuthPage = lazy(() => import('./pages/AuthPage').then(m => ({ default: m.AuthPage })));
@@ -146,7 +147,6 @@ function rescheduleLocalNotifications(): Promise<void> {
 function UnverifiedEmailScreen({ email }: { email: string }) {
   const { signOut } = useSupabaseAuthStore();
   const t = useT();
-  const { lang, setLang } = useI18nStore();
   const [resending, setResending] = useState(false);
   const [resendMessage, setResendMessage] = useState('');
 
@@ -172,44 +172,42 @@ function UnverifiedEmailScreen({ email }: { email: string }) {
     void signOut();
   };
 
+  // 1d: the hero ground (dark in both themes; .auth-ink-dark flips the ink
+  // ramp for the material inside), a mint plate with the mail glyph, the violet
+  // primary and the key-material secondary.
   return (
-    <div className="min-h-dvh relative flex flex-col items-center justify-center bg-navy-bloom text-white px-8 text-center">
-      <button
-        onClick={() => setLang(lang === 'ur' ? 'en' : 'ur')}
-        className="absolute top-5 right-5 z-50 bg-white/10 text-white/80 rounded-xl px-3 py-1.5 text-[10px] font-bold flex items-center gap-1.5 active:scale-95 transition-all backdrop-blur-sm border border-white/10"
-      >
-        <Globe size={11} /> {lang === 'ur' ? 'EN' : 'UR'}
-      </button>
-      <div className="w-20 h-20 rounded-3xl bg-receive-600/25 flex items-center justify-center mb-6 backdrop-blur-sm border border-receive-600/30">
-        <span className="text-3xl">📩</span>
+    <div className="auth-ink-dark min-h-dvh relative flex flex-col items-center justify-center bg-navy-bloom text-white px-8 text-center">
+      <LanguageToggle className="absolute top-5 right-5 z-50" />
+      <div className="m-plate m-mint mb-6" aria-hidden>
+        <Glyph name="mail" tone="green" size={26} extrude />
       </div>
-      <h1 className="text-2xl font-bold tracking-tight mb-3">{t('verify_title')}</h1>
-      <p className="text-white/60 text-[13px] max-w-[300px] leading-relaxed">{t('verify_body')}</p>
+      <h1 className="text-[24px] font-semibold tracking-[-0.02em] mb-3">{t('verify_title')}</h1>
+      <p className="text-white/70 text-[13px] max-w-[300px] leading-relaxed">{t('verify_body')}</p>
       <p className="text-white text-[14px] font-semibold mt-1.5 break-all max-w-[300px]">{email || '—'}</p>
-      <p className="text-white/45 text-[12px] max-w-[290px] leading-relaxed mt-4">{t('verify_instruction')}</p>
-      <p className="text-white/35 text-[11px] max-w-[290px] leading-relaxed mt-2">{t('verify_spam')}</p>
+      <p className="text-white/60 text-[12px] max-w-[290px] leading-relaxed mt-4">{t('verify_instruction')}</p>
+      <p className="text-white/60 text-[11px] max-w-[290px] leading-relaxed mt-2">{t('verify_spam')}</p>
 
       <div className="w-full max-w-[300px] mt-8 space-y-3">
         <button
           onClick={goLogin}
-          className="w-full bg-white text-navy-900 rounded-2xl py-4 text-[14px] font-semibold active:scale-[0.98] transition-all shadow-lg shadow-white/10"
+          className="m-btn m-btn-primary w-full py-4 text-[14px]"
         >
           {t('verify_done_login')}
         </button>
         <button
           onClick={resend}
           disabled={resending || !email}
-          className="w-full bg-white/10 border border-white/15 text-white rounded-2xl py-3.5 text-[13px] font-semibold active:scale-[0.98] transition-all disabled:opacity-50 backdrop-blur-sm"
+          className="m-btn m-btn-plain w-full py-3.5 text-[13px]"
         >
           {resending ? t('verify_resending') : t('verify_resend')}
         </button>
       </div>
 
       {resendMessage && (
-        <p className="text-receive-50 text-[12px] mt-4 max-w-[290px] leading-relaxed">{resendMessage}</p>
+        <p className="text-receive-text text-[12px] mt-4 max-w-[290px] leading-relaxed">{resendMessage}</p>
       )}
 
-      <button onClick={() => signOut()} className="text-white/45 text-[11px] underline mt-6 min-h-[44px]">
+      <button onClick={() => signOut()} className="text-white/70 text-[11.5px] underline underline-offset-2 mt-6 min-h-[44px]">
         {t('verify_diff_account')}
       </button>
     </div>
@@ -888,7 +886,10 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-dvh bg-cream-soft">
+    // 1d shell: the page / sheet surface (cream-bg — #0B0C16 in dark), so any
+    // gap a route leaves (lazy-chunk swap, short page) is the sheet, not a
+    // second off-shade.
+    <div className="min-h-dvh bg-cream-bg">
       <PWAInstallPrompt />
       {/* Connectivity pill — surfaces when navigator.onLine flips. */}
       <OfflineBanner />

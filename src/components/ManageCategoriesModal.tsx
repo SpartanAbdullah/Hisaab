@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
 import { useToast } from './Toast';
 import { confirmDestructive } from './ConfirmDestructiveSheet';
 import { useT } from '../lib/i18n';
@@ -65,12 +65,13 @@ export function ManageCategoriesModal({ open, onClose }: Props) {
     <Modal open={open} onClose={onClose} title={t('cat_manage_title')}>
       <div className="space-y-4">
         {/* Expense / Income tabs */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2.5">
           {(['expense', 'income'] as CustomCategoryType[]).map((tb) => (
             <button
               key={tb}
               type="button"
               onClick={() => setTab(tb)}
+              aria-pressed={tab === tb}
               className={`selector-base justify-center text-[12.5px] font-semibold ${tab === tb ? 'selector-selected' : ''}`}
             >
               {tb === 'expense' ? t('cat_expense_tab') : t('cat_income_tab')}
@@ -79,7 +80,7 @@ export function ManageCategoriesModal({ open, onClose }: Props) {
         </div>
 
         {/* Add a new category */}
-        <div className="flex gap-2">
+        <div className="flex gap-2.5">
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -92,29 +93,30 @@ export function ManageCategoriesModal({ open, onClose }: Props) {
             type="button"
             onClick={() => void handleAdd()}
             disabled={saving || !draft.trim()}
-            className="shrink-0 px-4 rounded-2xl bg-ink-900 text-white text-[13px] font-semibold flex items-center gap-1.5 active:scale-95 disabled:opacity-30 transition-all"
+            className="m-btn m-btn-primary shrink-0 px-4 text-[13px]"
           >
-            <Plus size={14} strokeWidth={2.6} /> {t('cat_add_button')}
+            <Glyph name="plus" size={14} strokeWidth={3} /> {t('cat_add_button')}
           </button>
         </div>
 
         {/* The user's own categories (deletable) */}
         <div>
-          <p className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">{t('cat_your_own')}</p>
+          <p className="form-label">{t('cat_your_own')}</p>
           {custom.length === 0 ? (
-            <p className="text-[12px] text-ink-400 py-3 text-center">{t('cat_none_custom')}</p>
+            <p className="m-inset text-[12px] text-ink-500 p-3 text-center">{t('cat_none_custom')}</p>
           ) : (
-            <div className="rounded-2xl bg-cream-card border border-cream-border divide-y divide-cream-hairline overflow-hidden">
+            <div className="m-card divide-y divide-cream-hairline overflow-hidden">
               {custom.map((c) => (
-                <div key={c.id} className="flex items-center gap-2 px-3.5 py-2.5">
-                  <span className="flex-1 text-[13px] text-ink-900">{c.name}</span>
+                <div key={c.id} className="flex items-center gap-2 pl-4 pr-2 py-1.5">
+                  <Glyph name="tag" size={15} tone="violet" />
+                  <span className="flex-1 text-[13.5px] text-ink-900">{c.name}</span>
                   <button
                     type="button"
                     onClick={() => void handleDelete(c.id)}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-pay-text active:bg-pay-50 transition-colors"
+                    className="w-11 h-11 rounded-xl flex items-center justify-center text-pay-text active:bg-pay-50 transition-colors"
                     aria-label={`${t('cat_remove')} ${c.name}`}
                   >
-                    <Trash2 size={15} />
+                    <Glyph name="trash" size={16} />
                   </button>
                 </div>
               ))}
@@ -124,10 +126,10 @@ export function ManageCategoriesModal({ open, onClose }: Props) {
 
         {/* Built-in categories (read-only) */}
         <div>
-          <p className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">{t('cat_built_in')}</p>
+          <p className="form-label">{t('cat_built_in')}</p>
           <div className="flex flex-wrap gap-1.5">
             {builtIns.map((c) => (
-              <span key={c} className="px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-cream-soft text-ink-500 border border-cream-hairline">
+              <span key={c} className="m-chip m-chip-neutral px-2.5 py-1 text-[11px]">
                 {c}
               </span>
             ))}

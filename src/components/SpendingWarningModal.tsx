@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react';
 import { Modal } from './Modal';
-import { AlertTriangle } from 'lucide-react';
+import { Glyph } from './Glyph';
 import { formatMoney } from '../lib/constants';
 import { useT } from '../lib/i18n';
 import type { UpcomingExpense } from '../db';
@@ -25,39 +25,35 @@ export function SpendingWarningModal({ open, expense, onContinue, onCancel }: Pr
     <Modal open={open} onClose={onCancel} title={t('spend_warning_title')}
       footer={
         <div className="flex gap-2.5">
-          <button onClick={onCancel}
-            className="flex-1 py-3.5 rounded-2xl text-sm font-bold border-2 border-cream-border text-ink-700 active:bg-cream-soft transition-all"
-          >
+          <button onClick={onCancel} className="cta-secondary flex-1">
             {t('spend_warning_cancel')}
           </button>
-          <button onClick={onContinue}
-            className="flex-1 bg-accent-600 text-white rounded-2xl py-3.5 text-sm font-bold shadow-md shadow-accent-600/20"
-          >
+          <button onClick={onContinue} className="cta-primary flex-1">
             {t('spend_warning_continue')}
           </button>
         </div>
       }
     >
-      <div className="text-center space-y-4 py-2">
-        <div className="w-16 h-16 rounded-3xl bg-warn-50 flex items-center justify-center mx-auto">
-          <AlertTriangle size={32} className="text-warn-600" />
+      <div className="flex flex-col items-center text-center gap-4 py-2">
+        <div className="m-plate m-gold" aria-hidden>
+          <Glyph name="alert" size={26} tone="gold" extrude />
         </div>
         <div>
-          <p className="text-[15px] font-bold text-ink-900">
+          <p className="text-[15px] font-semibold text-ink-900 tracking-tight">
             {t('spend_warning_remember').replace('{title}', expense.title)}
           </p>
-          <p className="text-[13px] text-ink-700 mt-2">
+          <p className="text-[13px] text-ink-700 mt-2 leading-relaxed">
             {t('spend_warning_body')
               .replace('{amount}', formatMoney(expense.amount, expense.currency))
               .replace('{title}', expense.title)}
           </p>
-          <p className="text-[12px] text-ink-500 mt-1">
+          <p className="text-[12px] text-ink-500 mt-1.5 tabular-nums">
             {new Date(expense.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
             {' — '}
             {daysLeft <= 0 ? t('upcoming_overdue') : `${daysLeft} ${t('upcoming_due_in')}`}
           </p>
         </div>
-        <p className="text-[12px] text-warn-700 bg-warn-50 rounded-xl p-3 border border-warn-50 font-medium">
+        <p className="m-card m-gold w-full text-[12.5px] text-warn-700 p-3 font-medium">
           {t('spend_warning_confirm_q')}
         </p>
       </div>

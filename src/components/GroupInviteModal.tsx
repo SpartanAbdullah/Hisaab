@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, Link2, UserPlus, UserRoundPlus, Trash2, Send, Pencil } from 'lucide-react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
+import { UserAvatar } from './UserAvatar';
 import { useSplitStore } from '../stores/splitStore';
 import { useToast } from './Toast';
 import { useT } from '../lib/i18n';
@@ -42,11 +43,14 @@ function statusLabel(t: ReturnType<typeof useT>, member: GroupMember): string {
   return t('member_not_on_app');
 }
 
+// Status chip tone: on the app = green, invited = gold (waiting on them), a
+// guest and everyone else = neutral. Same vocabulary as the status rings on
+// GroupDetailPage.
 function statusBadgeClass(member: GroupMember) {
-  if (isGuestMember(member)) return 'bg-cream-soft text-ink-600';
-  if (member.status === 'connected') return 'bg-receive-50 text-receive-text';
-  if (member.status === 'invited') return 'bg-warn-50 text-warn-600';
-  return 'bg-cream-soft text-ink-500';
+  if (isGuestMember(member)) return 'm-chip-neutral';
+  if (member.status === 'connected') return 'm-chip-receive';
+  if (member.status === 'invited') return 'm-chip-gold';
+  return 'm-chip-neutral';
 }
 
 // Maps renameGroupGuest's status vocabulary to copy. Not the same helper as
@@ -220,8 +224,6 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
     }
   });
 
-  const inputClass = "w-full border border-cream-border rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all";
-
   return (
     <>
     <Modal
@@ -232,40 +234,40 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
         <button
           onClick={() => handleCreateInvite(null)}
           disabled={loading}
-          className="w-full bg-ink-900 text-white rounded-2xl py-3.5 text-sm font-bold disabled:opacity-30 flex items-center justify-center gap-2"
+          className="cta-primary"
         >
-          <Link2 size={16} /> {loading ? t('ginv_creating_link') : t('ginv_copy_link_cta')}
+          <Glyph name="link" size={16} strokeWidth={2.6} /> {loading ? t('ginv_creating_link') : t('ginv_copy_link_cta')}
         </button>
       )}
     >
       <div className="p-5 space-y-4">
-        <div className="rounded-2xl bg-accent-100/60 border border-cream-border px-4 py-3">
-          <p className="text-[13px] font-semibold text-accent-600">{t('ginv_transparency_title')}</p>
-          <p className="text-[12px] text-accent-600/80 mt-1">
+        <div className="m-card m-blue px-4 py-3.5">
+          <p className="text-[13px] font-semibold text-cobalt-text">{t('ginv_transparency_title')}</p>
+          <p className="text-[12px] text-ink-600 mt-1 leading-relaxed">
             {t('ginv_transparency_body')}
           </p>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {group.members.map((member) => {
             const linkedInvite = inviteLookup.get(member.id);
             const guest = isGuestMember(member);
             return (
-              <div key={member.id} className="rounded-2xl bg-cream-card border border-cream-border p-3">
+              <div key={member.id} className="m-card p-3">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold ${
-                    member.isOwner ? 'bg-accent-100 text-accent-600' : 'bg-cream-soft text-ink-700'
-                  }`}>
-                    {member.name.charAt(0).toUpperCase()}
-                  </div>
+                  {/* Every person wears the navy avatar; the owner's is ringed
+                      in the group's blue accent. */}
+                  <span className={`inline-flex shrink-0 rounded-full ${member.isOwner ? 'ring-2 ring-glyph-blue' : ''}`}>
+                    <UserAvatar name={member.name} size={40} />
+                  </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-semibold text-ink-800 truncate">{member.name}</p>
+                    <p className="text-[13.5px] font-semibold text-ink-900 truncate tracking-[-0.01em]">{member.name}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${statusBadgeClass(member)}`}>
+                      <span className={`m-chip m-chip-caps ${statusBadgeClass(member)}`}>
                         {statusLabel(t, member)}
                       </span>
                       {linkedInvite && (
-                        <span className="text-[10px] text-ink-500 truncate">
+                        <span className="text-[10.5px] text-ink-500 truncate">
                           {t('ginv_invite_ready')}
                         </span>
                       )}
@@ -278,9 +280,13 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
                     <button
                       onClick={() => (guest ? handleInviteGuest(member) : void handleCreateInvite(member.id))}
                       disabled={loading}
-                      className="shrink-0 rounded-xl bg-cream-soft text-ink-700 px-3 py-2 text-[11px] font-semibold flex items-center gap-1.5 disabled:opacity-40"
+                      className="m-btn m-btn-plain shrink-0 min-h-[36px] px-3 py-2 gap-1.5 rounded-xl text-[11.5px]"
                     >
-                      {guest ? <Send size={13} /> : linkedInvite ? <Copy size={13} /> : <UserPlus size={13} />}
+                      <Glyph
+                        name={guest ? 'send' : linkedInvite ? 'copy' : 'user-plus'}
+                        size={13}
+                        tone="blue"
+                      />
                       {guest ? t('guest_invite_cta') : linkedInvite ? t('ginv_copy') : t('ginv_invite')}
                     </button>
                   )}
@@ -294,17 +300,17 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
                           onClick={() => openRenameGuest(member)}
                           disabled={loading}
                           aria-label={t('guest_rename_cta')}
-                          className="text-ink-500 active:opacity-60 disabled:opacity-40"
+                          className="relative w-8 h-8 flex items-center justify-center text-ink-500 active:opacity-60 disabled:opacity-40"
                         >
-                          <Pencil size={13} />
+                          <Glyph name="edit" size={14} />
                         </button>
                       )}
                       <button
                         onClick={() => handleRemoveGuest(member)}
                         disabled={loading}
-                        className="text-[11px] font-semibold text-pay-text active:opacity-60 flex items-center gap-1 disabled:opacity-40"
+                        className="text-[11px] font-semibold text-pay-text active:opacity-60 flex items-center gap-1 min-h-[32px] disabled:opacity-40"
                       >
-                        <Trash2 size={12} /> {t('guest_remove_cta')}
+                        <Glyph name="trash" size={12} /> {t('guest_remove_cta')}
                       </button>
                     </div>
                   </div>
@@ -318,12 +324,12 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
             Any CONNECTED member may do this, not just the owner — see the
             migration's §0b. Nothing about it touches accounts in either app
             mode; a guest is a ledger seat, never a money movement. */}
-        <div className="rounded-2xl bg-cream-card border border-cream-border p-3.5">
-          <p className="text-[12px] font-bold text-ink-800">{t('guest_add_cta')}</p>
-          <p className="text-[11px] text-ink-500 mt-1">{t('guest_add_hint')}</p>
-          <div className="flex gap-2 mt-2.5">
+        <div className="m-card p-3.5">
+          <p className="text-[12.5px] font-semibold text-ink-900">{t('guest_add_cta')}</p>
+          <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">{t('guest_add_hint')}</p>
+          <div className="flex gap-2.5 mt-3">
             <input
-              className={inputClass}
+              className="input-field"
               value={guestName}
               maxLength={MAX_GUEST_NAME_LENGTH}
               onChange={(e) => setGuestName(e.target.value)}
@@ -333,14 +339,14 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
             <button
               onClick={handleAddGuest}
               disabled={loading || !guestName.trim() || guestCount >= MAX_GROUP_GUESTS}
-              className="shrink-0 w-11 h-11 rounded-2xl bg-cream-soft flex items-center justify-center active:scale-95 transition-all disabled:opacity-40"
+              className="m-ctl shrink-0 w-12 h-12 rounded-[14px] flex items-center justify-center disabled:opacity-40"
               aria-label={t('guest_add_cta')}
             >
-              <UserRoundPlus size={17} className="text-ink-700" />
+              <Glyph name="user-plus" size={19} tone="neutral" />
             </button>
           </div>
           <input
-            className={inputClass + ' mt-2'}
+            className="input-field mt-2.5"
             value={guestPhone}
             onChange={(e) => setGuestPhone(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddGuest(); } }}
@@ -348,7 +354,7 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
             inputMode="tel"
             autoComplete="off"
           />
-          <p className="text-[11px] text-ink-500 mt-2">{t('guest_phone_hint')}</p>
+          <p className="text-[11px] text-ink-500 mt-2 leading-relaxed">{t('guest_phone_hint')}</p>
         </div>
       </div>
     </Modal>
@@ -363,7 +369,7 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
         <button
           onClick={handleRenameGuest}
           disabled={loading || !renameValue.trim()}
-          className="w-full bg-ink-900 text-white rounded-2xl py-3.5 text-sm font-bold disabled:opacity-30"
+          className="cta-primary"
         >
           {t('save')}
         </button>
@@ -371,7 +377,7 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
     >
       <div className="p-5">
         <input
-          className={inputClass}
+          className="input-field"
           value={renameValue}
           maxLength={40}
           autoFocus

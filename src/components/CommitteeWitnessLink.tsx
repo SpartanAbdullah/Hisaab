@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { Copy, Eye, EyeOff, Link2, MessageCircle, ShieldAlert, Square, SquareCheck } from 'lucide-react';
+import { Glyph } from './Glyph';
 import { Modal } from './Modal';
 import { useToast } from './Toast';
 import { confirmDestructive } from './ConfirmDestructiveSheet';
@@ -137,63 +137,67 @@ export function CommitteeWitnessLink({ committee, members }: Props) {
     : '';
 
   return (
-    <div className="rounded-2xl bg-cream-card border border-cream-border p-4">
-      <div className="flex items-center gap-2">
-        <Eye size={16} className="text-ink-500 shrink-0" strokeWidth={2.2} />
-        <p className="text-[13px] font-semibold text-ink-900">{t('kwt_section_title')}</p>
+    <div className="m-card p-4">
+      <div className="flex items-center gap-2.5">
+        <div className="m-ctl w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0" aria-hidden="true">
+          <Glyph name="eye" size={16} tone="gold" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[13.5px] font-semibold text-ink-900 leading-snug">{t('kwt_section_title')}</p>
+          <p className="text-[11px] text-ink-600 mt-0.5">{stateLine}</p>
+        </div>
       </div>
-      <p className="text-[11px] text-ink-500 mt-1">{stateLine}</p>
 
       {/* UX-24's privacy warning. Shown BEFORE the first share, not after — it
           is the thing that makes "forwarded to a family WhatsApp group" a
           decision rather than a surprise. */}
-      <div className="mt-3 rounded-xl bg-cream-soft border border-cream-hairline p-3 space-y-1.5">
-        <p className="text-[10px] font-bold text-ink-500 uppercase tracking-widest flex items-center gap-1.5">
-          <ShieldAlert size={11} strokeWidth={2.4} /> {t('kwt_privacy_title')}
+      <div className="m-inset mt-3.5 p-3 space-y-1.5">
+        <p className="m-label flex items-center gap-1.5">
+          <Glyph name="shield" size={12} strokeWidth={2.6} /> {t('kwt_privacy_title')}
         </p>
         {[t('kwt_privacy_1'), t('kwt_privacy_2'), t('kwt_privacy_3')].map((line) => (
-          <p key={line} className="text-[11px] text-ink-600 leading-relaxed">{line}</p>
+          <p key={line} className="text-[11px] text-ink-700 leading-relaxed">{line}</p>
         ))}
       </div>
 
       {/* Initials-only — a live preview, because "A.R." is only reassuring once
-          you have seen it applied to a real member's name. */}
+          you have seen it applied to a real member's name. The whole row is
+          the switch (a big target); the 1d switch face inside shows state. */}
       <button
         type="button"
+        role="switch"
         onClick={handleToggleInitials}
         disabled={busy}
-        aria-pressed={initialsOnly}
-        className="w-full mt-3 flex items-start gap-2.5 rounded-xl bg-cream-soft border border-cream-hairline p-3 text-left disabled:opacity-50"
+        aria-checked={initialsOnly}
+        className="w-full mt-3 flex items-start gap-3 rounded-[14px] p-3 text-left active:bg-cream-soft transition-colors disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent-500 focus-visible:outline-offset-2"
       >
-        <span className="shrink-0 mt-[1px] text-ink-500">
-          {initialsOnly ? <SquareCheck size={15} strokeWidth={2.4} /> : <Square size={15} strokeWidth={2.2} />}
-        </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[12px] font-semibold text-ink-900 flex items-center gap-1.5">
-            <EyeOff size={11} className="text-ink-400" /> {t('kwt_initials_title')}
+          <span className="text-[12.5px] font-semibold text-ink-900 flex items-center gap-1.5">
+            <Glyph name="eye-off" size={13} tone="neutral" /> {t('kwt_initials_title')}
           </span>
-          <span className="block text-[11px] text-ink-500 mt-0.5 leading-relaxed">{t('kwt_initials_sub')}</span>
+          <span className="block text-[11px] text-ink-600 mt-0.5 leading-relaxed">{t('kwt_initials_sub')}</span>
           {previewName && (
-            <span className="block text-[11px] text-ink-600 font-mono mt-1">
+            <span className="block text-[11px] text-ink-700 font-mono mt-1">
               {t('kwt_initials_preview')
                 .replace('{name}', previewName)
                 .replace('{initials}', witnessInitials(previewName))}
             </span>
           )}
         </span>
+        <span className={`m-switch block shrink-0 mt-0.5 ${initialsOnly ? 'is-on' : ''}`} aria-hidden="true" />
       </button>
 
       {state === 'active' && (
-        <p className="text-[10.5px] text-ink-400 mt-3 leading-relaxed">{t('kwt_replace_warn')}</p>
+        <p className="text-[10.5px] text-ink-400 mt-2 leading-relaxed">{t('kwt_replace_warn')}</p>
       )}
 
       <button
         type="button"
         onClick={handleRotate}
         disabled={busy}
-        className="w-full mt-2 py-3 rounded-2xl bg-ink-900 text-white text-[12.5px] font-bold flex items-center justify-center gap-2 disabled:opacity-50 press"
+        className="m-btn m-btn-plain w-full mt-3 text-[12.5px]"
       >
-        <Link2 size={14} /> {state === 'active' ? t('kwt_replace_cta') : t('kwt_create_cta')}
+        <Glyph name="link" size={15} tone="gold" /> {state === 'active' ? t('kwt_replace_cta') : t('kwt_create_cta')}
       </button>
 
       {state === 'active' && (
@@ -201,7 +205,7 @@ export function CommitteeWitnessLink({ committee, members }: Props) {
           type="button"
           onClick={handleRevoke}
           disabled={busy}
-          className="w-full mt-2 py-3 rounded-2xl bg-pay-50 text-pay-text text-[12.5px] font-bold disabled:opacity-50 active:bg-pay-100 transition-colors"
+          className="m-btn m-btn-danger w-full mt-3 text-[12.5px]"
         >
           {t('kwt_revoke_cta')}
         </button>
@@ -217,23 +221,23 @@ export function CommitteeWitnessLink({ committee, members }: Props) {
           <button
             type="button"
             onClick={() => setMinted(null)}
-            className="w-full py-3 rounded-2xl bg-ink-900 text-white text-[13px] font-bold press"
+            className="cta-primary"
           >
             {t('kwt_done_cta')}
           </button>
         }
       >
-        <div className="space-y-3">
+        <div className="space-y-3.5">
           <p className="text-[11.5px] text-ink-600 leading-relaxed">{t('kwt_token_once_body')}</p>
           {minted?.replacedPrevious && (
-            <p className="text-[11.5px] text-warn-600 bg-warn-50 border border-warn-100 rounded-xl p-2.5 leading-relaxed">
+            <p className="text-[11.5px] text-warn-700 bg-warn-50 rounded-[12px] p-3 leading-relaxed">
               {t('kwt_replaced_previous')}
             </p>
           )}
-          <div className="rounded-xl bg-cream-soft border border-cream-hairline px-3 py-2.5">
-            <p className="text-[10.5px] font-mono text-ink-700 break-all leading-snug">{minted?.url}</p>
+          <div className="m-inset px-3 py-2.5">
+            <p className="text-[10.5px] font-mono text-ink-800 break-all leading-snug">{minted?.url}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2.5">
             <button
               type="button"
               onClick={async () => {
@@ -241,9 +245,9 @@ export function CommitteeWitnessLink({ committee, members }: Props) {
                 await copyText(minted.url);
                 toast.show({ type: 'success', title: t('kwt_copied_toast') });
               }}
-              className="flex-1 min-h-[44px] rounded-2xl bg-cream-soft border border-cream-border text-ink-700 text-[12.5px] font-semibold flex items-center justify-center gap-2 active:bg-cream-hairline transition-colors"
+              className="m-btn m-btn-plain flex-1 px-3 text-[12.5px]"
             >
-              <Copy size={14} /> {t('kwt_copy_cta')}
+              <Glyph name="copy" size={15} /> {t('kwt_copy_cta')}
             </button>
             <button
               type="button"
@@ -251,9 +255,9 @@ export function CommitteeWitnessLink({ committee, members }: Props) {
                 if (!minted) return;
                 window.open(buildWhatsAppUrl(null, shareBody), '_blank', 'noopener,noreferrer');
               }}
-              className="flex-1 min-h-[44px] rounded-2xl bg-receive-50 border border-receive-100 text-receive-text text-[12.5px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+              className="m-btn m-btn-whatsapp flex-1 px-3 text-[12.5px]"
             >
-              <MessageCircle size={14} /> {t('kwt_share_cta')}
+              <Glyph name="whatsapp" size={15} /> {t('kwt_share_cta')}
             </button>
           </div>
         </div>

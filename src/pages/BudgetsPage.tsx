@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Plus, Wallet2, Pencil, Trash2 } from 'lucide-react';
+import { Wallet2 } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Card3D } from '../components/Card3D';
+import { Glyph } from '../components/Glyph';
 import { PageErrorState } from '../components/PageErrorState';
 import { ListSkeleton } from '../components/ListSkeleton';
 import { Modal } from '../components/Modal';
@@ -104,12 +105,16 @@ export function BudgetsPage() {
         // Broad label: this bucket holds schedule-less udhaar repayments too,
         // so a bare "EMI" would claim something the user knows is false.
         ...(flex.fixedParts.emi > 0.005 ? [`${t('flex_part_emi')} −${fmtN(flex.fixedParts.emi)}`] : []),
-        ...(flex.fixedParts.kameti > 0.005 ? [`Kameti −${fmtN(flex.fixedParts.kameti)}`] : []),
+        ...(flex.fixedParts.kameti > 0.005 ? [`${t('kameti_title')} −${fmtN(flex.fixedParts.kameti)}`] : []),
         ...(flex.fixedParts.recurring > 0.005 ? [`${t('flex_part_recurring')} −${fmtN(flex.fixedParts.recurring)}`] : []),
         `${t('flex_spent_word')} −${fmtN(flex.flexSpent)}`,
       ].join(' · ')
     : '';
-  const flexBarColor = flex?.state === 'red' ? 'bg-pay-600' : flex?.state === 'yellow' ? 'bg-warn-600' : 'bg-receive-600';
+  const flexBarColor = flex?.state === 'red'
+    ? 'from-pay-600 to-pay-700'
+    : flex?.state === 'yellow'
+      ? 'from-warn-600 to-warn-700'
+      : 'from-receive-600 to-receive-700';
   const flexBarPct = flex && flex.flexTotal > 0
     ? Math.min(100, Math.max(0, (flex.flexSpent / flex.flexTotal) * 100))
     : 100;
@@ -131,13 +136,13 @@ export function BudgetsPage() {
             aria-label={t('bud_a11y_add')}
             className="nav-icon-button"
           >
-            <Plus size={16} className="text-ink-600" />
+            <Glyph name="plus" size={16} strokeWidth={3} className="text-accent-text" />
           </button>
         }
       />
 
       <div className="px-5 pt-5 space-y-3">
-        <p className="text-[12px] text-ink-500 leading-relaxed">
+        <p className="text-[12px] text-ink-600 leading-relaxed">
           {t('bud_intro')}
         </p>
 
@@ -153,18 +158,19 @@ export function BudgetsPage() {
         {loadStatus === 'ready' && usages.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             {overLimitCount > 0 && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-pay-700 bg-pay-50 rounded-full px-2 py-1 tabular-nums">
-                <AlertTriangle size={11} className="text-pay-700" />
+              <span className="m-chip m-chip-pay px-2.5 py-1 tabular-nums">
+                <Glyph name="alert" size={11} strokeWidth={2.8} />
                 {t('budget_over').replace('{n}', String(overLimitCount))}
               </span>
             )}
             {overWarnCount > 0 && (
-              <span className="inline-flex items-center text-[10px] font-semibold text-warn-700 bg-warn-50 rounded-full px-2 py-1 tabular-nums">
+              <span className="m-chip m-chip-gold px-2.5 py-1 tabular-nums">
                 {t('budget_near').replace('{n}', String(overWarnCount))}
               </span>
             )}
             {overLimitCount === 0 && overWarnCount === 0 && (
-              <span className="inline-flex items-center text-[10px] font-semibold text-receive-text bg-receive-50 rounded-full px-2 py-1">
+              <span className="m-chip m-chip-receive px-2.5 py-1">
+                <Glyph name="check" size={11} strokeWidth={3} />
                 {t('budget_on_track')}
               </span>
             )}
@@ -187,25 +193,25 @@ export function BudgetsPage() {
                 <button
                   onClick={() => setShowIncomeModal(true)}
                   aria-label={t('flex_edit_income')}
-                  className="p-2 -m-2 rounded-full press-sm"
+                  className="m-ctl relative w-8 h-8 rounded-[10px] flex items-center justify-center before:absolute before:-inset-1.5 before:content-['']"
                 >
-                  <Pencil size={13} className="text-ink-400" />
+                  <Glyph name="edit" size={14} className="text-ink-600" />
                 </button>
               </div>
               <div className="mt-1.5 flex items-baseline justify-between gap-2">
-                <span className={`text-[24px] font-bold tabular-nums tracking-tight ${
+                <span className={`text-[24px] font-semibold tabular-nums tracking-[-0.03em] ${
                   flex.state === 'red' ? 'text-pay-text' : flex.state === 'yellow' ? 'text-warn-700' : 'text-ink-900'
                 }`}>
                   {flex.remaining < 0 ? '−' : ''}{formatMoney(Math.abs(flex.remaining), primaryCurrency)}
                 </span>
-                <span className="text-[11px] text-ink-500 tabular-nums">
+                <span className="text-[11px] text-ink-600 tabular-nums">
                   {t('flex_left_of').replace('{total}', formatMoney(Math.max(flex.flexTotal, 0), primaryCurrency))}
                 </span>
               </div>
-              <div className="relative mt-2.5 h-2 rounded-full bg-cream-soft overflow-hidden">
-                <div className={`h-full ${flexBarColor} transition-all`} style={{ width: `${flexBarPct}%` }} />
+              <div className="m-inset relative mt-3 h-2 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full bg-gradient-to-r ${flexBarColor} transition-all`} style={{ width: `${flexBarPct}%` }} />
               </div>
-              <p className="mt-2 text-[10.5px] text-ink-500 tabular-nums leading-relaxed">
+              <p className="mt-2 text-[11px] text-ink-600 tabular-nums leading-relaxed">
                 {flexBreakdown}
               </p>
               {flex.state !== 'green' && (
@@ -237,10 +243,10 @@ export function BudgetsPage() {
             <div className="mt-2 space-y-2">
               {leftSummary.map((s) => (
                 <div key={s.currency} className="flex items-baseline justify-between gap-2">
-                  <span className={`text-[22px] font-bold tabular-nums tracking-tight ${s.left < 0 ? 'text-pay-text' : 'text-ink-900'}`}>
+                  <span className={`text-[22px] font-semibold tabular-nums tracking-[-0.03em] ${s.left < 0 ? 'text-pay-text' : 'text-ink-900'}`}>
                     {s.left < 0 ? '−' : ''}{formatMoney(Math.abs(s.left), s.currency)}
                   </span>
-                  <span className="text-[11px] text-ink-500 tabular-nums">
+                  <span className="text-[11px] text-ink-600 tabular-nums">
                     {t('budget_spent_of')
                       .replace('{spent}', formatMoney(s.spent, s.currency))
                       .replace('{total}', formatMoney(s.budget, s.currency))}
@@ -257,8 +263,8 @@ export function BudgetsPage() {
           loadStatus === 'ready' ? (
             <EmptyState
               icon={Wallet2}
-              clayIcon="target"
-              tone="accent"
+              clayIcon="wallet"
+              tone="violet"
               title={t('bud_empty_title')}
               description={t('bud_empty_desc')}
               subhint={t('bud_empty_subhint')}
@@ -400,20 +406,20 @@ function BudgetCard({ usage, onEdit }: BudgetCardProps) {
   // Bar color shifts as the user gets closer to the cap. Green → amber → coral
   // so the meaning is obvious without reading the number.
   const barColor = overLimit
-    ? 'bg-pay-600'
+    ? 'from-pay-600 to-pay-700'
     : overWarn
-      ? 'bg-warn-600'
-      : 'bg-receive-600';
+      ? 'from-warn-600 to-warn-700'
+      : 'from-receive-600 to-receive-700';
   return (
     <button
       onClick={onEdit}
-      className="w-full text-left rounded-2xl bg-cream-card border border-cream-border p-4 press-lg"
+      className={`m-tile p-4 ${overLimit ? 'm-coral' : ''}`}
     >
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-[14px] font-semibold text-ink-900 tracking-tight truncate">
           {budget.category}
         </p>
-        <p className="text-[10.5px] text-ink-500 tabular-nums">
+        <p className={`text-[11px] font-semibold tabular-nums ${overLimit ? 'text-pay-text' : 'text-ink-500'}`}>
           {percent.toFixed(0)}%
         </p>
       </div>
@@ -423,32 +429,32 @@ function BudgetCard({ usage, onEdit }: BudgetCardProps) {
           {' '}/ {formatMoney(budget.monthlyAmount, budget.currency)}
         </p>
         <p
-          className={`text-[11px] font-semibold tabular-nums inline-flex items-center gap-1 ${
+          className={`text-[11.5px] font-semibold tabular-nums inline-flex items-center gap-1 ${
             overLimit ? 'text-pay-text' : 'text-receive-text'
           }`}
         >
           {overLimit ? (
             <>
-              <AlertTriangle size={11} className="text-pay-text shrink-0" aria-hidden="true" />
+              <Glyph name="alert" size={12} strokeWidth={2.8} />
               {t('budget_over_by_short').replace('{amount}', formatMoney(Math.abs(remaining), budget.currency))}
               <span className="sr-only">
                 {t('budget_over_by').replace('{amount}', formatMoney(Math.abs(remaining), budget.currency))}
               </span>
             </>
           ) : (
-            `${formatMoney(remaining, budget.currency)} left`
+            t('ca_remaining').replace('{amount}', formatMoney(remaining, budget.currency))
           )}
         </p>
       </div>
-      <div className="relative mt-2.5 h-2 rounded-full bg-cream-soft overflow-hidden">
+      <div className="m-inset relative mt-3 h-2 rounded-full overflow-hidden">
         <div
-          className={`h-full ${barColor} transition-all`}
+          className={`h-full rounded-full bg-gradient-to-r ${barColor} transition-all`}
           style={{ width: `${cappedPercent}%` }}
         />
         {/* Pace tick — where even spending would put us today. */}
         <span
           aria-hidden="true"
-          className="absolute top-0 bottom-0 w-px bg-ink-400/70"
+          className="absolute top-0 bottom-0 w-[2px] rounded-full bg-ink-500"
           style={{ left: `${expectedPercent}%` }}
         />
       </div>
@@ -571,7 +577,7 @@ function AddBudgetModal({ open, onClose, existing }: AddBudgetModalProps) {
               step={5}
               value={warnAt}
               onChange={(e) => setWarnAt(Number(e.target.value))}
-              className="flex-1"
+              className="flex-1 accent-accent-600 min-h-[44px]"
             />
             <span className="text-[12.5px] font-semibold text-ink-900 tabular-nums w-12 text-right">
               {warnAt}%
@@ -686,7 +692,7 @@ function EditBudgetModal({ budget, onClose }: EditBudgetModalProps) {
               step={5}
               value={warnAt}
               onChange={(e) => setWarnAt(Number(e.target.value))}
-              className="flex-1"
+              className="flex-1 accent-accent-600 min-h-[44px]"
             />
             <span className="text-[12.5px] font-semibold text-ink-900 tabular-nums w-12 text-right">
               {warnAt}%
@@ -700,14 +706,14 @@ function EditBudgetModal({ budget, onClose }: EditBudgetModalProps) {
             disabled={saving}
             className="cta-destructive flex-1 flex items-center justify-center gap-2"
           >
-            <Trash2 size={14} /> {t('common_delete')}
+            <Glyph name="trash" size={15} /> {t('common_delete')}
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
             className="cta-primary flex-1 flex items-center justify-center gap-2"
           >
-            <Pencil size={14} /> {t('common_save')}
+            <Glyph name="check" size={15} strokeWidth={3} /> {t('common_save')}
           </button>
         </div>
       </div>

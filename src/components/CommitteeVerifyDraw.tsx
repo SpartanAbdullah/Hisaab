@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ShieldCheck, Check, X } from 'lucide-react';
+import { Glyph } from './Glyph';
 import { useT } from '../lib/i18n';
 import { verifyDraw } from '../lib/committeeDraw';
 import type { Committee, CommitteeMember } from '../db';
@@ -39,36 +39,42 @@ export function CommitteeVerifyDraw({ committee, members }: Props) {
     }
   };
 
+  // 1d: a card with the shield-check row icon, the seed and seal in sunken
+  // wells (they are records to read, not controls), and the check as a
+  // neutral secondary — on the organiser's page the draw is the primary.
   return (
-    <div className="rounded-2xl bg-cream-card border border-cream-border p-4">
-      <div className="flex items-center gap-2">
-        <ShieldCheck size={16} className="text-receive-text shrink-0" strokeWidth={2.2} />
-        <p className="text-[13px] font-semibold text-ink-900">{t('kameti_verify_title')}</p>
+    <div className="m-card p-4">
+      <div className="flex items-center gap-2.5">
+        <div className="m-ctl w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0" aria-hidden="true">
+          <Glyph name="shield-check" size={16} tone="green" />
+        </div>
+        <p className="text-[13.5px] font-semibold text-ink-900 leading-snug">{t('kameti_verify_title')}</p>
       </div>
-      <p className="text-[11px] text-ink-500 mt-1 leading-relaxed">{t('kameti_verify_desc')}</p>
-      <p className="text-[11px] text-ink-500 mt-1.5 leading-relaxed">{t('kameti_draw_server_note')}</p>
-      <div className="mt-2.5 rounded-xl bg-cream-soft border border-cream-hairline px-3 py-2">
-        <p className="text-[9px] font-semibold text-ink-400 uppercase tracking-wide">{t('kameti_draw_seed')}</p>
-        <p className="text-[10.5px] font-mono text-ink-600 break-all leading-snug">{committee.drawSeed}</p>
+      <p className="text-[11.5px] text-ink-600 mt-2.5 leading-relaxed">{t('kameti_verify_desc')}</p>
+      <p className="text-[11.5px] text-ink-600 mt-1.5 leading-relaxed">{t('kameti_draw_server_note')}</p>
+      <div className="m-inset mt-3 px-3 py-2.5">
+        <p className="m-label">{t('kameti_draw_seed')}</p>
+        <p className="text-[10.5px] font-mono text-ink-700 break-all leading-snug mt-1">{committee.drawSeed}</p>
       </div>
-      <div className="mt-1.5 rounded-xl bg-cream-soft border border-cream-hairline px-3 py-2">
-        <p className="text-[9px] font-semibold text-ink-400 uppercase tracking-wide">{t('kameti_commitment')}</p>
-        <p className="text-[10.5px] font-mono text-ink-600 break-all leading-snug">{committee.drawCommitment.slice(0, 32)}…</p>
+      <div className="m-inset mt-2 px-3 py-2.5">
+        <p className="m-label">{t('kameti_commitment')}</p>
+        <p className="text-[10.5px] font-mono text-ink-700 break-all leading-snug mt-1">{committee.drawCommitment.slice(0, 32)}…</p>
       </div>
-      <p className="text-[10px] text-ink-400 mt-1.5 leading-relaxed">{t('kameti_draw_recompute_how')}</p>
+      <p className="text-[10.5px] text-ink-400 mt-2 leading-relaxed">{t('kameti_draw_recompute_how')}</p>
       {result === null ? (
-        <button onClick={verify} disabled={checking} className="mt-3 w-full py-2.5 rounded-xl bg-ink-900 text-white text-[12px] font-bold disabled:opacity-50 press">
+        <button onClick={verify} disabled={checking} className="m-btn m-btn-plain mt-3.5 w-full text-[12.5px]">
+          <Glyph name="shield-check" size={15} tone="green" />
           {checking ? t('kameti_verifying') : t('kameti_verify')}
         </button>
       ) : result ? (
-        <div className="mt-3 flex items-center gap-2 rounded-xl bg-receive-50 border border-receive-100 px-3 py-2.5">
-          <Check size={15} className="text-receive-text shrink-0" strokeWidth={2.6} />
-          <p className="text-[11.5px] font-semibold text-receive-text leading-snug">{t('kameti_verify_ok')}</p>
+        <div className="mt-3.5 flex items-center gap-2 rounded-[12px] bg-receive-100 text-receive-text px-3 py-2.5">
+          <Glyph name="check" size={15} strokeWidth={3} />
+          <p className="text-[11.5px] font-semibold leading-snug">{t('kameti_verify_ok')}</p>
         </div>
       ) : (
-        <div className="mt-3 flex items-center gap-2 rounded-xl bg-pay-50 border border-pay-100 px-3 py-2.5">
-          <X size={15} className="text-pay-text shrink-0" strokeWidth={2.6} />
-          <p className="text-[11.5px] font-semibold text-pay-text leading-snug">{t('kameti_verify_fail')}</p>
+        <div className="mt-3.5 flex items-center gap-2 rounded-[12px] bg-pay-100 text-pay-text px-3 py-2.5">
+          <Glyph name="close" size={15} strokeWidth={3} />
+          <p className="text-[11.5px] font-semibold leading-snug">{t('kameti_verify_fail')}</p>
         </div>
       )}
     </div>

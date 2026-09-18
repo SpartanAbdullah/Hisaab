@@ -6,8 +6,8 @@
 // stepped sheet. Completing the walk stamps CHECK_STAMP_KEY so Home can show
 // "last done Nd ago" — the ritual's memory.
 import { useMemo, useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, BellRing, CalendarClock, CheckCircle2 } from 'lucide-react';
 import { CelebrationMark } from './CelebrationMark';
+import { Glyph } from './Glyph';
 import { Modal } from './Modal';
 import { StepIndicator } from './StepIndicator';
 import { PaymentReminderModal } from './PaymentReminderModal';
@@ -148,19 +148,29 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
             <p className="text-[11.5px] text-ink-500 mt-0.5 leading-relaxed">{t('check_flow_sub')}</p>
           </div>
           <div className="grid grid-cols-2 gap-2.5">
-            <div className="rounded-2xl bg-receive-50 p-3.5">
-              <p className="text-[10.5px] font-semibold text-receive-text uppercase tracking-[0.1em] flex items-center gap-1">
-                <ArrowDownLeft size={11} /> {t('check_in_label')}
-              </p>
-              <p className="text-[18px] font-bold text-receive-text tabular-nums tracking-tight mt-1">
+            <div className="m-card m-mint rounded-[16px] p-3.5 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="m-stat-dot m-stat-dot-receive" aria-hidden>
+                  <Glyph name="arrow-down" size={14} strokeWidth={3} />
+                </span>
+                <p className="text-[10.5px] font-semibold text-receive-text uppercase tracking-[0.1em]">
+                  {t('check_in_label')}
+                </p>
+              </div>
+              <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em] mt-2.5 truncate">
                 {formatMoney(flow.moneyIn, currency)}
               </p>
             </div>
-            <div className="rounded-2xl bg-pay-50 p-3.5">
-              <p className="text-[10.5px] font-semibold text-pay-text uppercase tracking-[0.1em] flex items-center gap-1">
-                <ArrowUpRight size={11} /> {t('check_out_label')}
-              </p>
-              <p className="text-[18px] font-bold text-pay-text tabular-nums tracking-tight mt-1">
+            <div className="m-card m-coral rounded-[16px] p-3.5 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="m-stat-dot m-stat-dot-pay" aria-hidden>
+                  <Glyph name="arrow-up" size={14} strokeWidth={3} />
+                </span>
+                <p className="text-[10.5px] font-semibold text-pay-text uppercase tracking-[0.1em]">
+                  {t('check_out_label')}
+                </p>
+              </div>
+              <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em] mt-2.5 truncate">
                 {formatMoney(flow.moneyOut, currency)}
               </p>
             </div>
@@ -172,7 +182,7 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
       {step === 1 && (
         <div className="animate-fade-in space-y-3">
           <p className="text-[14px] font-semibold text-ink-900 tracking-tight">{t('check_people_title')}</p>
-          <div className="rounded-2xl bg-cream-soft border border-cream-hairline divide-y divide-cream-hairline">
+          <div className="m-card divide-y divide-cream-hairline">
             <div className="flex items-center justify-between px-3.5 py-3">
               <span className="text-[12.5px] text-ink-600">{t('check_receivable')}</span>
               <span className="text-right">
@@ -211,19 +221,21 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
         <div className="animate-fade-in space-y-3">
           <p className="text-[14px] font-semibold text-ink-900 tracking-tight">{t('check_week_title')}</p>
           {thisWeekRows.length === 0 ? (
-            <div className="rounded-2xl bg-receive-50 p-4 flex items-center gap-2.5">
-              <CheckCircle2 size={18} className="text-receive-text shrink-0" />
+            <div className="m-card m-mint p-4 flex items-center gap-2.5">
+              <Glyph name="check" size={18} tone="green" />
               <p className="text-[12.5px] font-medium text-receive-text">{t('check_week_clear')}</p>
             </div>
           ) : (
-            <div className="rounded-2xl bg-cream-soft border border-cream-hairline divide-y divide-cream-hairline">
+            <div className="m-card divide-y divide-cream-hairline">
               {thisWeekRows.slice(0, 5).map((row) => (
                 <div key={row.id} className="flex items-center gap-2.5 px-3.5 py-2.5">
-                  {row.sub.kind === 'cleared' ? (
-                    <CheckCircle2 size={14} className="text-receive-text shrink-0" />
-                  ) : (
-                    <CalendarClock size={14} className={row.daysUntil <= 1 ? 'text-warn-600 shrink-0' : 'text-ink-400 shrink-0'} />
-                  )}
+                  <div className="m-ctl w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0">
+                    {row.sub.kind === 'cleared' ? (
+                      <Glyph name="check" size={14} tone="green" />
+                    ) : (
+                      <Glyph name="calendar" size={14} tone={row.daysUntil <= 1 ? 'gold' : 'blue'} />
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[12.5px] font-medium text-ink-900 truncate tracking-tight">{row.label}</p>
                     <p className={`text-[10px] ${row.sub.kind === 'cleared' ? 'text-receive-text font-medium' : 'text-ink-500'}`}>
@@ -255,7 +267,7 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
         <div className="animate-fade-in space-y-3">
           <p className="text-[14px] font-semibold text-ink-900 tracking-tight">{t('check_action_title')}</p>
           {suggested ? (
-            <div className="rounded-2xl bg-cream-soft border border-cream-hairline p-4 space-y-3">
+            <div className="m-card p-4 space-y-3.5">
               <p className="text-[13px] text-ink-800 leading-relaxed">
                 {t('check_action_body')
                   .replace('{name}', suggested.personName)
@@ -264,15 +276,15 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
               </p>
               <button
                 onClick={() => setReminderOpen(true)}
-                className="w-full min-h-[44px] rounded-xl bg-ink-900 text-white text-[12.5px] font-semibold flex items-center justify-center gap-1.5 press"
+                className="m-btn m-btn-primary w-full text-[13px]"
               >
-                <BellRing size={13} strokeWidth={2.2} />
+                <Glyph name="bell" size={15} />
                 {t('check_action_remind')}
               </button>
             </div>
           ) : (
-            <div className="rounded-2xl bg-receive-50 p-4 flex items-center gap-2.5">
-              <CheckCircle2 size={18} className="text-receive-text shrink-0" />
+            <div className="m-card m-mint p-4 flex items-center gap-2.5">
+              <Glyph name="check" size={18} tone="green" />
               <p className="text-[12.5px] font-medium text-receive-text leading-relaxed">{t('check_action_none')}</p>
             </div>
           )}

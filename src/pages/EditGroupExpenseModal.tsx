@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
-import { Trash2 } from 'lucide-react';
 import { Modal } from '../components/Modal';
+import { Glyph } from '../components/Glyph';
 import { useDiscardGuard } from '../lib/useDiscardGuard';
 import { useSubmitGuard } from '../lib/useSubmitGuard';
 import { useSplitStore } from '../stores/splitStore';
@@ -30,6 +30,14 @@ interface Props {
 }
 
 const CATEGORIES = ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Travel', 'Health', 'General'];
+
+// Member picker chip (paid by / split between): the 1d selector at chip scale
+// — raised card face with the 3:1 field edge; selected = violet-lit face +
+// violet edge, plus a check glyph so the choice never rests on colour alone.
+const memberChipClass = (selected: boolean) =>
+  `selector-base w-auto justify-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-[14px] text-[12px] font-semibold text-ink-800 ${
+    selected ? 'selector-selected' : ''
+  }`;
 
 function sameDisplayName(a: string | null | undefined, b: string | null | undefined): boolean {
   return (a ?? '').trim().toLocaleLowerCase() === (b ?? '').trim().toLocaleLowerCase();
@@ -266,8 +274,6 @@ export function EditGroupExpenseModal({ open, group, expense, onClose }: Props) 
     }
   };
 
-  const inputClass = 'w-full border border-cream-border rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all';
-
   return (
     <>
     <Modal open={open} onClose={onClose} title={t('egem_title')}
@@ -278,13 +284,14 @@ export function EditGroupExpenseModal({ open, group, expense, onClose }: Props) 
         splitType !== expense.splitType
       ))}
       footer={
-      <div className="flex gap-2">
-        <button onClick={handleDelete} disabled={saving || !isCreator} className="px-4 py-3.5 rounded-2xl bg-pay-50 text-pay-text active:bg-pay-100 transition-all disabled:opacity-30">
-          <Trash2 size={16} />
+      <div className="flex gap-2.5">
+        <button onClick={handleDelete} disabled={saving || !isCreator} aria-label={t('common_delete')}
+          className="m-btn m-btn-danger px-4">
+          <Glyph name="trash" size={17} />
         </button>
         <button onClick={handleSave} disabled={saving || !isCreator || !description.trim() || amt <= 0}
-          className="flex-1 bg-accent-600 text-white rounded-2xl py-3.5 text-sm font-bold disabled:opacity-30 shadow-md shadow-accent-600/20">
-          {saving ? t('quick_processing') : 'Save Changes'}
+          className="cta-primary flex-1">
+          {saving ? t('quick_processing') : t('save')}
         </button>
       </div>
     }>
@@ -292,34 +299,35 @@ export function EditGroupExpenseModal({ open, group, expense, onClose }: Props) 
         {/* Only the creator's shared row is writable (RLS). Everyone else
             used to get a fake success toast while nothing changed. */}
         {!isCreator && (
-          <p className="text-[12px] text-warn-700 bg-warn-50 border border-warn-100 rounded-xl p-3 leading-relaxed">
+          <p className="text-[12px] text-warn-700 bg-warn-50 rounded-[14px] p-3 leading-relaxed">
             {creatorName
               ? t('grp_creator_banner').replace('{name}', creatorName)
               : t('grp_creator_banner_generic')}
           </p>
         )}
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_desc')}</label>
-          <input className={`${inputClass} mt-1.5`} value={description} onChange={e => setDescription(e.target.value)} />
+          <label className="form-label">{t('group_desc')}</label>
+          <input className="input-field" value={description} onChange={e => setDescription(e.target.value)} />
         </div>
 
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_amount')}</label>
-          <input className={`${inputClass} mt-1.5 text-lg font-bold`} type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} />
+          <label className="form-label">{t('group_amount')}</label>
+          <input className="input-field font-semibold tabular-nums" type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} />
         </div>
 
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_paid_by')}</label>
-          <div className="flex flex-wrap gap-2 mt-1.5">
+          <label className="form-label">{t('group_paid_by')}</label>
+          <div className="flex flex-wrap gap-2.5">
             {activeMembers.map(member => (
-              <button key={member.id} onClick={() => setPaidBy(member.id)}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-semibold transition-all ${paidBy === member.id ? 'bg-ink-900 text-white' : 'bg-cream-soft text-ink-700'}`}>
+              <button key={member.id} type="button" onClick={() => setPaidBy(member.id)} aria-pressed={paidBy === member.id}
+                className={memberChipClass(paidBy === member.id)}>
+                {paidBy === member.id && <Glyph name="check" size={12} strokeWidth={3} tone="violet" />}
                 {member.name}
                 {/* Guests are in this list because getActiveGroupMembers keys on
                     status and a guest seat is 'connected' — the same predicate
                     the server's paid_by trigger uses (audit G6 / O4). */}
                 {isGuestMember(member) && (
-                  <span className={`text-[8.5px] uppercase tracking-wide font-bold ${paidBy === member.id ? 'text-white/60' : 'text-ink-400'}`}>
+                  <span className={`text-[10px] uppercase tracking-[0.06em] font-semibold ${paidBy === member.id ? 'text-accent-text' : 'text-ink-500'}`}>
                     {t('guest_tag')}
                   </span>
                 )}
@@ -330,18 +338,19 @@ export function EditGroupExpenseModal({ open, group, expense, onClose }: Props) 
 
         {shouldTrackExpense && (
           <div>
-            <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('paid_from')}</label>
-            <div className="space-y-2 mt-1.5">
+            <label className="form-label">{t('paid_from')}</label>
+            <div className="space-y-2.5">
               <button
+                type="button"
                 onClick={() => { setDontTrack(true); setPaidFromAccountId(''); }}
-                className={`w-full p-3.5 rounded-2xl border-2 flex items-center justify-between text-left transition-all ${
-                  dontTrack ? 'border-emerald-300 bg-receive-50/60 shadow-sm shadow-emerald-500/5' : 'border-cream-border bg-cream-card'
-                }`}
+                aria-pressed={dontTrack}
+                className={`selector-base ${dontTrack ? 'selector-selected' : ''}`}
               >
-                <div>
-                  <p className="text-[13px] font-semibold text-ink-800">{t('egem_not_tracked')}</p>
-                  <p className="text-[10px] text-ink-500">{t('egem_not_tracked_sub')}</p>
-                </div>
+                <span className="min-w-0">
+                  <span className="block text-[13px] font-semibold text-ink-800">{t('egem_not_tracked')}</span>
+                  <span className="block text-[10.5px] text-ink-500 mt-0.5">{t('egem_not_tracked_sub')}</span>
+                </span>
+                {dontTrack && <Glyph name="check" size={15} strokeWidth={3} tone="violet" />}
               </button>
               {/* "Not tracked" is a deliberate state (paidFromAccountId=''),
                   so the account picker only appears once the user opts back
@@ -349,10 +358,12 @@ export function EditGroupExpenseModal({ open, group, expense, onClose }: Props) 
                   would contradict the selected option above. */}
               {dontTrack ? (
                 <button
+                  type="button"
                   onClick={() => setDontTrack(false)}
-                  className="w-full p-3.5 rounded-2xl border-2 border-cream-border bg-cream-card text-left transition-all active:scale-[0.98]"
+                  className="selector-base"
                 >
-                  <p className="text-[13px] font-semibold text-ink-800">{t('acct_select_placeholder')}…</p>
+                  <span className="text-[13px] font-semibold text-ink-800">{t('acct_select_placeholder')}…</span>
+                  <Glyph name="chevron-right" size={14} className="text-ink-400" />
                 </button>
               ) : (
                 <AccountSelect accounts={accounts} selectedId={paidFromAccountId} onSelect={setPaidFromAccountId} preferredCurrency={group.currency} />
@@ -362,19 +373,23 @@ export function EditGroupExpenseModal({ open, group, expense, onClose }: Props) 
         )}
 
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_split_between')}</label>
-          <div className="flex flex-wrap gap-2 mt-1.5">
-            {activeMembers.map(member => (
-              <button key={member.id} onClick={() => toggleMember(member.id)}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-semibold transition-colors active:scale-95 ${selectedMembers.includes(member.id) ? 'bg-receive-600 text-white' : 'bg-cream-soft text-ink-600 border border-cream-border'}`}>
-                {member.name}
-                {isGuestMember(member) && (
-                  <span className={`text-[8.5px] uppercase tracking-wide font-bold ${selectedMembers.includes(member.id) ? 'text-white/60' : 'text-ink-400'}`}>
-                    {t('guest_tag')}
-                  </span>
-                )}
-              </button>
-            ))}
+          <label className="form-label">{t('group_split_between')}</label>
+          <div className="flex flex-wrap gap-2.5">
+            {activeMembers.map(member => {
+              const included = selectedMembers.includes(member.id);
+              return (
+                <button key={member.id} type="button" onClick={() => toggleMember(member.id)} aria-pressed={included}
+                  className={memberChipClass(included)}>
+                  {included && <Glyph name="check" size={12} strokeWidth={3} tone="violet" />}
+                  {member.name}
+                  {isGuestMember(member) && (
+                    <span className={`text-[10px] uppercase tracking-[0.06em] font-semibold ${included ? 'text-accent-text' : 'text-ink-500'}`}>
+                      {t('guest_tag')}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -385,11 +400,12 @@ export function EditGroupExpenseModal({ open, group, expense, onClose }: Props) 
         )}
 
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_split_type')}</label>
-          <div className="grid grid-cols-4 gap-1.5 mt-1.5">
+          <label className="form-label">{t('group_split_type')}</label>
+          {/* One mode at a time — the segmented track, active face lit. */}
+          <div className="m-seg flex w-full">
             {(['equal', 'exact', 'percentage', 'shares'] as SplitType[]).map(split => (
-              <button key={split} onClick={() => setSplitType(split)}
-                className={`py-2 rounded-xl text-[11px] font-bold transition-all ${splitType === split ? 'bg-ink-900 text-white' : 'bg-cream-soft text-ink-500'}`}>
+              <button key={split} type="button" onClick={() => setSplitType(split)} aria-pressed={splitType === split}
+                className="flex-1 min-w-0 min-h-[44px] px-1 text-[11.5px] leading-tight">
                 {split === 'equal' ? t('group_split_equal') : split === 'exact' ? t('group_split_exact') : split === 'percentage' ? t('group_split_pct') : t('group_split_shares')}
               </button>
             ))}
@@ -397,43 +413,43 @@ export function EditGroupExpenseModal({ open, group, expense, onClose }: Props) 
         </div>
 
         {amt > 0 && selectedMembers.length > 0 && splitType === 'equal' && (
-          <p className="text-[12px] text-ink-500 bg-cream-soft rounded-xl px-3 py-2.5 text-center font-medium">
-            {t('group_each_pays')}: <span className="font-bold text-ink-900">{formatMoney(Math.round((amt / selectedMembers.length) * 100) / 100, group.currency)}</span>
+          <p className="m-inset text-[12px] text-ink-600 px-3 py-2.5 text-center font-medium">
+            {t('group_each_pays')}: <span className="font-semibold text-ink-900 tabular-nums">{formatMoney(Math.round((amt / selectedMembers.length) * 100) / 100, group.currency)}</span>
           </p>
         )}
 
         {amt > 0 && splitType === 'exact' && selectedMembers.map(id => (
-          <div key={id} className="flex items-center gap-2">
-            <span className="text-[12px] text-ink-700 font-medium w-20 truncate">{group.members.find(member => member.id === id)?.name}</span>
-            <input className="flex-1 border border-cream-border rounded-xl px-3 py-2 text-sm bg-cream-card" type="number" inputMode="decimal"
+          <div key={id} className="flex items-center gap-2.5">
+            <span className="text-[12px] text-ink-800 font-medium w-20 truncate">{group.members.find(member => member.id === id)?.name}</span>
+            <input className="input-field flex-1 min-h-[44px] px-3 py-2" type="number" inputMode="decimal"
               value={exactAmounts[id] || ''} onChange={e => setExactAmounts({ ...exactAmounts, [id]: e.target.value })} placeholder="0" />
           </div>
         ))}
 
         {amt > 0 && splitType === 'percentage' && selectedMembers.map(id => (
-          <div key={id} className="flex items-center gap-2">
-            <span className="text-[12px] text-ink-700 font-medium w-20 truncate">{group.members.find(member => member.id === id)?.name}</span>
-            <input className="flex-1 border border-cream-border rounded-xl px-3 py-2 text-sm bg-cream-card" type="number" inputMode="decimal"
+          <div key={id} className="flex items-center gap-2.5">
+            <span className="text-[12px] text-ink-800 font-medium w-20 truncate">{group.members.find(member => member.id === id)?.name}</span>
+            <input className="input-field flex-1 min-h-[44px] px-3 py-2" type="number" inputMode="decimal"
               value={percentages[id] || ''} onChange={e => setPercentages({ ...percentages, [id]: e.target.value })} placeholder="%" />
             <span className="text-[11px] text-ink-500">%</span>
           </div>
         ))}
 
         {amt > 0 && splitType === 'shares' && selectedMembers.map(id => (
-          <div key={id} className="flex items-center gap-2">
-            <span className="text-[12px] text-ink-700 font-medium w-20 truncate">{group.members.find(member => member.id === id)?.name}</span>
-            <input className="flex-1 border border-cream-border rounded-xl px-3 py-2 text-sm bg-cream-card" type="number" inputMode="decimal"
+          <div key={id} className="flex items-center gap-2.5">
+            <span className="text-[12px] text-ink-800 font-medium w-20 truncate">{group.members.find(member => member.id === id)?.name}</span>
+            <input className="input-field flex-1 min-h-[44px] px-3 py-2" type="number" inputMode="decimal"
               value={shares[id] || '1'} onChange={e => setShares({ ...shares, [id]: e.target.value })} placeholder="1" />
             <span className="text-[11px] text-ink-500">{t('group_split_shares')}</span>
           </div>
         ))}
 
         <div>
-          <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('category')}</label>
-          <div className="flex flex-wrap gap-1.5 mt-1.5">
+          <label className="form-label">{t('category')}</label>
+          <div className="flex flex-wrap gap-2">
             {CATEGORIES.map(item => (
-              <button key={item} onClick={() => setCategory(item)}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${category === item ? 'bg-ink-900 text-white' : 'bg-cream-soft text-ink-500'}`}>
+              <button key={item} type="button" onClick={() => setCategory(item)} aria-pressed={category === item}
+                className="m-pill min-h-[40px] px-3.5 text-[11.5px]">
                 {item}
               </button>
             ))}

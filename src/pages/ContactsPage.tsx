@@ -1,20 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Link2,
-  Search,
-  X,
-  UserPlus,
-  CheckCircle2,
-  Info,
-  MessageCircle,
-  Archive,
-  RotateCcw,
-  ChevronDown,
-  QrCode,
-  Keyboard,
-  Clock,
-  Phone,
-} from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import { hasWhatsAppNumber } from '../lib/whatsappReminder';
 import { usePersonStore } from '../stores/personStore';
 import { useContactLinkStore } from '../stores/contactLinkStore';
@@ -26,18 +11,18 @@ import { formatLinkError, retryAfterMinutes } from '../lib/contactLinkStatus';
 import { formatConnectCode } from '../lib/connectQr';
 import { useLoanStore } from '../stores/loanStore';
 import { NavyHero, TopBar } from '../components/NavyHero';
+import { LanguageToggle } from '../components/LanguageToggle';
 import { UserAvatar } from '../components/UserAvatar';
 import { VerifiedBadge } from '../components/VerifiedBadge';
 import { isConsentVerifiedLink } from '../lib/contactVerification';
-import { LanguageToggle } from '../components/LanguageToggle';
 import { useToast } from '../components/Toast';
 import { useSubmitGuard } from '../lib/useSubmitGuard';
 import { confirmDestructive } from '../components/ConfirmDestructiveSheet';
 import { ContactDetailSheet } from './ContactDetailSheet';
 import { MyConnectCode } from '../components/MyConnectCode';
 import { useT } from '../lib/i18n';
-import { Card3D } from '../components/Card3D';
-import { Icon3D } from '../components/Icon3D';
+import { Glyph } from '../components/Glyph';
+import { EmptyState } from '../components/EmptyState';
 import { PageErrorState } from '../components/PageErrorState';
 import { ListSkeleton } from '../components/ListSkeleton';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
@@ -301,7 +286,7 @@ export function ContactsPage() {
             : await linkToDiscoveredProfile(created.id, linkTarget.profileId, linkTarget.displayName);
           toast.show({
             type: 'success',
-            title: `${trimmed} added & connected`,
+            title: t('cts_added_connected').replace('{name}', trimmed),
             subtitle:
               linked.linkState === 'mutual'
                 ? t('clink_mutual')
@@ -338,7 +323,10 @@ export function ContactsPage() {
 
   return (
     <main className="min-h-dvh bg-cream-bg pb-28">
-      <NavyHero>
+      {/* 1d (handoff §6): the pink Contacts hero — back, title, a search
+          square and the violet "+ Add" — over the counts line, which also
+          carries the EN/UR switcher. */}
+      <NavyHero accent="pink">
         <TopBar
           title={t('contacts_title')}
           back
@@ -346,60 +334,70 @@ export function ContactsPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowSearch((v) => !v)}
-                className="w-9 h-9 rounded-xl bg-white/10 active:bg-white/15 flex items-center justify-center transition-colors"
+                className="m-ctl relative w-9 h-9 flex items-center justify-center before:absolute before:-inset-1 before:content-['']"
                 aria-label={t('a11y_search')}
+                aria-pressed={showSearch}
               >
-                <Search size={15} className="text-white" />
+                <Glyph name="search" size={15} className="text-white/90" />
               </button>
               <button
                 onClick={() => {
                   setShowAdd(true);
                   setShowSearch(false);
                 }}
-                className="h-9 px-3 rounded-xl bg-white/10 active:bg-white/15 flex items-center gap-1.5 text-[12px] font-semibold text-white transition-colors"
+                className="m-key m-violet h-9 px-3 rounded-[12px] flex items-center gap-1.5 text-[12px] font-semibold"
                 aria-label={t('cts_a11y_add')}
               >
-                <UserPlus size={13} strokeWidth={2.4} /> {t('common_add')}
+                <Glyph name="plus" size={13} strokeWidth={2.8} /> {t('common_add')}
               </button>
-              <LanguageToggle />
             </div>
           }
         />
-        <div className="px-5 pb-6">
-          <p className="text-[10.5px] font-semibold text-white/55 tracking-[0.12em] uppercase">
+        {/* EN/UR sits on the counts row, not in the header: back, title,
+            search, + Add and the bell already fill the TopBar, and one more
+            control there cut "Your Contacts" to "Your…" on a 360–390px phone.
+            The counts wrap to a second line on narrow phones; the switcher
+            stays put. */}
+        <div className="px-5 pb-6 flex items-center justify-between gap-3">
+          <p className="m-label text-white/70 min-w-0">
             {persons.length === 1
               ? t('cts_count_one')
               : t('cts_count_many').replace('{n}', String(persons.length))}
             {linkedCount > 0 && <> · {t('cts_linked_count').replace('{n}', String(linkedCount))}</>}
             {openCount > 0 && (
-              <> · <span className="text-warn-50">{t('cts_unsettled_count').replace('{n}', String(openCount))}</span></>
+              <> · <span className="text-warn-700">{t('cts_unsettled_count').replace('{n}', String(openCount))}</span></>
             )}
           </p>
+          <LanguageToggle />
         </div>
       </NavyHero>
 
-      <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-4">
+      <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-3">
         {/* Your own connect code — front and centre so sharing it to get
             connected is the easiest thing on the page. */}
         {!showSearch && !showAdd && <MyConnectCode />}
 
         {showSearch && (
           <div className="relative">
-            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" />
+            <Glyph
+              name="search"
+              size={15}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none z-[1]"
+            />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('cts_search_placeholder')}
-              className="w-full bg-cream-card border border-cream-border rounded-2xl pl-10 pr-10 py-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all"
+              className="input-field pl-10 pr-10"
               autoFocus
             />
             {query && (
               <button
                 onClick={() => setQuery('')}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-ink-400 press-xs"
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-ink-400 active:text-ink-800"
                 aria-label={t('a11y_clear_search')}
               >
-                <X size={14} />
+                <Glyph name="close" size={14} />
               </button>
             )}
           </div>
@@ -410,57 +408,59 @@ export function ContactsPage() {
             so the linked-vs-unlinked distinction lives here, not buried
             below in a hint card. */}
         {showAdd && (
-          <div className="rounded-[18px] bg-cream-card border border-cream-border p-4 space-y-3 animate-fade-in">
+          <div className="m-card p-4 space-y-3.5 animate-fade-in">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-accent-100 flex items-center justify-center shrink-0">
-                <UserPlus size={18} className="text-accent-600" strokeWidth={1.8} />
+              <div className="m-ctl w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0" aria-hidden>
+                <Glyph name="user-plus" tone="pink" size={19} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-semibold text-ink-900 tracking-tight">
+                <p className="text-[13.5px] font-semibold text-ink-900 tracking-tight">
                   {t('cts_add_title')}
                 </p>
-                <p className="text-[11px] text-ink-500 mt-0.5 leading-relaxed">
+                <p className="text-[11px] text-ink-600 mt-0.5 leading-relaxed">
                   {t('cts_add_desc')}
                 </p>
               </div>
               <button
                 onClick={resetAddForm}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-ink-400 active:bg-cream-soft transition-colors shrink-0"
+                className="m-ctl w-9 h-9 flex items-center justify-center shrink-0"
                 aria-label={t('cancel')}
               >
-                <X size={14} />
+                <Glyph name="close" size={14} className="text-ink-600" />
               </button>
             </div>
 
             <div>
-              <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-1.5">
+              <label htmlFor="contacts-add-name" className="form-label">
                 {t('cts_name_label')}
               </label>
               <input
+                id="contacts-add-name"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder={t('cts_name_placeholder')}
                 autoFocus
-                className="w-full bg-cream-bg border border-cream-border rounded-xl px-4 py-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all"
+                className="input-field"
               />
               {duplicateName && (
-                <p className="text-[11px] text-warn-700 mt-1.5 flex items-start gap-1">
-                  <span aria-hidden>&#x26a0;&#xfe0f;</span>
+                <p className="text-[11px] text-warn-700 mt-1.5 flex items-start gap-1.5">
+                  <Glyph name="alert" size={13} className="mt-px" />
                   {t('contact_dup_warning').replace('{name}', newName.trim())}
                 </p>
               )}
             </div>
 
             <div>
-              <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-1.5">
+              <label htmlFor="contacts-add-phone" className="form-label">
                 {t('cts_phone_label')}
               </label>
               <input
+                id="contacts-add-phone"
                 value={newPhone}
                 onChange={(e) => setNewPhone(e.target.value)}
                 placeholder="+971 50 123 4567"
                 inputMode="tel"
-                className="w-full bg-cream-bg border border-cream-border rounded-xl px-4 py-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all"
+                className="input-field"
               />
               {/* Discovery hit. The number the user just typed belongs to a
                   Hisaab account that opted in to being findable — offering
@@ -480,14 +480,14 @@ export function ContactsPage() {
                     setLinkError('');
                     if (!newName.trim()) setNewName(phoneMatch.displayName);
                   }}
-                  className="mt-2 w-full rounded-xl bg-cream-soft border border-cream-border px-3 py-2.5 flex items-start gap-2.5 text-left press-lg"
+                  className="m-tile mt-2.5 px-3 py-2.5 flex items-start gap-2.5 text-left"
                 >
-                  <Phone size={15} strokeWidth={2.2} className="shrink-0 mt-0.5 text-ink-500" aria-hidden />
+                  <Glyph name="phone" size={15} className="mt-0.5 text-ink-500" />
                   <span className="flex-1 min-w-0">
-                    <span className="block text-[11.5px] text-ink-700 leading-snug">
+                    <span className="block text-[11.5px] text-ink-800 leading-snug">
                       {t('disc_found').replace('{name}', phoneMatch.displayName)}
                     </span>
-                    <span className="block text-[10px] text-ink-500 leading-relaxed mt-0.5">
+                    <span className="block text-[10px] text-ink-600 leading-relaxed mt-0.5">
                       {t('disc_unverified_note')}
                     </span>
                   </span>
@@ -502,13 +502,13 @@ export function ContactsPage() {
                 button so it's answered before the contact exists, not
                 discovered afterwards — but every branch is skippable, because
                 most contacts genuinely aren't on Hisaab. */}
-            <div className="rounded-xl bg-cream-soft border border-cream-hairline p-3 space-y-2.5">
+            <div className="m-inset p-3 space-y-2.5">
               {linkTarget ? (
                 <div className="flex items-center gap-2.5">
                   {/* Neutral link glyph, not the verified seal: this target
                       may have come from an unverified phone match, and even a
                       code lookup is not yet an accepted, two-way link. */}
-                  <Link2 size={16} strokeWidth={2.2} className="shrink-0 text-accent-600" aria-hidden />
+                  <Glyph name="link" tone="violet" size={16} />
                   <span className="flex-1 min-w-0 text-[12px] font-semibold text-ink-900 truncate">
                     {t('addc_link_found').replace('{name}', linkTarget.displayName)}
                   </span>
@@ -519,7 +519,7 @@ export function ContactsPage() {
                       setLinkMode('ask');
                       setLinkCode('');
                     }}
-                    className="shrink-0 text-[11px] font-semibold text-accent-600"
+                    className="shrink-0 min-h-[32px] text-[11px] font-semibold text-accent-600"
                   >
                     {t('addc_link_change')}
                   </button>
@@ -528,7 +528,7 @@ export function ContactsPage() {
                 <>
                   <div>
                     <p className="text-[12px] font-semibold text-ink-900">{t('addc_link_q')}</p>
-                    <p className="text-[10.5px] text-ink-500 leading-relaxed mt-0.5">
+                    <p className="text-[10.5px] text-ink-600 leading-relaxed mt-0.5">
                       {t('addc_link_q_desc')}
                     </p>
                   </div>
@@ -537,16 +537,16 @@ export function ContactsPage() {
                       <button
                         type="button"
                         onClick={() => setShowScanner(true)}
-                        className="flex-1 rounded-lg bg-ink-900 text-white py-2.5 text-[11.5px] font-semibold flex items-center justify-center gap-1.5 press-sm"
+                        className="m-btn m-btn-plain flex-1 px-3 py-2.5 text-[11.5px]"
                       >
-                        <QrCode size={13} strokeWidth={2.2} /> {t('addc_link_scan')}
+                        <Glyph name="qr" tone="violet" size={14} /> {t('addc_link_scan')}
                       </button>
                       <button
                         type="button"
                         onClick={() => setLinkMode('code')}
-                        className="flex-1 rounded-lg bg-cream-card border border-cream-border text-ink-700 py-2.5 text-[11.5px] font-semibold flex items-center justify-center gap-1.5 press-sm"
+                        className="m-btn m-btn-plain flex-1 px-3 py-2.5 text-[11.5px]"
                       >
-                        <Keyboard size={13} strokeWidth={2.2} /> {t('addc_link_code')}
+                        <Glyph name="edit" size={14} className="text-ink-600" /> {t('addc_link_code')}
                       </button>
                     </div>
                   ) : (
@@ -562,21 +562,21 @@ export function ContactsPage() {
                           autoCapitalize="characters"
                           autoCorrect="off"
                           autoComplete="off"
-                          className="flex-1 min-w-0 bg-cream-bg border border-cream-border rounded-lg px-3 py-2.5 text-[12.5px] focus:outline-none focus:border-accent-500"
+                          className="input-field flex-1 min-w-0 py-2.5"
                         />
                         <button
                           type="button"
                           onClick={() => void resolveForAdd(linkCode)}
                           disabled={resolvingCode || !linkCode.trim()}
-                          className="shrink-0 px-3.5 rounded-lg bg-accent-100 text-accent-600 text-[11.5px] font-bold disabled:opacity-40"
+                          className="m-btn m-btn-plain shrink-0 px-4 text-[12px] text-accent-600"
                         >
-                          {resolvingCode ? '…' : 'Find'}
+                          {resolvingCode ? '…' : t('cts_find_cta')}
                         </button>
                       </div>
                       <button
                         type="button"
                         onClick={() => { setLinkMode('ask'); setLinkCode(''); setLinkError(''); }}
-                        className="text-[11px] font-semibold text-ink-500"
+                        className="min-h-[32px] text-[11px] font-semibold text-ink-600"
                       >
                         {t('addc_link_skip')}
                       </button>
@@ -592,9 +592,9 @@ export function ContactsPage() {
             <button
               onClick={handleCreate}
               disabled={creating || !newName.trim()}
-              className="clay-depth clay-depth-ink w-full rounded-xl bg-ink-900 text-white py-3 text-[13px] font-semibold disabled:opacity-30"
+              className="m-btn m-btn-primary w-full py-3 text-[13.5px]"
             >
-              {creating ? 'Adding…' : linkTarget ? t('addc_cta_linked') : t('addc_cta_plain')}
+              {creating ? t('cts_adding') : linkTarget ? t('addc_cta_linked') : t('addc_cta_plain')}
             </button>
 
             {/* Inline guidance — the heart of "users shall be guided about
@@ -603,48 +603,49 @@ export function ContactsPage() {
             <button
               type="button"
               onClick={() => setShowLinkHelp((v) => !v)}
-              className="w-full flex items-center justify-between rounded-xl bg-cream-soft border border-cream-hairline px-3 py-2.5 text-left active:bg-cream-hairline transition-colors"
+              aria-expanded={showLinkHelp}
+              className="m-tile px-3.5 py-2.5 flex items-center justify-between gap-2 text-left"
             >
               <span className="flex items-center gap-2 min-w-0">
-                <Info size={12} className="text-accent-600 shrink-0" />
+                <Glyph name="info" tone="violet" size={14} />
                 <span className="text-[11.5px] font-semibold text-ink-800 truncate">
                   {t('cts_link_help_q')}
                 </span>
               </span>
-              <span className="text-[10px] text-ink-400 shrink-0">
+              <span className="text-[10.5px] font-semibold text-ink-500 shrink-0">
                 {showLinkHelp ? t('cts_hide') : t('cts_show')}
               </span>
             </button>
 
             {showLinkHelp && (
-              <div className="rounded-xl bg-cream-soft border border-cream-hairline p-3 space-y-2.5 animate-fade-in">
-                <div className="flex items-start gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-ink-200 flex items-center justify-center shrink-0">
-                    <span className="text-[10px] font-semibold text-ink-600 uppercase">U</span>
+              <div className="m-inset p-3 space-y-3 animate-fade-in">
+                <div className="flex items-start gap-2.5">
+                  <div className="m-ctl w-7 h-7 rounded-[9px] flex items-center justify-center shrink-0" aria-hidden>
+                    <Glyph name="person" tone="neutral" size={14} />
                   </div>
                   <div className="min-w-0">
                     <p className="text-[12px] font-semibold text-ink-900">
                       {t('cts_unlinked')}
                     </p>
-                    <p className="text-[11px] text-ink-500 leading-relaxed mt-0.5">
+                    <p className="text-[11px] text-ink-600 leading-relaxed mt-0.5">
                       {t('cts_unlinked_desc')}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-start gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-accent-100 flex items-center justify-center shrink-0">
-                    <Link2 size={12} className="text-accent-600" />
+                <div className="flex items-start gap-2.5">
+                  <div className="m-ctl w-7 h-7 rounded-[9px] flex items-center justify-center shrink-0" aria-hidden>
+                    <Glyph name="link" tone="violet" size={14} />
                   </div>
                   <div className="min-w-0">
                     <p className="text-[12px] font-semibold text-ink-900">
                       {t('cts_linked')}
                     </p>
-                    <p className="text-[11px] text-ink-500 leading-relaxed mt-0.5">
+                    <p className="text-[11px] text-ink-600 leading-relaxed mt-0.5">
                       {t('cts_linked_desc')}
                     </p>
                   </div>
                 </div>
-                <p className="text-[10.5px] text-ink-400 leading-relaxed pt-1">
+                <p className="text-[10.5px] text-ink-500 leading-relaxed">
                   {t('cts_link_later')}
                 </p>
               </div>
@@ -657,16 +658,15 @@ export function ContactsPage() {
             contact. They can dismiss without linking; the contact stays
             unlinked which is a perfectly valid steady state. */}
         {lastCreated && !showAdd && (
-          // 3D clay tier 2, blush — the khata / people-you-owe domain tint.
-          <Card3D tint="blush" padding="sm" className="rounded-[18px] flex items-center gap-3 animate-fade-in">
-            <div className="w-10 h-10 rounded-2xl bg-cream-card flex items-center justify-center shrink-0">
-              <CheckCircle2 size={18} className="text-accent-600" />
+          <div className="m-card m-pink p-3.5 flex items-center gap-3 animate-fade-in">
+            <div className="m-ctl w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0" aria-hidden>
+              <Glyph name="check" tone="green" size={18} strokeWidth={2.8} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[12.5px] font-semibold text-ink-900 tracking-tight">
                 {t('cts_added_banner').replace('{name}', lastCreated.name)}
               </p>
-              <p className="text-[11px] text-ink-500 mt-0.5 leading-relaxed">
+              <p className="text-[11px] text-ink-600 mt-0.5 leading-relaxed">
                 {t('cts_added_banner_sub')}
               </p>
             </div>
@@ -675,29 +675,27 @@ export function ContactsPage() {
                 setSelectedId(lastCreated.id);
                 setLastCreatedId(null);
               }}
-              className="shrink-0 rounded-xl bg-ink-900 text-white px-3 py-1.5 text-[11px] font-semibold flex items-center gap-1.5 press-sm"
+              className="m-btn m-btn-primary shrink-0 min-h-[34px] rounded-xl px-3 py-1.5 text-[11px] gap-1.5"
             >
-              <Link2 size={11} /> {t('cts_link_cta')}
+              <Glyph name="link" size={12} strokeWidth={2.6} /> {t('cts_link_cta')}
             </button>
             <button
               onClick={() => setLastCreatedId(null)}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-400 active:bg-cream-soft transition-colors shrink-0"
+              className="relative w-7 h-7 flex items-center justify-center text-ink-400 active:text-ink-800 shrink-0 before:absolute before:-inset-1.5 before:content-['']"
               aria-label={t('a11y_dismiss')}
             >
-              <X size={13} />
+              <Glyph name="close" size={13} />
             </button>
-          </Card3D>
+          </div>
         )}
 
         {/* Linked-summary card — quiet steady-state reminder of how linking
-            works, shown once the user has at least one contact. */}
+            works, shown once the user has at least one contact. The chain
+            link: this card counts contacts linked to a real Hisaab account. */}
         {persons.length > 0 && !showAdd && !lastCreated && (
-          <Card3D tint="blush" padding="sm" className="rounded-[18px] flex items-center gap-3">
-            {/* A chain LINK — this card counts how many contacts are linked
-                to a real Hisaab account. The asset named `handshake` that
-                used to sit here renders a thumbs-up. */}
-            <div className="w-10 h-10 flex items-center justify-center shrink-0">
-              <Icon3D name="link" size="sm" />
+          <div className="m-card m-pink px-4 py-3.5 flex items-center gap-3">
+            <div className="m-ctl w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0" aria-hidden>
+              <Glyph name="link" tone="pink" size={19} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-semibold text-ink-900 tracking-tight">
@@ -705,11 +703,11 @@ export function ContactsPage() {
                   .replace('{linked}', String(linkedCount))
                   .replace('{persons}', String(persons.length))}
               </p>
-              <p className="text-[11px] text-ink-500 mt-0.5 leading-relaxed">
+              <p className="text-[11px] text-ink-600 mt-0.5 leading-relaxed">
                 {t('cts_linked_of_desc')}
               </p>
             </div>
-          </Card3D>
+          </div>
         )}
 
         {loadStatus === 'error' && (
@@ -728,127 +726,117 @@ export function ContactsPage() {
           <ListSkeleton rows={4} />
         ) : persons.length === 0 ? (
           loadStatus === 'ready' ? (
-            <div className="text-center py-10">
-              {/* 3D clay: the rendered icon replaces the flat glyph, same
-                  halo. A `person` — an empty contacts list is missing
-                  PEOPLE, which the old thumbs-up art never said. */}
-              <div className="w-14 h-14 rounded-3xl bg-accent-100 flex items-center justify-center mx-auto mb-3">
-                <Icon3D name="person" size="sm" />
-              </div>
-              <p className="text-[13px] font-semibold text-ink-900">
-                {t('cts_empty_title')}
-              </p>
-              <p className="text-[11px] text-ink-500 mt-1 max-w-[260px] mx-auto leading-relaxed">
-                {t('cts_empty_desc')}
-              </p>
-              {!showAdd && (
-                <button
-                  onClick={() => setShowAdd(true)}
-                  className="clay-depth clay-depth-ink mt-4 inline-flex items-center gap-1.5 rounded-xl bg-ink-900 text-white px-4 py-2.5 text-[12px] font-semibold"
-                >
-                  <UserPlus size={12} /> {t('cts_add_first')}
-                </button>
-              )}
-            </div>
+            // A `person` on the pink plate — an empty contacts list is
+            // missing PEOPLE.
+            <EmptyState
+              icon={UserPlus}
+              clayIcon="person"
+              tone="pink"
+              title={t('cts_empty_title')}
+              description={t('cts_empty_desc')}
+              actionLabel={!showAdd ? t('cts_add_first') : undefined}
+              onAction={!showAdd ? () => setShowAdd(true) : undefined}
+            />
           ) : null
         ) : filtered.length === 0 ? (
-          <p className="text-[13px] text-ink-400 text-center py-10">
+          <p className="text-[13px] text-ink-500 text-center py-10">
             {t('cts_no_matches').replace('{query}', query)}
           </p>
         ) : (
           // Wrapped in its OWN stagger container rather than staggering the
           // page body: the body also holds the connect-code card, the add
           // form and the banners, and those must not fly in behind a list.
-          // `space-y-4` moves onto the wrapper so between-group spacing is
-          // unchanged (the wrapper is now a single child of the body).
           //
           // Staggered by LETTER GROUP, not by contact — a 60-contact list
           // delayed per row would still be arriving after the user has
           // started scrolling. Not keyed on `query`, so typing a search
           // filters in place instead of re-animating on every keystroke.
-          <div className="space-y-4 stagger-in">
+          <div className="space-y-5 pt-2 stagger-in">
           {groups.map(([letter, people]) => (
             <div key={letter}>
-              <h2 className="text-[11px] font-semibold text-ink-500 uppercase tracking-[0.16em] mb-2 px-1">
+              <h2 className="m-label text-[11px] tracking-[0.16em] mb-2 px-1">
                 {letter}
               </h2>
-              <div className="rounded-[18px] bg-cream-card border border-cream-border overflow-hidden divide-y divide-cream-hairline">
-                {people.map((person) => (
-                  <button
-                    key={person.id}
-                    type="button"
-                    onClick={() => setSelectedId(person.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-cream-soft transition-colors"
-                  >
-                    <UserAvatar name={person.name} size={36} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-[14px] font-medium text-ink-900 truncate tracking-tight">
-                          {person.name}
-                        </p>
-                        {/* Verified seal right after the name — only once the
-                            other account has ACCEPTED the link. A
-                            linked_profile_id alone is my own claim about them
-                            (audit 2026-09 SEC-09). */}
-                        {isConsentVerifiedLink(contactLinks, myId, person.linkedProfileId) && (
-                          <VerifiedBadge size={14} title={t('contact_linked_pill')} />
-                        )}
-                        {/* WhatsApp badge — at a glance, whether this contact
-                            has a number saved for reminders. */}
-                        {hasWhatsAppNumber(person.phone) && (
-                          <MessageCircle size={13} strokeWidth={2.2} className="shrink-0" style={{ color: '#1FA855' }} aria-label={t('cts_a11y_whatsapp_added')} />
-                        )}
-                        {!person.linkedProfileId && (
-                          // A saved number that resolved to a Hisaab account
-                          // replaces the flat "local" chip: this contact is
-                          // linkable RIGHT NOW, which is worth surfacing on
-                          // the row rather than only inside the sheet.
-                          matchFor(person.phone) ? (
-                            // Phone glyph, never the seal: the number match is
-                            // an unverified claim (audit 2026-09 SEC-09). The
-                            // sheet spells that out before the user links.
-                            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] rounded-full bg-cream-soft border border-cream-hairline text-ink-600 px-1.5 py-0.5 shrink-0 inline-flex items-center gap-1">
-                              <Phone size={9} strokeWidth={2.4} className="shrink-0" aria-hidden />
-                              {t('disc_badge')}
+              <div className="m-card overflow-hidden divide-y divide-cream-hairline">
+                {people.map((person) => {
+                  const unsettled = isUnsettled(person);
+                  return (
+                    <button
+                      key={person.id}
+                      type="button"
+                      onClick={() => setSelectedId(person.id)}
+                      className="w-full flex items-center gap-3 px-4 py-[13px] text-left active:bg-cream-soft transition-colors"
+                    >
+                      <UserAvatar name={person.name} size={36} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-x-2 gap-y-1 flex-wrap min-w-0">
+                          <p className="text-[14px] font-medium text-ink-900 truncate tracking-tight max-w-full">
+                            {person.name}
+                          </p>
+                          {/* Verified seal right after the name — only once the
+                              other account has ACCEPTED the link. A
+                              linked_profile_id alone is my own claim about them
+                              (audit 2026-09 SEC-09). */}
+                          {isConsentVerifiedLink(contactLinks, myId, person.linkedProfileId) && (
+                            <VerifiedBadge size={14} title={t('contact_linked_pill')} />
+                          )}
+                          {/* WhatsApp badge — at a glance, whether this contact
+                              has a number saved for reminders. */}
+                          {hasWhatsAppNumber(person.phone) && (
+                            <Glyph name="whatsapp" tone="green" size={13} label={t('cts_a11y_whatsapp_added')} />
+                          )}
+                          {person.linkedProfileId ? (
+                            <span className="m-chip m-chip-violet m-chip-caps shrink-0">
+                              {t('contact_linked_pill')}
                             </span>
                           ) : (
-                            <span className="text-[10px] font-medium uppercase tracking-[0.08em] rounded-full bg-cream-soft border border-cream-hairline text-ink-500 px-1.5 py-0.5 shrink-0">
-                              {t('cts_local_chip')}
-                            </span>
-                          )
-                        )}
+                            // A saved number that resolved to a Hisaab account
+                            // replaces the flat "local" chip: this contact is
+                            // linkable RIGHT NOW, which is worth surfacing on
+                            // the row rather than only inside the sheet.
+                            matchFor(person.phone) ? (
+                              // Phone glyph, never the seal: the number match is
+                              // an unverified claim (audit 2026-09 SEC-09). The
+                              // sheet spells that out before the user links.
+                              <span className="m-chip m-chip-neutral m-chip-caps shrink-0">
+                                <Glyph name="phone" size={10} strokeWidth={2.6} />
+                                {t('disc_badge')}
+                              </span>
+                            ) : (
+                              <span className="m-chip m-chip-neutral m-chip-caps shrink-0 text-ink-500">
+                                {t('cts_local_chip')}
+                              </span>
+                            )
+                          )}
+                        </div>
+                        {/* Linked, but they haven't accepted yet — say so
+                            instead of implying a two-way connection that
+                            doesn't exist on their side. */}
+                        {person.linkedProfileId && awaitingProfileIds.has(person.linkedProfileId) ? (
+                          <p className="text-[10.5px] text-ink-600 mt-[3px] truncate flex items-center gap-1">
+                            <Glyph name="clock" size={11} className="shrink-0" />
+                            {t('clink_waiting').replace('{name}', person.name)}
+                          </p>
+                        ) : person.phone ? (
+                          <p className="text-[10.5px] text-ink-600 mt-[3px] truncate tabular-nums">
+                            {person.phone}
+                          </p>
+                        ) : null}
                       </div>
-                      {/* Linked, but they haven't accepted yet — say so
-                          instead of implying a two-way connection that
-                          doesn't exist on their side. */}
-                      {person.linkedProfileId && awaitingProfileIds.has(person.linkedProfileId) ? (
-                        <p className="text-[10.5px] text-ink-500 mt-0.5 truncate flex items-center gap-1">
-                          <Clock size={10} className="shrink-0" />
-                          {t('clink_waiting').replace('{name}', person.name)}
-                        </p>
-                      ) : person.phone ? (
-                        <p className="text-[10.5px] text-ink-500 mt-0.5 truncate">
-                          {person.phone}
-                        </p>
-                      ) : null}
-                    </div>
-                    {/* Settled / Unsettled — at-a-glance: amber = an open
-                        balance needs action, green = all clear / calm. */}
-                    {(() => {
-                      const unsettled = isUnsettled(person);
-                      return (
-                        <span
-                          className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.08em] rounded-full px-2 py-1 ${
-                            unsettled ? 'bg-warn-50 text-warn-700' : 'bg-receive-50 text-receive-text'
-                          }`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full ${unsettled ? 'bg-warn-600' : 'bg-receive-600'}`} />
-                          {unsettled ? t('status_unsettled') : t('status_settled')}
-                        </span>
-                      );
-                    })()}
-                  </button>
-                ))}
+                      {/* Settled / Unsettled — at-a-glance: gold = an open
+                          balance needs action, green = all clear / calm. The
+                          word carries the meaning; the dot only echoes it. */}
+                      <span
+                        className={`m-chip m-chip-caps shrink-0 gap-[5px] px-2 py-1 ${
+                          unsettled ? 'm-chip-gold' : 'm-chip-receive'
+                        }`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-current" aria-hidden />
+                        {unsettled ? t('status_unsettled') : t('status_settled')}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -860,7 +848,7 @@ export function ContactsPage() {
             follow the query); refetched on EVERY open so a merge or archive
             from the detail sheet shows up without a remount. */}
         {!(showSearch && query.trim()) && (
-        <div className="pt-2">
+        <div className="pt-3">
           <button
             type="button"
             onClick={() => {
@@ -878,25 +866,30 @@ export function ContactsPage() {
                   });
               }
             }}
-            className="w-full min-h-[44px] rounded-2xl bg-cream-soft border border-cream-hairline px-4 flex items-center gap-2.5 text-left active:bg-cream-hairline transition-colors"
+            aria-expanded={showArchived}
+            className="m-tile min-h-[44px] px-3.5 flex items-center gap-2.5 text-left"
           >
-            <Archive size={14} className="text-ink-400 shrink-0" />
+            <Glyph name="archive" size={14} className="text-ink-400" />
             <span className="text-[12px] font-semibold text-ink-600 flex-1">{t('contacts_archived_toggle')}</span>
-            <ChevronDown size={15} className={`text-ink-400 shrink-0 transition-transform ${showArchived ? 'rotate-180' : ''}`} />
+            <Glyph
+              name="chevron-down"
+              size={14}
+              className={`text-ink-400 transition-transform ${showArchived ? 'rotate-180' : ''}`}
+            />
           </button>
           {showArchived && (
-            <div className="mt-2 space-y-1.5">
+            <div className="mt-3 space-y-2">
               {archived === null ? (
                 <ListSkeleton rows={2} withAvatar={false} />
               ) : archived.length === 0 ? (
-                <p className="text-[11.5px] text-ink-400 px-2 py-2">{t('contacts_archived_empty')}</p>
+                <p className="text-[11.5px] text-ink-500 px-2 py-2">{t('contacts_archived_empty')}</p>
               ) : (
                 archived.map((p) => (
                   <div
                     key={p.id}
-                    className="rounded-2xl bg-cream-card border border-cream-border px-4 py-3 flex items-center gap-2.5"
+                    className="m-card px-4 py-3 flex items-center gap-2.5"
                   >
-                    <span className="w-8 h-8 rounded-xl bg-cream-soft text-ink-400 flex items-center justify-center text-[12px] font-bold shrink-0">
+                    <span className="m-ctl w-8 h-8 rounded-[10px] text-ink-500 flex items-center justify-center text-[12px] font-bold shrink-0" aria-hidden>
                       {(p.name[0] ?? '?').toUpperCase()}
                     </span>
                     <span className="flex-1 min-w-0 truncate text-[13px] font-medium text-ink-600">{p.name}</span>
@@ -938,9 +931,9 @@ export function ContactsPage() {
                           }
                         })();
                       }}
-                      className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-accent-600 bg-accent-50 rounded-full px-2.5 py-1.5 disabled:opacity-50 press-sm"
+                      className="m-pill shrink-0 px-3 text-[11px] text-accent-600 disabled:opacity-50"
                     >
-                      <RotateCcw size={11} strokeWidth={2.2} />
+                      <Glyph name="undo" size={12} strokeWidth={2.6} />
                       {t('contacts_unarchive')}
                     </button>
                   </div>

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Plus, ChevronRight, Users, Bell, Search, X, AlertCircle, Clock, Link2, FileText } from 'lucide-react';
+import { Users } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLoanStore } from '../stores/loanStore';
 import { oldestCreatedAt } from '../lib/historyWindow';
@@ -14,7 +14,7 @@ import { useTransactionStore } from '../stores/transactionStore';
 import { useAccountStore } from '../stores/accountStore';
 import { useSplitStore } from '../stores/splitStore';
 import { NavyHero, TopBar } from '../components/NavyHero';
-import { VerifiedBadge } from '../components/VerifiedBadge';
+import { Glyph } from '../components/Glyph';
 import { MoneyDisplay } from '../components/MoneyDisplay';
 import { UserAvatar } from '../components/UserAvatar';
 import { LanguageToggle } from '../components/LanguageToggle';
@@ -29,6 +29,7 @@ import { ListSkeleton } from '../components/ListSkeleton';
 import { WhoOwesMeCard } from '../components/WhoOwesMeCard';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
 import { formatMoney } from '../lib/constants';
+import { skeletonDelay } from '../lib/material';
 import { linkedLoanIdSet } from '../lib/linkedLoanIdSet';
 import { useT } from '../lib/i18n';
 import { getPrimaryCurrency } from '../lib/primaryCurrency';
@@ -493,8 +494,9 @@ export function LoansPage() {
     const isSettled = group.status === 'settled';
     const amount = isSettled ? group.total : group.remaining;
     const sign = isGiven ? '+' : '−';
+    // Settled rows are history: the amount steps back to muted ink.
     const amountColor = isSettled
-      ? 'text-ink-500'
+      ? 'text-ink-600'
       : isGiven
       ? 'text-receive-text'
       : 'text-pay-text';
@@ -510,11 +512,11 @@ export function LoansPage() {
     const status = getGroupStatus(group);
     const isLinked = groupHasLinked(group);
     // Age of the oldest loan in this group, so the user can see what's been
-    // outstanding longest and prioritise. Colour-coded: fresh (green) →
-    // ageing (amber) → stale (coral).
+    // outstanding longest and prioritise. Colour-coded chip: fresh (green) →
+    // ageing (gold) → stale (coral).
     const firstLoanDate = getOldestIsoDate(group.loans.map((l) => l.createdAt));
     const daysOld = firstLoanDate ? Math.max(0, differenceInDays(new Date(), new Date(firstLoanDate))) : null;
-    const ageBucket = daysOld == null ? null : daysOld > 30 ? 'pay' : daysOld >= 7 ? 'warn' : 'receive';
+    const ageChip = daysOld == null ? '' : daysOld > 30 ? 'm-chip-pay' : daysOld >= 7 ? 'm-chip-gold' : 'm-chip-receive';
 
     return (
       <button
@@ -526,49 +528,38 @@ export function LoansPage() {
         <UserAvatar name={group.name} size={44} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <p className="text-[14px] font-medium text-ink-900 truncate tracking-tight">
+            <p className="text-[14px] font-medium text-ink-900 truncate tracking-[-0.01em]">
               {group.name}
             </p>
-            {isSettled && <VerifiedBadge size={14} title={t('status_settled')} />}
+            {isSettled && (
+              <span className="m-chip m-chip-receive shrink-0">
+                <Glyph name="check" size={10} strokeWidth={3} />
+                {t('status_settled')}
+              </span>
+            )}
+            {/* Overdue / due-soon both read coral — the glyph and the word
+                tell them apart. */}
             {status && (
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold shrink-0 ${
-                  status === 'overdue'
-                    ? 'bg-pay-50 text-pay-text'
-                    : 'bg-warn-50 text-warn-700'
-                }`}
-              >
-                {status === 'overdue' ? (
-                  <AlertCircle size={10} strokeWidth={2.4} />
-                ) : (
-                  <Clock size={10} strokeWidth={2.4} />
-                )}
+              <span className="m-chip m-chip-pay shrink-0">
+                <Glyph name={status === 'overdue' ? 'alert' : 'clock'} size={10} strokeWidth={2.8} />
                 {status === 'overdue' ? t('status_overdue') : t('status_due_soon')}
               </span>
             )}
             {/* Age of the oldest loan — colour-coded so the longest-standing
                 debts stand out for prioritising. */}
             {!isSettled && daysOld != null && (
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold shrink-0 tabular-nums ${
-                  ageBucket === 'pay'
-                    ? 'bg-pay-50 text-pay-text'
-                    : ageBucket === 'warn'
-                    ? 'bg-warn-50 text-warn-700'
-                    : 'bg-receive-50 text-receive-text'
-                }`}
-              >
-                <Clock size={10} strokeWidth={2.4} />
+              <span className={`m-chip ${ageChip} shrink-0 tabular-nums`}>
                 {daysOld === 0 ? t('loan_age_today') : t('loan_age_days').replace('{n}', String(daysOld))}
               </span>
             )}
+            {isLinked && (
+              <span className="m-chip m-chip-violet shrink-0">
+                <Glyph name="link" size={10} strokeWidth={2.8} />
+                {t('status_linked')}
+              </span>
+            )}
           </div>
-          {isLinked && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-accent-50 text-accent-600 px-1.5 py-0.5 text-[10px] font-semibold mt-1">
-              <Link2 size={10} strokeWidth={2.4} /> {t('status_linked')}
-            </span>
-          )}
-          <p className="text-[11px] text-ink-500 mt-0.5">
+          <p className="text-[11px] text-ink-600 mt-[3px]">
             {totalLoans === 1
               ? t('common_loan_one')
               : t('common_loan_many').replace('{n}', String(totalLoans))}
@@ -584,11 +575,11 @@ export function LoansPage() {
           )}
         </div>
         <div className="text-right shrink-0">
-          <p className={`text-[14px] font-semibold tabular-nums tracking-tight ${amountColor}`}>
+          <p className={`text-[14px] font-semibold tabular-nums tracking-[-0.01em] ${amountColor}`}>
             {sign}
             {formatMoney(amount, group.currency)}
           </p>
-          <p className="text-[10px] text-ink-400 mt-0.5">{group.currency}</p>
+          <p className="text-[10px] text-ink-400 mt-[3px]">{group.currency}</p>
         </div>
       </button>
     );
@@ -600,26 +591,34 @@ export function LoansPage() {
     { value: 'settled', label: t('settled'), count: tabCounts.settled },
   ];
 
+  // First paint before any loan has landed: the hero figure and the list both
+  // hold their final geometry as skeleton blocks instead of flashing "0".
+  const isFirstLoad = loadStatus === 'loading' && loans.length === 0;
+
   return (
     <main className="min-h-dvh bg-cream-bg pb-28">
-      <NavyHero>
+      <NavyHero accent="violet">
         <TopBar
           title={t('loans_title')}
           action={
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowSearch((v) => !v)}
-                className="w-9 h-9 rounded-xl bg-white/10 active:bg-white/15 flex items-center justify-center transition-colors"
+                className="m-ctl relative w-9 h-9 flex items-center justify-center before:absolute before:-inset-1 before:content-['']"
                 aria-label={t('a11y_search')}
+                aria-pressed={showSearch}
               >
-                <Search size={15} className="text-white" />
+                <Glyph name="search" size={15} className="text-white/90" />
               </button>
+              {/* The handoff's header "+ New": a violet-tinted control (dark
+                  violet face, light-violet label, one short wall) — the same
+                  height as its neighbours, so the row reads as one strip. */}
               <button
                 onClick={() => setShowAdd(true)}
-                className="h-9 px-3 rounded-xl bg-white/10 active:bg-white/15 flex items-center gap-1.5 text-[12px] font-semibold text-white transition-colors"
+                className="m-key m-violet h-9 px-3 rounded-[12px] inline-flex items-center gap-1 text-[12px] font-semibold"
                 aria-label={t('loans_a11y_add')}
               >
-                <Plus size={13} strokeWidth={2.4} /> {t('naya')}
+                <Glyph name="plus" size={13} strokeWidth={3} /> {t('naya')}
               </button>
               <LanguageToggle />
             </div>
@@ -627,51 +626,63 @@ export function LoansPage() {
         />
 
         <div className="px-5 pb-7">
-          <p className="text-[10.5px] font-semibold text-white/50 tracking-[0.12em] uppercase">
+          <p className="text-[10.5px] font-semibold text-white/70 tracking-[0.12em] uppercase">
             {t('loans_your_stance')} · {primaryCurrency}
           </p>
-          <div className="mt-1.5">
-            <MoneyDisplay
-              amount={netStance}
-              currency={primaryCurrency}
-              size={36}
-              tone="on-navy"
-              signed
-            />
-          </div>
-          <p className="text-[12px] text-white/55 mt-2">
-            {netStance > 0
-              ? "You'll receive more than you owe"
-              : netStance < 0
-              ? "You owe more than you'll receive"
-              : 'Balanced'}
-          </p>
-
-          {/* Segmented bar visualisation */}
-          {totalActivity > 0 && (
+          {isFirstLoad ? (
+            <div aria-hidden>
+              <div className="m-skel mt-2.5 h-[38px] w-48 rounded-xl" />
+              <div className="m-skel mt-3 h-3 w-40" style={{ '--m-skel-delay': skeletonDelay(1) } as React.CSSProperties} />
+              <div className="m-skel mt-4 h-2 w-full rounded-full" style={{ '--m-skel-delay': skeletonDelay(2) } as React.CSSProperties} />
+            </div>
+          ) : (
             <>
-              <div className="mt-4 h-2 rounded-full bg-white/8 overflow-hidden flex gap-[var(--gap-w)]" style={{ ['--gap-w' as string]: hasBothSides ? `${gapPct}%` : '0%' }}>
+              <div className="mt-2">
+                <MoneyDisplay
+                  amount={netStance}
+                  currency={primaryCurrency}
+                  size={38}
+                  tone="on-navy"
+                  signed
+                  extrude="violet"
+                />
+              </div>
+              <p className="text-[12px] text-white/70 mt-2.5">
+                {netStance > 0
+                  ? t('loans_stance_receive_more')
+                  : netStance < 0
+                  ? t('loans_stance_owe_more')
+                  : t('wom_net_square')}
+              </p>
+            </>
+          )}
+
+          {/* Segmented 8px bar: the receive and pay shares as two lit
+              segments in a recessed track, 4% apart when both exist. */}
+          {!isFirstLoad && totalActivity > 0 && (
+            <>
+              <div className="mt-4 h-2 rounded-full bg-white/10 overflow-hidden flex gap-[var(--gap-w)]" style={{ ['--gap-w' as string]: hasBothSides ? `${gapPct}%` : '0%' }}>
                 {recvPct > 0 && (
                   <div
-                    className="h-full rounded-full"
-                    style={{ width: `${recvPct}%`, background: 'var(--color-receive-600)' }}
+                    className="h-full rounded-full bg-gradient-to-b from-glyph-green to-receive-700 shadow-[inset_0_1px_0_rgb(255_255_255/0.4)]"
+                    style={{ width: `${recvPct}%` }}
                   />
                 )}
                 {payPct > 0 && (
                   <div
-                    className="h-full rounded-full"
-                    style={{ width: `${payPct}%`, background: 'var(--color-pay-600)' }}
+                    className="h-full rounded-full bg-gradient-to-b from-glyph-coral to-pay-700 shadow-[inset_0_1px_0_rgb(255_255_255/0.4)]"
+                    style={{ width: `${payPct}%` }}
                   />
                 )}
               </div>
-              <div className="flex items-center justify-between mt-2 text-[10.5px]">
-                <span className="text-receive-text/90 tabular-nums" style={{ color: '#7CE3B6' }}>
+              <div className="flex items-start justify-between gap-3 mt-2.5 text-[10.5px] tabular-nums">
+                <span className="text-receive-text">
                   +{formatMoney(recvPrimary, primaryCurrency)} {t('loans_to_receive_short')} ·{' '}
                   {recvPeopleCount === 1
                     ? t('loans_people_one')
                     : t('loans_people_many').replace('{n}', String(recvPeopleCount))}
                 </span>
-                <span className="tabular-nums" style={{ color: '#F0A496' }}>
+                <span className="text-pay-text text-right">
                   −{formatMoney(payPrimary, primaryCurrency)} {t('loans_to_pay_short')} ·{' '}
                   {payPeopleCount === 1
                     ? t('loans_people_one')
@@ -686,65 +697,55 @@ export function LoansPage() {
       <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-4">
         {showSearch && (
           <div className="relative">
-            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" />
+            <Glyph name="search" size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('loans_search_by_name')}
-              className="w-full bg-cream-card border border-cream-border rounded-2xl pl-10 pr-10 py-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all"
+              className="input-field pl-10 pr-10"
               autoFocus
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-ink-400 press-xs"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-ink-400 press-xs"
                 aria-label={t('a11y_clear_search')}
               >
-                <X size={14} />
+                <Glyph name="close" size={14} />
               </button>
             )}
           </div>
         )}
 
-        {/* Pending linked/settlement requests waiting in the inbox — a thin
-            tappable banner so the user can act on cross-user IOUs without
-            hunting for the bell. */}
+        {/* Pending linked/settlement requests waiting in the inbox — a violet
+            (Inbox-coloured) tappable banner so the user can act on
+            cross-user IOUs without hunting for the bell. */}
         {pendingTotal > 0 && (
           <Link
             to="/inbox"
-            className="clay-tile clay-accent flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5"
+            className="m-tile m-violet flex items-center gap-2.5 rounded-2xl px-3.5 py-3"
           >
-            <Bell size={14} className="text-accent-600 shrink-0" strokeWidth={2.2} />
-            <p className="flex-1 text-[12px] font-semibold text-accent-600 leading-snug">
+            <Glyph name="bell" size={16} tone="violet" />
+            <p className="flex-1 min-w-0 text-[12px] font-semibold text-iris-text leading-snug">
               {(pendingTotal === 1 ? t('loans_pending_banner') : t('loans_pending_banner_plural')).replace('{count}', String(pendingTotal))}
               {incomingPendingCount > 0 && (
-                <span className="font-normal text-ink-500">
+                <span className="font-normal text-ink-600">
                   {' '}· {t('loans_pending_reply').replace('{count}', String(incomingPendingCount))}
                 </span>
               )}
             </p>
-            <ChevronRight size={15} className="text-accent-600 shrink-0" />
+            <Glyph name="chevron-right" size={15} tone="violet" />
           </Link>
         )}
 
-        {/* Tab pills: Receivables / Payables / Settled — colour-coded by
-            financial direction (green = owed to you, coral = you owe,
-            neutral = settled). Selected = solid fill; unselected = a soft
-            tinted hint so the direction reads even when not active. */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
+        {/* Tab pills: Receivables / Payables / Settled — toned by financial
+            direction (green = owed to you, coral = you owe, neutral =
+            settled): a tinted face at rest, the solid tone when active. The
+            scroller keeps 4px under the pills so their walls aren't clipped. */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
           {tabPills.map((p) => {
             const isActive = tab === p.value;
-            const tone = p.value === 'receivables' ? 'receive' : p.value === 'payables' ? 'pay' : 'neutral';
-            const activeClass = {
-              receive: 'bg-receive-600 text-white border-receive-600',
-              pay: 'bg-pay-600 text-white border-pay-600',
-              neutral: 'bg-ink-900 text-white border-ink-900',
-            }[tone];
-            const inactiveClass = {
-              receive: 'bg-cream-card text-receive-text border-receive-100',
-              pay: 'bg-cream-card text-pay-text border-pay-100',
-              neutral: 'bg-cream-card text-ink-600 border-cream-border',
-            }[tone];
+            const tone = p.value === 'receivables' ? 'm-pill-receive' : p.value === 'payables' ? 'm-pill-pay' : '';
             return (
               <button
                 key={p.value}
@@ -752,19 +753,16 @@ export function LoansPage() {
                   setSearchParams({ tab: p.value });
                   setSelectedGroup(null);
                 }}
-                className={`shrink-0 px-3.5 py-1.5 rounded-full text-[11.5px] font-semibold whitespace-nowrap border transition-colors ${
-                  isActive ? activeClass : inactiveClass
-                }`}
+                aria-pressed={isActive}
+                className={`m-pill ${tone} shrink-0`}
               >
-                {p.label}
-                {p.count > 0 && (
-                  <span className={`ml-1.5 ${isActive ? 'text-white/75' : 'text-ink-400'}`}>
-                    · {p.count}
-                  </span>
-                )}
+                <span>
+                  {p.label}
+                  {p.count > 0 && <span className="tabular-nums"> · {p.count}</span>}
+                </span>
                 {isActive && p.value !== 'settled' && overdueCount > 0 && (
-                  <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold leading-none align-middle">
-                    <AlertCircle size={9} strokeWidth={2.6} />
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold leading-none tabular-nums">
+                    <Glyph name="alert" size={11} strokeWidth={2.8} />
                     {overdueCount}
                   </span>
                 )}
@@ -777,12 +775,12 @@ export function LoansPage() {
             above, so we keep only the one piece that wasn't there: a light
             line of guidance for what to do next on this tab. */}
         {loadStatus === 'ready' && activeLoans.length > 0 && (
-          <p className="text-[11.5px] text-ink-500 leading-relaxed px-1">
+          <p className="text-[11.5px] text-ink-600 leading-relaxed px-0.5">
             {primaryGroups.length > 0
-              ? 'Tap a person to see individual loans, repayment progress, and reminder options.'
+              ? t('loans_tap_hint')
               : otherGroups.length > 0
-              ? 'This tab only has other-currency loans right now; review the pocket section below.'
-              : 'Switch tabs to review the other side of your IOUs.'}
+              ? t('loans_other_only_hint')
+              : t('loans_switch_tabs_hint')}
           </p>
         )}
 
@@ -800,18 +798,18 @@ export function LoansPage() {
 
         {/* Primary-currency people list */}
         {primaryGroups.length > 0 ? (
-          <div className="rounded-[18px] bg-cream-card border border-cream-border overflow-hidden divide-y divide-cream-hairline">
+          <div className="m-card overflow-hidden divide-y divide-cream-hairline">
             {primaryGroups.map(renderPersonRow)}
           </div>
         ) : null}
 
         {/* Other-currency pocket section */}
         {otherGroups.length > 0 && (
-          <div>
-            <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2.5 px-1">
+          <div className="pt-1.5">
+            <h2 className="m-label mb-2.5 px-0.5">
               {t('loans_other_currencies')}
             </h2>
-            <div className="rounded-[18px] bg-cream-card border border-cream-border overflow-hidden divide-y divide-cream-hairline">
+            <div className="m-card overflow-hidden divide-y divide-cream-hairline">
               {otherGroups.map(renderPersonRow)}
             </div>
           </div>
@@ -828,16 +826,15 @@ export function LoansPage() {
 
         {/* First-load skeleton — gate the empty state on a completed load so
             we never flash "No receivables" before Supabase returns. */}
-        {loadStatus === 'loading' && loans.length === 0 ? (
+        {isFirstLoad ? (
           <ListSkeleton rows={3} />
         ) : loadStatus === 'ready' && primaryGroups.length === 0 && otherGroups.length === 0 ? (
-          // `tick` = these are DONE; `money` (a banknote stack) = nothing
-          // lent or borrowed yet. The old pair — a shield and a thumbs-up —
-          // drew neither of those things.
+          // `check` on a green plate = these are DONE; a gold `banknote` =
+          // nothing lent or borrowed yet (the handoff's Loans empty state).
           <EmptyState
             icon={Users}
-            clayIcon={tab === 'settled' ? 'tick' : 'money'}
-            tone={tab === 'settled' ? 'receive' : 'warn'}
+            clayIcon={tab === 'settled' ? 'check' : 'banknote'}
+            tone={tab === 'settled' ? 'receive' : 'gold'}
             title={
               tab === 'settled'
                 ? t('loan_none_settled')
@@ -876,41 +873,43 @@ export function LoansPage() {
 
             {/* Multi-loan payment — spread one amount across these loans
                 (clear the small ones first, etc.). Only worth offering when
-                there are 2+ loans to allocate across. */}
+                there are 2+ loans to allocate across. Violet: the primary
+                action of this sheet. */}
             {selectedGroup.status === 'active' && allocatableLoans.length >= 2 && (
               <button
                 onClick={() => setShowAllocate(true)}
-                className="clay-depth clay-depth-ink w-full bg-ink-900 text-white rounded-xl py-3 text-[13px] font-semibold"
+                className="m-btn m-btn-primary w-full py-3 text-[13px]"
               >
-                {t('alloc_title')}
+                <Glyph name="banknote" size={15} /> {t('alloc_title')}
               </button>
             )}
             {/* Linked loans settle by request — one lump becomes one request
-                per loan, each applied when the counterparty confirms. */}
+                per loan, each applied when the counterparty confirms. Violet,
+                the colour every linked surface wears. */}
             {selectedGroup.status === 'active' && linkedSettleableLoans.length >= 2 && (
               <button
                 onClick={() => setShowSettleAll(true)}
-                className="w-full bg-accent-600 text-white rounded-xl py-3 text-[13px] font-semibold flex items-center justify-center gap-2 press"
+                className="m-btn m-btn-violet w-full py-3 text-[13px]"
               >
-                <Link2 size={14} strokeWidth={2.2} /> {t('stl_bulk_title')}
+                <Glyph name="link" size={15} /> {t('stl_bulk_title')}
               </button>
             )}
             {hasLinkedInGroup && linkedSettleableLoans.length < 2 && (
-              <p className="text-[11px] text-ink-500 leading-relaxed">{t('alloc_linked_note')}</p>
+              <p className="text-[11px] text-ink-600 leading-relaxed">{t('alloc_linked_note')}</p>
             )}
 
             <button
               onClick={() => openStatementForGroup(selectedGroup)}
-              className="w-full bg-accent-100 text-accent-600 rounded-xl py-3 text-[13px] font-semibold flex items-center justify-center gap-2 press"
+              className="m-btn m-btn-plain w-full py-3 text-[13px]"
             >
-              <FileText size={14} strokeWidth={2.2} /> {t('soa_cta')}
+              <Glyph name="document" size={15} tone="violet" /> {t('soa_cta')}
             </button>
 
             <div>
-              <h3 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2.5">
+              <h3 className="m-label mb-2.5 px-0.5">
                 {t('loans_individual')}
               </h3>
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {selectedGroup.loans
                   .slice()
                   .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -925,7 +924,7 @@ export function LoansPage() {
             </div>
 
             <div>
-              <h3 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2.5">
+              <h3 className="m-label mb-2.5 px-0.5">
                 {t('loans_activity')}
               </h3>
               {selectedTransactions.length === 0 ? (
@@ -933,7 +932,7 @@ export function LoansPage() {
                   {t('loans_no_activity')}
                 </p>
               ) : (
-                <div className="rounded-[18px] bg-cream-card border border-cream-border px-3 divide-y divide-cream-hairline">
+                <div className="m-card px-3 divide-y divide-cream-hairline">
                   {selectedTransactions.map((tx) => (
                     <TransactionItem key={tx.id} transaction={tx} />
                   ))}
@@ -1039,56 +1038,50 @@ function LoanGroupSummary({
   const tone = isSettled || isGiven ? 'receive' : 'pay';
 
   return (
-    // 3D clay tier 2. The tint IS the direction the page is about: mint =
-    // owed to you, coral = you owe (design-system §10.8). It replaces the
-    // flat receive-50 / pay-50 fill, so the semantics are unchanged.
-    <Card3D tint={tone === 'receive' ? 'mint' : 'coral'} padding="sm" className="rounded-[18px]">
+    // Tinted stat card: the tint IS the direction the sheet is about — mint =
+    // owed to you, coral = you owe; a settled group celebrates in mint.
+    <Card3D tint={tone === 'receive' ? 'mint' : 'coral'} padding="sm">
       <p
-        className="text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-        style={{
-          color:
-            tone === 'receive'
-              ? 'var(--color-receive-text)'
-              : 'var(--color-pay-text)',
-        }}
+        className={`text-[10.5px] font-semibold uppercase tracking-[0.12em] ${
+          tone === 'receive' ? 'text-receive-text' : 'text-pay-text'
+        }`}
       >
         {isSettled ? (
           <span className="inline-flex items-center gap-1">
-            <VerifiedBadge size={13} title={t('status_settled')} /> {t('loan_group_settled_label')}
+            <Glyph name="check" size={12} strokeWidth={3} /> {t('loan_group_settled_label')}
           </span>
         ) : (
           isGiven ? t('loan_receivable') : t('loan_payable')
         )} · {group.currency}
       </p>
-      <p className="text-[22px] font-semibold text-ink-900 tabular-nums tracking-tight mt-1 leading-tight">
+      <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em] mt-1.5 leading-tight">
         {formatMoney(primaryAmount, group.currency)}
       </p>
-      <p className="text-[11px] text-ink-500 mt-1">
+      <p className="text-[11px] text-ink-600 mt-1">
         {(isGiven ? t('loans_progress_received') : t('loans_progress_paid'))
           .replace('{paid}', formatMoney(settledAmount, group.currency))
           .replace('{total}', formatMoney(group.total, group.currency))}
       </p>
-      <div className="mt-3 h-1.5 rounded-full overflow-hidden bg-white/60">
+      {/* Recessed track, lit fill in the card's own tone. */}
+      <div className="m-inset mt-3 h-2 rounded-full overflow-hidden">
         <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{
-            width: `${Math.round(progress * 100)}%`,
-            background:
-              tone === 'receive' ? 'var(--color-receive-600)' : 'var(--color-pay-600)',
-          }}
+          className={`h-full rounded-full transition-all duration-500 bg-gradient-to-b ${
+            tone === 'receive' ? 'from-receive-600 to-receive-700' : 'from-pay-600 to-pay-700'
+          }`}
+          style={{ width: `${Math.round(progress * 100)}%` }}
         />
       </div>
       {onRemind ? (
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3.5 flex items-center gap-2">
           {reminderMeta && (
-            <p className="flex-1 text-[11px] text-ink-500">{reminderMeta}</p>
+            <p className="flex-1 text-[11px] text-ink-600">{reminderMeta}</p>
           )}
           <button
             type="button"
             onClick={onRemind}
-            className="rounded-xl px-3 py-1.5 text-[11px] font-semibold bg-cream-card text-ink-900 active:scale-95 transition-all flex items-center gap-1.5 border border-cream-border"
+            className="m-btn m-btn-plain ms-auto min-h-[36px] px-3 py-1.5 text-[11.5px] rounded-xl gap-1.5"
           >
-            <Bell size={11} /> {t('reminder_cta')}
+            <Glyph name="bell" size={12} tone="violet" /> {t('reminder_cta')}
           </button>
         </div>
       ) : null}
@@ -1099,42 +1092,37 @@ function LoanGroupSummary({
 function LoanDrilldownRow({ loan, onClick }: { loan: Loan; onClick: () => void }) {
   const t = useT();
   const progress = loan.totalAmount > 0 ? (loan.totalAmount - loan.remainingAmount) / loan.totalAmount : 0;
+  const isSettled = loan.status === 'settled';
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-[14px] border border-cream-border bg-cream-card p-3.5 flex items-center gap-3 text-left active:bg-cream-soft transition-colors"
+      className="m-tile p-3.5 flex items-center gap-3 text-left"
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[13px] font-semibold text-ink-900 tabular-nums">
+          <p className="text-[13.5px] font-semibold text-ink-900 tabular-nums tracking-[-0.01em]">
             {formatMoney(loan.totalAmount, loan.currency)}
           </p>
-          <span
-            className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase rounded-full px-2 py-0.5 ${
-              loan.status === 'settled'
-                ? 'bg-receive-50 text-receive-text'
-                : 'bg-warn-50 text-warn-600'
-            }`}
-          >
-            {loan.status === 'settled' && <VerifiedBadge size={12} />}
-            {loan.status === 'settled' ? t('loan_status_settled') : t('loan_status_active')}
+          <span className={`m-chip m-chip-caps ${isSettled ? 'm-chip-receive' : 'm-chip-gold'}`}>
+            {isSettled && <Glyph name="check" size={10} strokeWidth={3} />}
+            {isSettled ? t('loan_status_settled') : t('loan_status_active')}
           </span>
         </div>
-        <p className="text-[10.5px] text-ink-500 mt-1">
+        <p className="text-[10.5px] text-ink-600 mt-1 tabular-nums">
           {t('loan_remaining')}: {formatMoney(loan.remainingAmount, loan.currency)}
         </p>
-        <div className="mt-2 h-1 rounded-full bg-cream-hairline overflow-hidden">
+        <div className="m-inset mt-2 h-1.5 rounded-full overflow-hidden">
           <div
-            className="h-full rounded-full bg-accent-600"
+            className="h-full rounded-full bg-gradient-to-b from-accent-500 to-accent-600"
             style={{ width: `${Math.round(progress * 100)}%` }}
           />
         </div>
         {loan.notes ? (
-          <p className="text-[10.5px] text-ink-400 italic mt-1 truncate">"{loan.notes}"</p>
+          <p className="text-[10.5px] text-ink-400 italic mt-1.5 truncate">"{loan.notes}"</p>
         ) : null}
       </div>
-      <ChevronRight size={15} className="text-ink-300 shrink-0" />
+      <Glyph name="chevron-right" size={15} className="text-ink-400" />
     </button>
   );
 }

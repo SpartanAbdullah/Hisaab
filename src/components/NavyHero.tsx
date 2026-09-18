@@ -1,26 +1,32 @@
 import type { ReactNode } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Glyph } from './Glyph';
 import { InboxAction } from './InboxAction';
 import { useT } from '../lib/i18n';
+import { heroClass, type HeroAccent } from '../lib/material';
 
 interface NavyHeroProps {
   children: ReactNode;
+  /** The section's accent glow: the brand violet by default (Home, Loans,
+   *  Settings, Analytics, Investments, Inbox…), gold on Kameti, `ai`
+   *  (stronger violet) on Hisaab AI, blue on Groups, pink on Contacts. */
+  accent?: HeroAccent;
+  /** @deprecated The 1d hero always carries its accent glow; kept so existing
+   *  call sites compile. `false` now simply means the default glow. */
   bloom?: boolean;
   className?: string;
 }
 
-// Sukoon's navy hero: the dark band that sits at the top of every screen
-// except Quick Entry and the cream-only sheets. The bloom gradient is
-// applied via the `.bg-navy-bloom` class in index.css so the gradient
-// math stays in one place.
+// The 1d hero band at the top of every screen: a dark navy gradient with a
+// radial glow in the section's accent. Dark in BOTH themes (the big white
+// figures need a dark ground), so everything inside it — header buttons,
+// segmented tabs, numerals, glyphs — renders with the dark material.
 //
-// Compose with a sibling that has `.sukoon-body` to get the signature
-// 16px slide-under + 24px top radius transition.
-export function NavyHero({ children, bloom = true, className }: NavyHeroProps) {
-  const surface = bloom ? 'bg-navy-bloom' : 'bg-navy-800';
+// Compose with a sibling `.sukoon-body` / `.m-sheet`: the sheet pulls up 16px
+// under the hero with a 24px top radius.
+export function NavyHero({ children, accent = 'violet', className }: NavyHeroProps) {
   return (
-    <header className={`${surface} text-white pt-safe relative ${className ?? ''}`}>
+    <header className={`${heroClass(accent)} pt-safe relative ${className ?? ''}`}>
       {children}
     </header>
   );
@@ -35,35 +41,31 @@ interface TopBarProps {
   showInbox?: boolean;
 }
 
-// Top header row. On the navy hero the back tile is translucent white;
-// on the cream body it picks up the slate-100/80 chrome that the rest
-// of the codebase already uses (`.nav-icon-button` in index.css).
+// Top header row: 36px raised back button, 17px title, trailing actions and
+// the Inbox bell. `.m-ctl` reads the material variables, so the same markup
+// is dark on the hero and ivory/dark on a sheet.
 export function TopBar({ title, back, action, onBack, tone = 'on-navy', showInbox = true }: TopBarProps) {
   const t = useT();
   const navigate = useNavigate();
   const handleBack = onBack ?? (() => navigate(-1));
-
   const isOnNavy = tone === 'on-navy';
-  const titleClass = isOnNavy
-    ? 'text-white tracking-tight'
-    : 'text-ink-900 tracking-tight';
-  const backTileClass = isOnNavy
-    ? 'bg-white/10 active:bg-white/15'
-    : 'bg-slate-100/80 active:bg-slate-200';
-  const backIconClass = isOnNavy ? 'text-white' : 'text-ink-600';
 
   return (
-    <div className="flex items-center gap-3 px-4 pt-1.5 pb-3 relative z-10">
+    <div className="flex items-center gap-3 px-5 pt-1.5 pb-3 relative z-10">
       {back && (
         <button
           onClick={handleBack}
-          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${backTileClass}`}
+          className="m-ctl relative w-9 h-9 flex items-center justify-center shrink-0 before:absolute before:-inset-1 before:content-['']"
           aria-label={t('a11y_back')}
         >
-          <ArrowLeft size={16} className={backIconClass} strokeWidth={2.2} />
+          <Glyph name="arrow-left" size={16} className={isOnNavy ? 'text-white' : 'text-ink-800'} />
         </button>
       )}
-      <h1 className={`flex-1 min-w-0 text-[17px] font-semibold truncate ${titleClass}`}>
+      <h1
+        className={`flex-1 min-w-0 text-[17px] font-semibold tracking-[-0.01em] truncate ${
+          isOnNavy ? 'text-white' : 'text-ink-900'
+        }`}
+      >
         {title}
       </h1>
       <div className="flex items-center gap-2 shrink-0">

@@ -1,5 +1,5 @@
-import { Copy, QrCode, Share2 } from 'lucide-react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
 import { QRCode } from './QRCode';
 import { useToast } from './Toast';
 import { useT } from '../lib/i18n';
@@ -62,37 +62,42 @@ export function MyQrSheet({ open, onClose, code }: Props) {
   return (
     <Modal open={open} onClose={onClose} title={t('qr_my_title')}>
       <div className="space-y-4">
-        <p className="text-[12px] text-ink-500 leading-relaxed">{t('qr_my_desc')}</p>
+        <p className="text-[12px] text-ink-600 leading-relaxed">{t('qr_my_desc')}</p>
 
+        {/* The code sits on a white plate in BOTH themes — a scanner needs a
+            light quiet zone — lifted on the card material so it still reads
+            as part of the 1d sheet rather than a pasted-in image. */}
         <div className="flex justify-center">
-          <div className="rounded-3xl bg-white border border-cream-border p-4 shadow-sm">
-            <QRCode value={payload} size={224} title={t('qr_my_title')} />
+          <div className="m-card m-card-feature p-3">
+            <div className="rounded-[16px] bg-white p-3">
+              <QRCode value={payload} size={224} title={t('qr_my_title')} />
+            </div>
           </div>
         </div>
 
         <button
           type="button"
           onClick={copy}
-          className="w-full rounded-2xl bg-cream-soft border border-cream-border py-3 flex items-center justify-center gap-2.5 press"
+          className="m-key w-full min-h-[48px] flex items-center justify-center gap-2.5"
         >
           <span className="text-[9px] font-semibold text-ink-400 uppercase tracking-[0.14em]">{t('mcc_hsb_tag')}</span>
-          <span className="text-[17px] font-bold text-ink-900 tabular-nums tracking-wide">
+          <span className="text-[17px] font-bold text-accent-600 tabular-nums tracking-wide">
             {code ? `@${code}` : '…'}
           </span>
-          <Copy size={14} className="text-ink-400" />
+          <Glyph name="copy" size={14} className="text-ink-400" />
         </button>
 
         <button
           type="button"
           onClick={share}
           disabled={!code}
-          className="w-full rounded-2xl bg-ink-900 text-white py-3 text-[13px] font-semibold flex items-center justify-center gap-2 press disabled:opacity-40"
+          className="m-btn m-btn-primary w-full py-3.5 text-[13.5px]"
         >
-          <Share2 size={15} /> {t('connect_share')}
+          <Glyph name="share" size={15} strokeWidth={2.6} /> {t('connect_share')}
         </button>
 
-        <div className="rounded-2xl bg-accent-50 border border-accent-100 p-3.5 flex items-start gap-2.5">
-          <QrCode size={15} className="text-accent-600 shrink-0 mt-0.5" />
+        <div className="m-card m-violet p-3.5 flex items-start gap-2.5">
+          <Glyph name="qr" tone="violet" size={16} className="mt-0.5" />
           <p className="text-[11.5px] text-ink-600 leading-relaxed">{t('qr_my_hint')}</p>
         </div>
       </div>

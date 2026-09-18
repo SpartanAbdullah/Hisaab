@@ -1,39 +1,30 @@
 import { useNavigate } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
 import { useT } from '../lib/i18n';
 import { formatMoney } from '../lib/constants';
 import { Tile3D } from './Tile3D';
-import type { ClayTint } from '../lib/clay';
+import { Glyph } from './Glyph';
+import type { Tint } from '../lib/material';
+import type { GlyphName } from '../lib/glyphs';
 import type { CoachCard, CoachKind, CoachTone } from '../lib/coachInsights';
 
-// A rendered 3D icon per insight kind (public/3d, see src/lib/clay.ts). The
-// lucide glyph each card used to carry is replaced 1:1 — the meaning still
-// lives in the title, the icon is decoration by construction (Icon3D is
-// alt="" aria-hidden).
-//
-// NOTE on names: the CC0 pack's art does not always match its filename —
-// `handshake` renders a thumbs-up and `bell` renders a megaphone. Picked by
-// what the asset LOOKS like, not by what it is called: `phone` (a handset)
-// is the "go nudge them" cue for an overdue receivable.
-const KIND_ICON: Record<CoachKind, string> = {
+// A 3c glyph per insight kind, drawn in the tile's own accent. The meaning
+// lives in the title; the glyph is decoration (Tile3D renders it aria-hidden).
+// `phone` is the "go nudge them" cue for an overdue receivable, `store` the
+// "here is where your money went" one, `clock` the lapsed-logging habit.
+const KIND_ICON: Record<CoachKind, GlyphName> = {
   budget_over: 'wallet',
   overdue_receivable: 'phone',
-  budget_pace: 'chart',
+  budget_pace: 'analytics',
   renewals_soon: 'calendar',
-  goal_behind: 'target',
-  // A shopping bag for "here is where your money went" — `receipt` renders a
-  // plain text document, which reads as paperwork, not as spending.
-  top_category: 'bag',
-  // An alarm clock for "you haven't logged anything in N days" — `chat`
-  // (speech bubbles) said nothing about a lapsed habit.
-  log_nudge: 'alarm',
+  goal_behind: 'savings',
+  top_category: 'store',
+  log_nudge: 'clock',
 };
 
-// Tone → clay tint. The old tone only coloured a 36px icon chip; carrying it
-// into the tint keeps the same signal ("this one is about money going out" /
-// "this one is a warning") on a surface the user can now read at a glance,
-// instead of flattening every insight onto one colour.
-const TONE_TINT: Record<CoachTone, ClayTint> = {
+// Tone → tile tint (face + walls). Carrying the tone into the tint keeps the
+// same signal ("this one is about money going out" / "this one is a
+// warning") on a surface the user can read at a glance.
+const TONE_TINT: Record<CoachTone, Tint> = {
   pay: 'coral',
   warn: 'gold',
   receive: 'mint',
@@ -69,15 +60,14 @@ export function CoachCards({ cards }: { cards: CoachCard[] }) {
 
   return (
     <div>
-      <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2.5 flex items-center gap-1.5">
-        <Sparkles size={12} className="text-accent-500" /> {t('coach_title')}
+      <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2.5 px-1 flex items-center gap-1.5">
+        <Glyph name="sparkles" size={12} tone="violet" /> {t('coach_title')}
       </h2>
-      {/* Tiles, not cards: every insight navigates, and §10.1 is explicit
-          that a surface which needs a tap is tier 1. The lip + 2px press
-          replaces the chevron as the affordance. `pt-5`/`space-y-6` give
-          the floating icons the 17px of overhang they need — this list must
-          never sit inside an overflow-hidden ancestor. */}
-      <div className="space-y-6 pt-5">
+      {/* Tiles, not cards: every insight navigates, so each is a pressable
+          tile whose wall + press replaces the chevron as the affordance. The
+          glyph sits inside the tile now (no overhang), so a 10px gap keeps
+          the tinted walls clear of the next tile. */}
+      <div className="space-y-2.5">
         {cards.map((card) => {
           const { title, body } = copyFor(card, t);
           return (

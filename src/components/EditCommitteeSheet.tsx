@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Lock } from 'lucide-react';
+import { Glyph } from './Glyph';
 import { Modal } from './Modal';
 import { useToast } from './Toast';
 import { useDiscardGuard } from '../lib/useDiscardGuard';
@@ -130,8 +130,8 @@ export function EditCommitteeSheet({ open, onClose, committee, members, payments
 
   // One padlock badge, reused next to every field the current state freezes.
   const lockBadge = !moneyEditable && (
-    <span className="inline-flex items-center gap-1 rounded-full bg-cream-soft text-ink-500 px-2 py-0.5 text-[9.5px] font-semibold">
-      <Lock size={9} strokeWidth={2.6} /> {t('kameti_field_locked')}
+    <span className="m-chip m-chip-neutral m-chip-caps">
+      <Glyph name="lock" size={10} strokeWidth={2.6} /> {t('kameti_field_locked')}
     </span>
   );
 
@@ -152,9 +152,9 @@ export function EditCommitteeSheet({ open, onClose, committee, members, payments
       <div className="space-y-4">
         {/* Why this state locks what it locks. Shown in EVERY state — in the
             open one it is a warning that the window is about to close. */}
-        <div className={`flex items-start gap-2.5 rounded-2xl p-3 border ${moneyEditable ? 'bg-accent-50 border-accent-100' : 'bg-cream-card border-cream-border'}`}>
-          <Lock size={15} className={`shrink-0 mt-0.5 ${moneyEditable ? 'text-accent-600' : 'text-ink-400'}`} strokeWidth={2.2} />
-          <p className="text-[11.5px] text-ink-600 leading-relaxed">{t(lockNoteKey)}</p>
+        <div className={`m-card flex items-start gap-2.5 p-3.5 ${moneyEditable ? 'm-gold' : ''}`}>
+          <Glyph name="lock" size={15} tone={moneyEditable ? 'gold' : 'neutral'} className="mt-0.5" />
+          <p className="text-[11.5px] text-ink-700 leading-relaxed">{t(lockNoteKey)}</p>
         </div>
 
         <div>
@@ -164,14 +164,14 @@ export function EditCommitteeSheet({ open, onClose, committee, members, payments
 
         <div>
           <label className="form-label">{t('kameti_emoji')}</label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2.5">
             {EMOJI_PRESETS.map((e) => (
               <button
                 key={e}
                 type="button"
                 onClick={() => setEmoji(emoji === e ? '' : e)}
                 aria-pressed={emoji === e}
-                className={`w-10 h-10 rounded-xl text-[18px] flex items-center justify-center border transition-all ${emoji === e ? 'bg-ink-900 border-ink-900' : 'bg-cream-card border-cream-border'}`}
+                className={`m-tile w-11 h-11 rounded-[12px] text-[18px] flex items-center justify-center ${emoji === e ? 'm-gold m-tile-selected' : ''}`}
               >
                 {e}
               </button>
@@ -190,7 +190,10 @@ export function EditCommitteeSheet({ open, onClose, committee, members, payments
           <input
             type="number" step="0.01" inputMode="decimal" value={amount} disabled={!moneyEditable}
             onChange={(e) => setAmount(e.target.value)}
-            className={`input-field text-center text-lg font-bold tabular-nums ${lockedInput}`}
+            className={`input-field text-center font-semibold tabular-nums ${lockedInput}`}
+            // Inline on purpose: index.css pins every <input> to 16px (iOS
+            // focus-zoom guard), which beats any font-size utility.
+            style={{ fontSize: 20, letterSpacing: '-0.02em' }}
           />
           {amt > 0 && (
             <p className="text-[11px] text-ink-500 mt-1.5 text-center">
@@ -218,7 +221,8 @@ export function EditCommitteeSheet({ open, onClose, committee, members, payments
           <div className={`grid grid-cols-3 gap-2 ${lockedInput}`}>
             {([['daily', 'kameti_cadence_daily'], ['weekly', 'kameti_cadence_weekly'], ['monthly', 'kameti_cadence_monthly']] as const).map(([c, key]) => (
               <button key={c} type="button" disabled={!moneyEditable} onClick={() => setCadence(c)}
-                className={`py-2.5 rounded-xl text-[12px] font-semibold border transition-all ${cadence === c ? 'bg-ink-900 text-white border-ink-900' : 'bg-cream-card text-ink-600 border-cream-border'}`}>
+                aria-pressed={cadence === c}
+                className="m-pill m-pill-gold min-h-[44px] w-full text-[12.5px]">
                 {t(key)}
               </button>
             ))}
@@ -233,14 +237,16 @@ export function EditCommitteeSheet({ open, onClose, committee, members, payments
 
         <div>
           <label className="form-label flex items-center gap-2">{t('kameti_method')} {lockBadge}</label>
-          <div className={`space-y-2 ${lockedInput}`}>
+          <div className={`space-y-2.5 ${lockedInput}`}>
             {([['fixed', 'kameti_method_fixed', 'kameti_method_fixed_desc'], ['ballot', 'kameti_method_ballot', 'kameti_method_ballot_desc']] as const).map(([m, label, desc]) => (
               <button key={m} type="button" disabled={!moneyEditable} onClick={() => setMethod(m)}
-                className={`w-full text-left ${method === m ? 'selector-base selector-selected' : 'selector-base'}`}>
-                <span className="flex flex-col">
-                  <span className="text-[13px] font-semibold text-ink-900">{t(label)}</span>
-                  <span className="text-[11px] text-ink-500">{t(desc)}</span>
+                aria-pressed={method === m}
+                className={`w-full text-left gap-3 ${method === m ? 'selector-base selector-selected' : 'selector-base'}`}>
+                <span className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-[13.5px] font-semibold text-ink-900">{t(label)}</span>
+                  <span className="text-[11.5px] text-ink-600">{t(desc)}</span>
                 </span>
+                {method === m && <Glyph name="check" size={16} tone="gold" strokeWidth={3} />}
               </button>
             ))}
           </div>
@@ -254,17 +260,17 @@ export function EditCommitteeSheet({ open, onClose, committee, members, payments
 
         {/* Lifecycle, not money math: never locked. Marking a kameti finished
             is also what silences its round reminders. */}
-        <div className="rounded-2xl bg-cream-card border border-cream-border p-3.5 flex items-center justify-between gap-3">
+        <div className="m-card p-3.5 flex items-center justify-between gap-3">
           <span className="min-w-0">
             <label htmlFor="kameti-mark-completed" className="block text-[13px] font-semibold text-ink-900">
               {t('kameti_status_completed')}
             </label>
-            <span className="block text-[11px] text-ink-500 leading-relaxed mt-0.5">{t('kameti_status_completed_note')}</span>
+            <span className="block text-[11px] text-ink-600 leading-relaxed mt-0.5">{t('kameti_status_completed_note')}</span>
           </span>
-          <input
-            id="kameti-mark-completed" type="checkbox" checked={completed}
-            onChange={(e) => setCompleted(e.target.checked)}
-            className="w-5 h-5 shrink-0 accent-ink-900"
+          <button
+            id="kameti-mark-completed" type="button" role="switch" aria-checked={completed}
+            onClick={() => setCompleted(!completed)}
+            className="m-switch"
           />
         </div>
       </div>

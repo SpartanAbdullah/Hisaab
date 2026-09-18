@@ -1,33 +1,47 @@
-// Premium per-market color identity, tuned to how top-tier fintech apps
-// (Tabby, TAMM, Revolut) actually use color: a quiet tinted surface with a
-// deep jewel-tone text/dot for idle tags, and a single solid deep hue for
-// the selected state. No multi-hue gradients, no neon — color codes the
-// market, restraint keeps it premium. Stable per market (hashed id), and
-// the /10 tints + deep solids read well in BOTH light and dark themes.
+// Per-market colour identity, on the 1d token layer (redesign 2026-09-18).
 //
-// Per-hue scales are hand-tuned for contrast (e.g. amber needs 700 where
-// blue is fine at 600).
+// A market is keyed by ONE hue, drawn from the semantic token families — never
+// the Tailwind default palette — so every pairing is already AA-verified in
+// both themes (designTokens.test.ts):
+//   iris (violet) · cobalt (blue) · blush (pink) · receive (green) ·
+//   pay (coral) · warn (gold)
+// Six distinct hues. The gold slot uses `warn` (amber text / tint, #E8C063 in
+// dark): `accent` is the brand violet since 2026-09-19 and would repeat iris.
+//
+// Stable per market (hashed id). The slot order follows the retired palette's
+// hues (teal→green, indigo→violet, amber→gold, rose→pink, blue→blue) so most
+// markets keep their family; the last slot (was emerald, a second green) moves
+// to coral so no two slots share a hue.
+//
+// The idle chip is the material pill everywhere now (.m-pill), so the colour
+// mostly travels as the small `dot`; `tint` + `text` are the m-chip pairing
+// for a coloured market tag, `scope` tints a material plate (.m-card etc.).
 
 export interface MarketColor {
-  /** Soft tinted surface for idle chips / monogram tiles. */
+  /** Soft tinted surface for a market tag — pair with `text` (m-chip). */
   tint: string;
-  /** Deep hue text on cream or tint surfaces. */
+  /** Readable hue text on the sheet, a card, or the `tint` surface. */
   text: string;
-  /** Whisper-strength border matching the hue. */
+  /** Whisper-strength border in the hue (decorative). */
   border: string;
-  /** Solid deep fill for the SELECTED state — pair with white text. */
+  /** Solid fill WITH its own label colour — AA in both themes on the sheet
+   *  and cards. Not for the hero: it is dark in both themes. */
   solid: string;
-  /** Small identity dot. */
+  /** Small identity dot. A glyph token (≥3:1 on sheet / card / control), and
+   *  re-scoped by .m-hero — so the same dot also reads inside the hero. */
   dot: string;
+  /** Material tint scope (`m-card ${scope}` → tinted face + walls; the
+   *  `text` colour is that scope's strong label). */
+  scope: string;
 }
 
-const PALETTE: MarketColor[] = [
-  { tint: 'bg-teal-600/10', text: 'text-teal-700', border: 'border-teal-600/20', solid: 'bg-teal-700', dot: 'bg-teal-600' },
-  { tint: 'bg-indigo-600/10', text: 'text-indigo-600', border: 'border-indigo-600/20', solid: 'bg-indigo-600', dot: 'bg-indigo-500' },
-  { tint: 'bg-amber-600/10', text: 'text-amber-700', border: 'border-amber-600/25', solid: 'bg-amber-700', dot: 'bg-amber-600' },
-  { tint: 'bg-rose-600/10', text: 'text-rose-600', border: 'border-rose-600/20', solid: 'bg-rose-600', dot: 'bg-rose-500' },
-  { tint: 'bg-blue-600/10', text: 'text-blue-600', border: 'border-blue-600/20', solid: 'bg-blue-600', dot: 'bg-blue-500' },
-  { tint: 'bg-emerald-600/10', text: 'text-emerald-700', border: 'border-emerald-600/20', solid: 'bg-emerald-700', dot: 'bg-emerald-600' },
+const PALETTE: readonly MarketColor[] = [
+  { tint: 'bg-receive-100', text: 'text-receive-text', border: 'border-receive-text/25', solid: 'bg-receive-text text-cream-bg', dot: 'bg-glyph-green', scope: 'm-mint' },
+  { tint: 'bg-iris-100', text: 'text-iris-text', border: 'border-iris-text/25', solid: 'bg-iris-text text-cream-bg', dot: 'bg-glyph-violet', scope: 'm-violet' },
+  { tint: 'bg-warn-50', text: 'text-warn-700', border: 'border-warn-700/25', solid: 'bg-warn-700 text-cream-bg', dot: 'bg-glyph-gold', scope: 'm-gold' },
+  { tint: 'bg-blush-100', text: 'text-blush-text', border: 'border-blush-text/25', solid: 'bg-blush-text text-cream-bg', dot: 'bg-glyph-pink', scope: 'm-pink' },
+  { tint: 'bg-cobalt-100', text: 'text-cobalt-text', border: 'border-cobalt-text/25', solid: 'bg-cobalt-text text-cream-bg', dot: 'bg-glyph-blue', scope: 'm-blue' },
+  { tint: 'bg-pay-100', text: 'text-pay-text', border: 'border-pay-text/25', solid: 'bg-pay-text text-cream-bg', dot: 'bg-glyph-coral', scope: 'm-coral' },
 ];
 
 /** Deterministic, well-distributed hash of the market id. */
@@ -42,3 +56,6 @@ function hashCode(s: string): number {
 export function marketColorFor(marketId: string): MarketColor {
   return PALETTE[hashCode(marketId) % PALETTE.length];
 }
+
+/** Every palette slot — exported for the tests (token-only, distinct hues). */
+export const MARKET_PALETTE = PALETTE;

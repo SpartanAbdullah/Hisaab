@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { BarChart3, Check, X } from 'lucide-react';
 import { useT } from '../lib/i18n';
+import { Glyph } from './Glyph';
 import {
   hasTelemetryConsent,
   isTelemetryConfigured,
@@ -36,52 +36,53 @@ export function TelemetryConsentToggle() {
     setGranted(next);
   };
 
+  // 1d settings card: row header with the analytics glyph, the 48×28 material
+  // switch (role="switch" — green when on), then the two disclosure lists in
+  // sunken wells so they read as detail under the row, not as more rows.
   return (
-    <div className="rounded-[18px] bg-cream-card border border-cream-border overflow-hidden">
-      <div className="flex items-center gap-3 p-4">
-        <div className="w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center shrink-0">
-          <BarChart3 size={16} className="text-accent-600" />
+    <div className="m-card overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-3.5">
+        <div className="m-ctl w-9 h-9 flex items-center justify-center shrink-0" aria-hidden>
+          <Glyph name="analytics" tone="violet" size={18} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold text-ink-900">{t('tlm_consent_title')}</p>
-          <p className="text-[11px] text-ink-500">{t('tlm_consent_sub')}</p>
+          <p className="text-[13.5px] font-semibold text-ink-900">{t('tlm_consent_title')}</p>
+          <p className="text-[11px] text-ink-600 mt-0.5">{t('tlm_consent_sub')}</p>
         </div>
         <button
+          type="button"
+          role="switch"
           onClick={toggle}
           disabled={!configured}
-          aria-pressed={granted}
+          aria-checked={granted}
           aria-label={t('tlm_consent_title')}
-          className={`relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-40 ${granted ? 'bg-receive-600' : 'bg-cream-border'}`}
-        >
-          <span
-            className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-all ${granted ? 'left-6' : 'left-1'}`}
-          />
-        </button>
+          className="m-switch"
+        />
       </div>
 
       <div className="px-4 pb-4 space-y-3">
-        <p className="text-[11.5px] text-ink-500 leading-relaxed">{t('tlm_consent_body')}</p>
+        <p className="text-[11.5px] text-ink-600 leading-relaxed">{t('tlm_consent_body')}</p>
 
-        <div className="rounded-2xl bg-cream-soft border border-cream-hairline p-3 space-y-2">
-          <p className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">
+        <div className="m-inset p-3 space-y-2">
+          <p className="m-label">
             {t('tlm_consent_collected_title')}
           </p>
           {[t('tlm_consent_collected_1'), t('tlm_consent_collected_2'), t('tlm_consent_collected_3')].map((line) => (
             <div key={line} className="flex items-start gap-2">
-              <Check size={12} strokeWidth={3} className="text-receive-text shrink-0 mt-0.5" />
-              <p className="text-[11px] text-ink-600 leading-snug">{line}</p>
+              <Glyph name="check" tone="green" size={13} strokeWidth={3} className="mt-px" />
+              <p className="text-[11px] text-ink-700 leading-snug">{line}</p>
             </div>
           ))}
         </div>
 
-        <div className="rounded-2xl bg-cream-soft border border-cream-hairline p-3 space-y-2">
-          <p className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">
+        <div className="m-inset p-3 space-y-2">
+          <p className="m-label">
             {t('tlm_consent_never_title')}
           </p>
           {[t('tlm_consent_never_1'), t('tlm_consent_never_2'), t('tlm_consent_never_3')].map((line) => (
             <div key={line} className="flex items-start gap-2">
-              <X size={12} strokeWidth={3} className="text-pay-text shrink-0 mt-0.5" />
-              <p className="text-[11px] text-ink-600 leading-snug">{line}</p>
+              <Glyph name="close" tone="coral" size={13} strokeWidth={3} className="mt-px" />
+              <p className="text-[11px] text-ink-700 leading-snug">{line}</p>
             </div>
           ))}
         </div>

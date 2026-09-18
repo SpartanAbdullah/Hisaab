@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { CheckCircle2, Link2, UserPlus } from 'lucide-react';
 import { NavyHero, TopBar } from '../components/NavyHero';
+import { Glyph } from '../components/Glyph';
 import { UserAvatar } from '../components/UserAvatar';
 import { PageErrorState } from '../components/PageErrorState';
 import { ListSkeleton } from '../components/ListSkeleton';
@@ -101,7 +101,7 @@ export function ConnectByCodePage() {
       track('contact_link_requested', { via: 'code' });
       toast.show({
         type: 'success',
-        title: `${found.displayName} added & connected`,
+        title: t('cts_added_connected').replace('{name}', found.displayName),
         // Consent semantics: a link is one-sided until they add you back.
         subtitle:
           linkState === 'mutual'
@@ -119,8 +119,9 @@ export function ConnectByCodePage() {
   if (!user?.id) {
     return (
       <main className="min-h-dvh bg-cream-bg">
-        <NavyHero>
+        <NavyHero accent="pink">
           <TopBar title={t('cbc_title')} back />
+          <div className="pb-5" />
         </NavyHero>
         <div className="sukoon-body px-5 pt-6">
           <PageErrorState
@@ -137,25 +138,27 @@ export function ConnectByCodePage() {
 
   return (
     <main className="min-h-dvh bg-cream-bg pb-28">
-      <NavyHero>
+      {/* 1d: the pink Contacts hero (this page is the contacts domain),
+          with the scanned code as the hero's micro-label in the violet ink. */}
+      <NavyHero accent="pink">
         <TopBar title={t('cbc_title')} back />
         <div className="px-5 pb-6">
-          <p className="text-[10.5px] font-semibold text-white/55 tracking-[0.12em] uppercase">
+          <p className={`m-label ${normalised ? 'text-accent-600 tabular-nums' : 'text-white/70'}`}>
             {normalised ? `HSB-${normalised}` : t('cbc_invalid_code')}
           </p>
         </div>
       </NavyHero>
 
-      <div className="sukoon-body min-h-[50dvh] px-5 pt-5 space-y-4">
+      <div className="sukoon-body min-h-[50dvh] px-5 pt-5 space-y-3">
         {status === 'loading' && <ListSkeleton rows={2} />}
 
         {status === 'notfound' && (
           <PageErrorState
             variant="inline"
             title={t('addc_link_err_notfound')}
-            message="Double-check the code, or ask them to show their QR again."
+            message={t('cbc_notfound_body')}
             onRetry={() => navigate('/contacts')}
-            actionLabel="Go to Contacts"
+            actionLabel={t('cbc_go_contacts')}
           />
         )}
 
@@ -172,14 +175,14 @@ export function ConnectByCodePage() {
           <PageErrorState
             variant="inline"
             title={t('addc_link_err_lookup')}
-            message="Check your connection and try again."
+            message={t('err_page_msg')}
             onRetry={() => void resolve()}
           />
         )}
 
         {status === 'ready' && found && (
           <>
-            <div className="rounded-[18px] bg-cream-card border border-cream-border p-5 flex items-center gap-3">
+            <div className="m-card m-card-feature p-5 flex items-center gap-3.5">
               <UserAvatar name={found.displayName} size={44} />
               <div className="min-w-0 flex-1">
                 {/* No verified seal here (audit 2026-09 SEC-09): this is a
@@ -189,26 +192,26 @@ export function ConnectByCodePage() {
                 <p className="text-[15px] font-semibold text-ink-900 flex items-center gap-1.5 min-w-0">
                   <span className="truncate">{found.displayName}</span>
                 </p>
-                <p className="text-[11.5px] text-ink-500 mt-0.5">{t('cbc_on_hisaab')}</p>
+                <p className="text-[11.5px] text-ink-600 mt-0.5">{t('cbc_on_hisaab')}</p>
               </div>
             </div>
 
             {existing ? (
-              <div className="rounded-[18px] bg-receive-50 border border-receive-100 p-4 flex items-start gap-3">
-                <CheckCircle2 size={18} className="text-receive-600 shrink-0 mt-0.5" />
+              <div className="m-card m-mint p-4 flex items-start gap-3">
+                <Glyph name="check" tone="green" size={18} strokeWidth={2.8} className="mt-0.5" />
                 <div className="min-w-0">
                   <p className="text-[13px] font-semibold text-ink-900">
                     {t('cbc_already_contact').replace('{name}', existing.name)}
                   </p>
-                  <p className="text-[11.5px] text-ink-500 mt-0.5 leading-relaxed">
+                  <p className="text-[11.5px] text-ink-600 mt-0.5 leading-relaxed">
                     {t('cbc_already_contact_sub')}
                   </p>
                 </div>
               </div>
             ) : (
               <>
-                <div className="rounded-[18px] bg-accent-50 border border-accent-100 p-4 flex items-start gap-3">
-                  <Link2 size={17} className="text-accent-600 shrink-0 mt-0.5" />
+                <div className="m-card m-violet p-4 flex items-start gap-3">
+                  <Glyph name="link" tone="violet" size={17} className="mt-0.5" />
                   <p className="text-[11.5px] text-ink-600 leading-relaxed">
                     {t('addc_link_q_desc')}
                   </p>
@@ -217,16 +220,16 @@ export function ConnectByCodePage() {
                   type="button"
                   onClick={() => void handleAdd()}
                   disabled={saving}
-                  className="w-full py-3.5 rounded-2xl bg-ink-900 text-white text-[13.5px] font-bold flex items-center justify-center gap-2 disabled:opacity-40 press"
+                  className="m-btn m-btn-primary w-full py-3.5 text-[13.5px]"
                 >
-                  <UserPlus size={15} strokeWidth={2.3} />
-                  {saving ? 'Connecting…' : t('addc_cta_linked')}
+                  <Glyph name="user-plus" size={16} strokeWidth={2.6} />
+                  {saving ? t('cbc_connecting') : t('addc_cta_linked')}
                 </button>
               </>
             )}
 
             {error && (
-              <p className="text-[12px] text-pay-text font-semibold bg-pay-50 rounded-xl p-3">{error}</p>
+              <p role="alert" className="m-card m-coral text-[12px] text-pay-text font-semibold px-3.5 py-3 leading-relaxed">{error}</p>
             )}
           </>
         )}

@@ -1,6 +1,10 @@
 import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Send, Check, X, ShieldCheck, Flame, CalendarClock, Ghost, ChevronRight } from 'lucide-react';
+// Ghost has no 3c glyph — it stays lucide, matched to the set (2.4 stroke,
+// glyph token colour).
+import { Ghost } from 'lucide-react';
+import { NavyHero } from '../components/NavyHero';
+import { Glyph } from '../components/Glyph';
 import { useAccountStore } from '../stores/accountStore';
 import { useTransactionStore } from '../stores/transactionStore';
 import { useRecurringStore } from '../stores/recurringStore';
@@ -34,9 +38,6 @@ import { useVisualViewportInset } from '../hooks/useVisualViewportInset';
 import { track } from '../lib/telemetry';
 import { bucketAmount, bucketCount } from '../lib/telemetryEvents';
 import type { Account, SplitGroup } from '../db';
-
-const NAVY_BLOOM =
-  'radial-gradient(120% 90% at 80% 10%, rgba(124,92,255,0.32) 0%, rgba(124,92,255,0) 55%), radial-gradient(80% 70% at 10% 100%, rgba(217,97,74,0.18) 0%, rgba(217,97,74,0) 60%)';
 
 const EXAMPLE_PROMPTS = ['add 3 aed for karak', 'How much was my income this month?', 'Which card did I spend most from?', 'How do subscriptions work?'];
 const SPLITS_EXAMPLES = ['How do I split a bill?', 'How do I settle up?', 'Should I use Full Tracker?'];
@@ -662,35 +663,45 @@ export function HisaabAIPage() {
     );
   };
 
+  // First visit, nothing cached yet: the hero figure is a skeleton instead of
+  // flashing the "log a few expenses" empty copy. A warm store renders at once.
+  const loadingFirst = loadStatus === 'loading' && transactions.length === 0;
+
   return (
     <main className="min-h-dvh bg-cream-bg pb-44">
-      {/* ── Navy hero ── */}
-      {/* pt-safe matches NavyHero: pads for the status bar on devices where
-          the WebView draws edge-to-edge (Android 15+, iOS notch). Without it
-          the header collided with the system status bar. */}
-      <div className="relative overflow-hidden text-white pt-safe" style={{ background: 'var(--color-navy-800)' }}>
-        <div className="absolute inset-0 pointer-events-none" style={{ background: NAVY_BLOOM }} />
-        <div className="relative px-5 pt-2 pb-7">
+      {/* ── Hero — the stronger AI violet (radial 130% 80% at 80% -10%) ── */}
+      <NavyHero accent="ai">
+        <div className="px-5 pt-2 pb-7">
           <div className="flex items-center gap-2.5">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-              style={{ background: 'linear-gradient(135deg, var(--color-accent-500), var(--color-accent-600))' }}
-            >
-              <Sparkles size={18} className="text-white animate-sparkle" />
-            </div>
+            {/* The assistant's mark: a lit violet face (the AI accent). */}
+            <span className="w-9 h-9 rounded-[12px] flex items-center justify-center shrink-0 bg-gradient-to-br from-iris-500 to-iris-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]">
+              <Glyph name="sparkles" size={18} className="text-white animate-sparkle" />
+            </span>
             <div className="flex items-center gap-2">
-              <span className="text-[16px] font-semibold tracking-tight">Hisaab AI</span>
-              <span className="text-[8px] font-bold tracking-[0.1em] px-1.5 py-[3px] rounded-full bg-white/15 text-white/80">
+              <span className="text-[16px] font-semibold tracking-[-0.01em] text-white">Hisaab AI</span>
+              <span className="text-[8px] font-bold tracking-[0.1em] px-[7px] py-[3px] rounded-full bg-white/15 text-white/90">
                 BETA
               </span>
             </div>
-            <div className="ml-auto flex items-center gap-1.5 text-[10.5px] text-white/60">
-              <ShieldCheck size={12} className="text-white/60" /> On-device
+            {/* The tone dial lives in the hero's free top-right corner
+                (founder request 2026-09-19) — Chill / Balanced / Roast. */}
+            <div className="m-seg ml-auto" role="group" aria-label="Vibe">
+              {(['chill', 'balanced', 'roast'] as Persona[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => changePersona(p)}
+                  aria-pressed={persona === p}
+                  className="capitalize !min-h-[28px] !px-2.5 !py-1 !text-[10.5px]"
+                >
+                  {p}
+                </button>
+              ))}
             </div>
           </div>
 
           {greetName && (
-            <p className="text-[12.5px] text-white/65 mt-4">
+            <p className="text-[12.5px] text-white/70 mt-4">
               {t(timeGreetingKey())}, <span className="text-white font-medium">{greetName}</span> 👋
             </p>
           )}
@@ -699,12 +710,15 @@ export function HisaabAIPage() {
               has no personal accounts). In Splits mode the AI is a guide + split helper. */}
           {isFull ? (
             <>
-              <p className="text-[11px] text-white/55 font-semibold tracking-[0.12em] uppercase mt-5 mb-2">
+              <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-white/70 mt-5 mb-2">
                 Spent this month
               </p>
-              {summary.count > 0 ? (
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-[40px] font-semibold tracking-tight tabular-nums leading-none">
+              {loadingFirst ? (
+                <div className="m-skel h-10 w-44 rounded-xl" aria-hidden="true" />
+              ) : summary.count > 0 ? (
+                <div className="flex items-baseline gap-[7px]">
+                  {/* The figure itself is extruded — violet, the AI accent. */}
+                  <span className="m-num m-num-violet text-[40px] tracking-[-0.035em]">
                     {summary.spent.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                   </span>
                   <span className="text-[15px] font-medium text-white/50">{summary.cur}</span>
@@ -721,9 +735,9 @@ export function HisaabAIPage() {
             </p>
           )}
         </div>
-      </div>
+      </NavyHero>
 
-      <div className="px-5 -mt-4 relative space-y-4">
+      <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-3">
         {loadStatus === 'error' && (
           <PageErrorState
             variant="inline"
@@ -733,31 +747,13 @@ export function HisaabAIPage() {
           />
         )}
 
-        {/* Personality dial — opt-in vibe (Chill / Balanced / Roast) */}
-        <div className="flex items-center gap-2">
-          <span className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-ink-400">Vibe</span>
-          <div className="flex items-center gap-1 rounded-full bg-cream-soft border border-cream-border p-0.5">
-            {(['chill', 'balanced', 'roast'] as Persona[]).map((p) => (
-              <button
-                key={p}
-                onClick={() => changePersona(p)}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize transition-colors ${
-                  persona === p ? 'bg-cream-card text-ink-900 shadow-sm' : 'text-ink-500'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Streak — gentle encouragement only, never shaming (Full Tracker) */}
         {isFull && streak.streak > 0 && (
-          <div className="flex items-center gap-2.5 rounded-2xl bg-cream-card border border-cream-border px-4 py-3">
-            <div className="w-8 h-8 rounded-xl bg-accent-50 flex items-center justify-center shrink-0">
-              <Flame size={16} className="text-accent-600" />
-            </div>
-            <p className="text-[12.5px] text-ink-700">
+          <div className="m-card rounded-[16px] px-4 py-3 flex items-center gap-3">
+            <span aria-hidden="true" className="m-card m-violet w-8 h-8 rounded-[12px] flex items-center justify-center shrink-0">
+              <Glyph name="flame" size={16} tone="violet" />
+            </span>
+            <p className="text-[12.5px] text-ink-600">
               <span className="font-semibold text-ink-900">{streak.streak}-day</span> logging streak
               {streak.loggedToday ? ' — nice work.' : ' — log one today to keep it going.'}
             </p>
@@ -766,34 +762,32 @@ export function HisaabAIPage() {
 
         {/* Where it goes — real data, tappable into the category detail */}
         {isFull && summary.top.length > 0 && (
-          <div className="rounded-2xl bg-cream-card border border-cream-border p-4">
-            <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-ink-500 mb-3">
+          <div className="m-card p-4">
+            <p className="m-label mb-2.5">
               Where it goes
             </p>
-            <div className="space-y-1">
-              {summary.top.map((c, i) => {
+            <div className="space-y-0.5">
+              {summary.top.map((c) => {
                 const max = summary.top[0].amt || 1;
                 const pct = Math.round((c.amt / max) * 100);
                 return (
                   <button
                     key={c.name}
                     onClick={() => navigate(`/hisaab-ai/insight/${encodeURIComponent(c.name)}`)}
-                    className="w-full flex items-center gap-2.5 py-1.5 text-left active:opacity-70 transition-opacity"
+                    className="w-full min-h-[36px] flex items-center gap-2.5 py-1.5 text-left active:opacity-70 transition-opacity"
                   >
-                    <span className="w-20 text-[11.5px] text-ink-600 truncate shrink-0">{c.name}</span>
-                    <div className="flex-1 h-2 rounded-full bg-cream-soft overflow-hidden">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${pct}%`,
-                          background: i === 0 ? 'var(--color-pay-600)' : 'var(--color-ink-300)',
-                        }}
+                    <span className="w-[76px] text-[11.5px] text-ink-600 truncate shrink-0">{c.name}</span>
+                    {/* Recessed track, violet extruded fill. */}
+                    <span className="m-inset flex-1 h-2 rounded-full overflow-hidden">
+                      <span
+                        className="block h-full rounded-full bg-gradient-to-r from-iris-500 to-iris-600"
+                        style={{ width: `${pct}%` }}
                       />
-                    </div>
-                    <span className="w-14 text-right text-[11.5px] font-semibold text-ink-900 tabular-nums shrink-0">
+                    </span>
+                    <span className="w-[62px] text-right text-[11.5px] font-semibold text-ink-900 tabular-nums shrink-0">
                       {formatMoney(c.amt, summary.cur).replace(`${summary.cur} `, '')}
                     </span>
-                    <ChevronRight size={13} className="text-ink-300 shrink-0" />
+                    <Glyph name="chevron-right" size={13} className="text-ink-400" />
                   </button>
                 );
               })}
@@ -803,14 +797,14 @@ export function HisaabAIPage() {
 
         {/* For you — gentle in-app nudges (renewals + forgotten subs) */}
         {isFull && (renewals.length > 0 || ghosts.length > 0) && (
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {renewals.slice(0, 1).map((r) => (
               <div
                 key={`r-${r.template.id}`}
-                className="flex items-center gap-2.5 rounded-2xl bg-info-50 border border-cream-border px-4 py-3"
+                className="m-card m-blue rounded-[16px] px-4 py-3 flex items-center gap-2.5"
               >
-                <CalendarClock size={16} className="text-info-600 shrink-0" />
-                <p className="text-[12.5px] text-info-600">
+                <Glyph name="calendar" size={16} tone="blue" />
+                <p className="text-[12.5px] text-cobalt-text">
                   <span className="font-semibold">{r.template.label || 'A subscription'}</span> renews{' '}
                   {r.daysUntil === 0 ? 'today' : `in ${r.daysUntil}d`} ·{' '}
                   {formatMoney(r.template.amount, r.template.currency)}
@@ -821,22 +815,21 @@ export function HisaabAIPage() {
               <button
                 key={`g-${g.template.id}`}
                 onClick={() => navigate('/subscriptions')}
-                className="w-full flex items-center gap-2.5 rounded-2xl bg-pay-50 border border-pay-100 px-4 py-3 text-left active:opacity-70 transition-opacity"
+                className="m-tile m-coral rounded-[16px] px-4 py-3 flex items-center gap-2.5 text-left"
               >
-                <Ghost size={16} className="text-pay-text shrink-0" />
+                <Ghost size={16} strokeWidth={2.4} className="text-glyph-coral shrink-0" />
                 <p className="text-[12.5px] text-pay-text flex-1">
                   <span className="font-semibold">{g.template.label || g.template.category}</span> —{' '}
                   {describeGhost(g, todayIso)}
                 </p>
-                <ChevronRight size={13} className="text-pay-text shrink-0" />
+                <Glyph name="chevron-right" size={13} className="text-pay-text" />
               </button>
             ))}
           </div>
         )}
 
-
         {/* ── Conversation ── */}
-        <div className="space-y-3">
+        <div className="space-y-3 pt-2">
           {/* Intro / first-run guidance — always visible so a new user is never lost */}
           <AIBubble>
             <p>
@@ -844,7 +837,7 @@ export function HisaabAIPage() {
                 ? `${t('greet_hello')}${greetName ? `, ${greetName}` : ''}! Tell me what you spent in plain words — "200 for groceries", "30 careem" — and I'll log it (always with a card to confirm first). You can also ask me things like "where did my money go?" or "how much does Ali owe me?".`
                 : `${t('greet_hello')}${greetName ? `, ${greetName}` : ''}! I'm your Hisaab guide. Ask me how to split a bill, settle up, or which mode fits you — and I'll point you the right way.`}
             </p>
-            <div className="flex flex-wrap gap-1.5 mt-3">
+            <div className="flex flex-wrap gap-2 mt-3">
               {dynamicExamples.map((q) => (
                 <SuggestionChip key={q} q={q} onTap={() => submit(q)} />
               ))}
@@ -864,16 +857,16 @@ export function HisaabAIPage() {
                           ? navigate(`/hisaab-ai/insight/${encodeURIComponent(m.viewLink!.category)}`)
                           : navigate('/transactions')
                       }
-                      className="mt-2.5 inline-flex items-center gap-1.5 min-h-[44px] px-3 -ml-1 rounded-lg text-[12px] font-semibold text-accent-600 active:opacity-70 transition-opacity"
+                      className="mt-1.5 inline-flex items-center gap-1 min-h-[44px] px-3 -ml-3 rounded-lg text-[12px] font-semibold text-iris-text active:opacity-70 transition-opacity"
                     >
                       {m.viewLink.count === 1
                         ? t('ai_view_txn_one')
                         : t('ai_view_txns').replace('{count}', String(m.viewLink.count))}
-                      <ChevronRight size={14} />
+                      <Glyph name="chevron-right" size={13} />
                     </button>
                   )}
                   {m.suggestions && m.suggestions.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-3">
+                    <div className="flex flex-wrap gap-2 mt-3">
                       {m.suggestions.map((q) => (
                         <SuggestionChip key={q} q={q} onTap={() => submit(q)} />
                       ))}
@@ -913,20 +906,21 @@ export function HisaabAIPage() {
         </div>
       </div>
 
-      {/* ── Pinned ask bar (above the bottom nav) ── */}
+      {/* ── Pinned ask bar (above the bottom nav): a raised dock holding a
+          sunken input well and the violet send key. ── */}
       <div
         className="fixed left-1/2 -translate-x-1/2 w-full max-w-[480px] px-5 z-30"
         style={{ bottom: `calc(70px + env(safe-area-inset-bottom) + ${keyboardInset}px)` }}
       >
         {livePreview && (
-          <div className="mb-2 flex items-center gap-2 rounded-2xl bg-accent-50 border border-accent-100 px-3 py-2 animate-fade-in">
-            <Sparkles size={12} className="text-accent-600 shrink-0" />
-            <span className="text-[10.5px] text-ink-500 shrink-0">{t('ai_understood')}</span>
-            <span className="text-[11.5px] font-semibold text-ink-900 truncate">
+          <div className="m-card m-violet rounded-[14px] mb-2.5 flex items-center gap-2 px-3 py-2 animate-fade-in">
+            <Glyph name="sparkle" size={12} tone="violet" />
+            <span className="text-[10.5px] text-ink-600 shrink-0">{t('ai_understood')}</span>
+            <span className="min-w-0 truncate text-[11.5px] font-semibold text-ink-900">
               <span className={livePreview.direction === 'income' ? 'text-receive-text' : 'text-pay-text'}>
                 {livePreview.direction === 'income' ? '+' : '−'}{formatMoney(livePreview.amount, livePreview.currency)}
               </span>
-              {livePreview.category ? <span className="text-ink-500"> · {livePreview.category}</span> : null}
+              {livePreview.category ? <span className="text-ink-600"> · {livePreview.category}</span> : null}
             </span>
           </div>
         )}
@@ -935,24 +929,26 @@ export function HisaabAIPage() {
             e.preventDefault();
             submit(input);
           }}
-          className="flex items-center gap-2 rounded-2xl bg-cream-card border border-cream-border p-2 pl-4"
-          style={{ boxShadow: '0 8px 24px -12px rgba(11,14,42,0.35)' }}
+          className="m-card rounded-[18px] p-2 flex items-center gap-2"
         >
-          <Sparkles size={16} className="text-accent-600 shrink-0" />
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={isFull ? 'Add an expense — e.g. karak 3 aed' : 'Ask me anything about Hisaab'}
-            className="flex-1 min-w-0 text-[13px] text-ink-900 placeholder:text-ink-400 bg-transparent outline-none"
-          />
+          {/* The bare input's focus shows on the well: the material's one
+              violet ring (outline, so the recess shadows stay intact). */}
+          <div className="m-inset flex-1 min-w-0 h-11 rounded-[13px] flex items-center gap-2 pl-3.5 pr-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-500">
+            <Glyph name="sparkle" size={15} tone="violet" />
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={isFull ? 'Add an expense — e.g. karak 3 aed' : 'Ask me anything about Hisaab'}
+              className="flex-1 min-w-0 bg-transparent outline-none text-ink-900 placeholder:text-ink-400"
+            />
+          </div>
           <button
             type="submit"
             aria-label="Send"
             disabled={!input.trim()}
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0 disabled:opacity-40 press-sm"
-            style={{ background: 'var(--color-accent-600)' }}
+            className="m-btn m-btn-primary w-11 h-11 min-h-0 p-0 rounded-[13px] shrink-0"
           >
-            <Send size={15} />
+            <Glyph name="send" size={17} />
           </button>
         </form>
       </div>
@@ -960,37 +956,49 @@ export function HisaabAIPage() {
   );
 }
 
+// Example prompt — a material pill in the AI violet. Wraps (long, data-seeded
+// prompts), so it drops the pill's nowrap.
 function SuggestionChip({ q, onTap }: { q: string; onTap: () => void }) {
   return (
     <button
+      type="button"
       onClick={onTap}
-      className="relative text-[11.5px] font-medium px-3 py-1.5 rounded-full bg-cream-soft border border-cream-border text-ink-700 before:absolute before:-inset-2 before:content-[''] press-sm"
+      className="m-pill relative whitespace-normal text-left leading-snug text-[11.5px] font-medium text-iris-text before:absolute before:-inset-1 before:content-['']"
     >
       {q}
     </button>
   );
 }
 
+// You: a violet-tinted card, right-aligned, the bottom-right corner clipped.
 function UserBubble({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex justify-end">
-      <div className="max-w-[82%] px-3.5 py-2.5 rounded-2xl rounded-br-md bg-ink-900 text-white text-[13px] leading-snug">
+      <div className="m-card m-violet max-w-[82%] rounded-[18px] rounded-br-[6px] px-[15px] py-3 text-[12.5px] font-medium leading-normal text-ink-900 break-words">
         {children}
       </div>
     </div>
   );
 }
 
+// The assistant's small mark beside each reply (violet — the AI accent).
+function AIAvatar() {
+  return (
+    <span
+      aria-hidden="true"
+      className="w-7 h-7 rounded-[9px] flex items-center justify-center shrink-0 mt-0.5 bg-gradient-to-br from-iris-500 to-iris-600"
+    >
+      <Glyph name="sparkles" size={14} className="text-white" />
+    </span>
+  );
+}
+
+// The assistant: card material, the top-left corner clipped toward its mark.
 function AIBubble({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex gap-2.5">
-      <div
-        className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-        style={{ background: 'linear-gradient(135deg, var(--color-accent-500), var(--color-accent-600))' }}
-      >
-        <Sparkles size={13} className="text-white" />
-      </div>
-      <div className="flex-1 min-w-0 rounded-2xl rounded-tl-md bg-cream-card border border-cream-border px-3.5 py-3 text-[13px] leading-relaxed text-ink-800">
+      <AIAvatar />
+      <div className="m-card flex-1 min-w-0 rounded-[18px] rounded-tl-[6px] px-4 py-3.5 text-[12.5px] leading-[1.6] text-ink-800">
         {children}
       </div>
     </div>
@@ -1030,23 +1038,18 @@ function GroupChipCard({
 
   return (
     <div className="flex gap-2.5">
-      <div
-        className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-        style={{ background: 'linear-gradient(135deg, var(--color-accent-500), var(--color-accent-600))' }}
-      >
-        <Sparkles size={13} className="text-white" />
-      </div>
-      <div className="flex-1 min-w-0 rounded-2xl rounded-tl-md bg-cream-card border border-cream-border p-3.5">
+      <AIAvatar />
+      <div className="m-card flex-1 min-w-0 rounded-[18px] rounded-tl-[6px] px-4 py-3.5">
         {resolved && resolved !== 'cancelled' ? (
           <div className="flex items-center gap-2 text-[13px] text-receive-text font-semibold">
-            <Check size={15} /> {resolved}
+            <Glyph name="check" size={15} strokeWidth={3} /> {resolved}
           </div>
         ) : (
           <>
             <div className="flex items-center gap-2 mb-3">
               <span className="text-[15px]">{group.emoji}</span>
               <span className="text-[13px] font-semibold text-ink-900">{group.name}</span>
-              <span className="text-[11px] text-ink-500">· split equally</span>
+              <span className="text-[11px] text-ink-600">· split equally</span>
             </div>
             <div className="flex items-center gap-2 mb-2.5">
               <input
@@ -1054,17 +1057,20 @@ function GroupChipCard({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value.replace(/[^0-9.+\-*/() ]/g, ''))}
                 onBlur={() => { const r = parseAmountExpression(amount); if (r != null) setAmount(String(r)); }}
-                className="w-24 text-[18px] font-semibold text-ink-900 tabular-nums bg-cream-soft border border-cream-border rounded-lg px-2.5 py-1.5 outline-none focus:border-accent-500"
+                className="input-field w-28 px-3 py-1.5 font-semibold tabular-nums tracking-[-0.02em]"
+                // Inline on purpose: index.css pins every <input> to 16px
+                // (the iOS zoom guard), which beats any font-size utility.
+                style={{ fontSize: 20 }}
               />
-              <span className="text-[13px] font-medium text-ink-500">{group.currency}</span>
+              <span className="text-[12px] font-medium text-ink-400">{group.currency}</span>
             </div>
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What for?"
-              className="w-full text-[13px] text-ink-900 placeholder:text-ink-400 bg-cream-soft border border-cream-border rounded-lg px-2.5 py-2 mb-2.5 outline-none focus:border-accent-500"
+              className="input-field px-3 py-2 mb-2.5"
             />
-            <p className="text-[11.5px] text-ink-500 mb-3">
+            <p className="text-[11.5px] text-ink-600 mb-3">
               Split among {n} {n === 1 ? 'member' : 'members'}
               {amountValid ? ` · ~${formatMoney(perHead, group.currency)} each` : ''}
             </p>
@@ -1072,18 +1078,17 @@ function GroupChipCard({
               <button
                 onClick={() => amountValid && onConfirm(amt, description.trim() || draft.description)}
                 disabled={busy || !amountValid}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[12.5px] font-semibold text-white disabled:opacity-40 press"
-                style={{ background: 'var(--color-accent-600)' }}
+                className="m-btn m-btn-primary flex-1 min-h-[42px] py-2.5 gap-1.5 text-[12.5px]"
               >
-                <Check size={14} /> {busy ? 'Adding…' : 'Confirm & split'}
+                <Glyph name="check" size={14} strokeWidth={3} /> {busy ? 'Adding…' : 'Confirm & split'}
               </button>
               <button
                 onClick={onCancel}
                 disabled={busy}
                 aria-label="Cancel"
-                className="px-3 rounded-xl border border-cream-border text-ink-500 active:bg-cream-soft transition-colors"
+                className="m-btn m-btn-plain min-h-[42px] w-12 p-0"
               >
-                <X size={16} />
+                <Glyph name="close" size={16} />
               </button>
             </div>
           </>
@@ -1141,8 +1146,7 @@ function ChipCard({ draft, accounts, history, resolved, busy, onConfirm, onCance
         <p>I&rsquo;ve got the details, but you need an account to save it to first.</p>
         <button
           onClick={onAddAccount}
-          className="mt-2.5 text-[12px] font-semibold text-white rounded-lg px-3 py-2 press-sm"
-          style={{ background: 'var(--color-accent-600)' }}
+          className="m-btn m-btn-primary mt-3 min-h-[38px] px-3.5 py-2 rounded-[12px] text-[12px]"
         >
           Add an account
         </button>
@@ -1163,38 +1167,29 @@ function ChipCard({ draft, accounts, history, resolved, busy, onConfirm, onCance
 
   return (
     <div className="flex gap-2.5">
-      <div
-        className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-        style={{ background: 'linear-gradient(135deg, var(--color-accent-500), var(--color-accent-600))' }}
-      >
-        <Sparkles size={13} className="text-white" />
-      </div>
-      <div className="flex-1 min-w-0 rounded-2xl rounded-tl-md bg-cream-card border border-cream-border p-3.5">
+      <AIAvatar />
+      <div className="m-card flex-1 min-w-0 rounded-[18px] rounded-tl-[6px] px-4 py-3.5">
         {resolved && resolved !== 'cancelled' ? (
           <div className="flex items-center gap-2 text-[13px] text-receive-text font-semibold">
-            <Check size={15} /> {resolved}
+            <Glyph name="check" size={15} strokeWidth={3} /> {resolved}
           </div>
         ) : (
           <>
-            <p className="text-[12px] text-ink-500 mb-3">
+            <p className="text-[12.5px] leading-[1.6] text-ink-800 mb-3">
               {draft.currencyAssumed && draft.currency
                 ? `Got it — saving in ${account?.currency ?? draft.currency}. Confirm or tweak:`
                 : "Here's what I understood — confirm or tweak:"}
             </p>
 
-            {/* direction toggle */}
-            <div className="grid grid-cols-2 gap-1.5 mb-3">
+            {/* direction toggle — toned pills: tinted at rest, solid when on */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
               {(['expense', 'income'] as Direction[]).map((d) => (
                 <button
                   key={d}
+                  type="button"
                   onClick={() => setDirection(d)}
-                  className={`py-1.5 rounded-lg text-[11.5px] font-semibold capitalize transition-colors ${
-                    direction === d
-                      ? d === 'income'
-                        ? 'bg-receive-50 text-receive-text border border-receive-100'
-                        : 'bg-pay-50 text-pay-text border border-pay-100'
-                      : 'bg-cream-soft text-ink-500 border border-cream-border'
-                  }`}
+                  aria-pressed={direction === d}
+                  className={`m-pill ${d === 'income' ? 'm-pill-receive' : 'm-pill-pay'} capitalize`}
                 >
                   {d === 'income' ? 'Money in' : 'Money out'}
                 </button>
@@ -1202,25 +1197,28 @@ function ChipCard({ draft, accounts, history, resolved, busy, onConfirm, onCance
             </div>
 
             {/* amount + currency */}
-            <div className="flex items-center gap-2 mb-2.5">
+            <div className="flex items-center gap-2 mb-3">
               <input
                 inputMode="decimal"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value.replace(/[^0-9.+\-*/() ]/g, ''))}
                 onBlur={() => { const r = parseAmountExpression(amount); if (r != null) setAmount(String(r)); }}
-                className="w-24 text-[18px] font-semibold text-ink-900 tabular-nums bg-cream-soft border border-cream-border rounded-lg px-2.5 py-1.5 outline-none focus:border-accent-500"
+                className="input-field w-28 px-3 py-1.5 font-semibold tabular-nums tracking-[-0.02em]"
+                // Inline on purpose: index.css pins every <input> to 16px
+                // (the iOS zoom guard), which beats any font-size utility.
+                style={{ fontSize: 20 }}
               />
-              <span className="text-[13px] font-medium text-ink-500">{account?.currency ?? ''}</span>
+              <span className="text-[12px] font-medium text-ink-400">{account?.currency ?? ''}</span>
             </div>
 
             {/* account */}
-            <label className="block text-[10px] font-semibold text-ink-500 uppercase tracking-[0.1em] mb-1">
+            <label className="form-label mb-1.5">
               {direction === 'income' ? 'To account' : 'From account'}
             </label>
             <select
               value={accountId}
               onChange={(e) => setAccountId(e.target.value)}
-              className="w-full text-[13px] text-ink-900 bg-cream-soft border border-cream-border rounded-lg px-2.5 py-2 mb-2.5 outline-none focus:border-accent-500"
+              className="input-field px-3 py-2 mb-3"
             >
               {groupAccountsByType(accounts).map((g) => (
                 <optgroup key={g.id} label={t(g.labelKey)}>
@@ -1234,16 +1232,16 @@ function ChipCard({ draft, accounts, history, resolved, busy, onConfirm, onCance
             </select>
 
             {/* category */}
-            <label className="block text-[10px] font-semibold text-ink-500 uppercase tracking-[0.1em] mb-1">
+            <label className="form-label mb-1.5">
               Category
               {learnedNow && learnedNow === category && (
-                <span className="ml-1.5 normal-case tracking-normal text-accent-600 font-medium">· like you tagged before</span>
+                <span className="ml-1.5 normal-case tracking-normal text-iris-text font-medium">· like you tagged before</span>
               )}
             </label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full text-[13px] text-ink-900 bg-cream-soft border border-cream-border rounded-lg px-2.5 py-2 mb-2.5 outline-none focus:border-accent-500"
+              className="input-field px-3 py-2 mb-3"
             >
               {cats.map((c) => (
                 <option key={c} value={c}>
@@ -1257,25 +1255,24 @@ function ChipCard({ draft, accounts, history, resolved, busy, onConfirm, onCance
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Note (optional)"
-              className="w-full text-[13px] text-ink-900 placeholder:text-ink-400 bg-cream-soft border border-cream-border rounded-lg px-2.5 py-2 mb-3 outline-none focus:border-accent-500"
+              className="input-field px-3 py-2 mb-3.5"
             />
 
             <div className="flex gap-2">
               <button
                 onClick={handleConfirm}
                 disabled={busy || !amountValid}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[12.5px] font-semibold text-white disabled:opacity-40 press"
-                style={{ background: 'var(--color-accent-600)' }}
+                className="m-btn m-btn-primary flex-1 min-h-[42px] py-2.5 gap-1.5 text-[12.5px]"
               >
-                <Check size={14} /> {busy ? 'Saving…' : 'Confirm & add'}
+                <Glyph name="check" size={14} strokeWidth={3} /> {busy ? 'Saving…' : 'Confirm & add'}
               </button>
               <button
                 onClick={onCancel}
                 disabled={busy}
                 aria-label="Cancel"
-                className="px-3 rounded-xl border border-cream-border text-ink-500 active:bg-cream-soft transition-colors"
+                className="m-btn m-btn-plain min-h-[42px] w-12 p-0"
               >
-                <X size={16} />
+                <Glyph name="close" size={16} />
               </button>
             </div>
           </>

@@ -1,5 +1,6 @@
-import { ArrowRight, CheckCircle2, Lightbulb, type LucideIcon } from 'lucide-react';
+import { Lightbulb, type LucideIcon } from 'lucide-react';
 import { useT } from '../lib/i18n';
+import { Glyph } from './Glyph';
 
 type Tone = 'accent' | 'receive' | 'pay' | 'warn' | 'info';
 
@@ -12,37 +13,17 @@ interface Props {
   onAction?: () => void;
 }
 
-const TONES: Record<Tone, { shell: string; iconBox: string; icon: string; status: string }> = {
-  accent: {
-    shell: 'bg-accent-50 border-accent-100',
-    iconBox: 'bg-accent-100',
-    icon: 'text-accent-600',
-    status: 'text-accent-600',
-  },
-  receive: {
-    shell: 'bg-receive-50 border-receive-100',
-    iconBox: 'bg-receive-100',
-    icon: 'text-receive-text',
-    status: 'text-receive-text',
-  },
-  pay: {
-    shell: 'bg-pay-50 border-pay-100',
-    iconBox: 'bg-pay-100',
-    icon: 'text-pay-text',
-    status: 'text-pay-text',
-  },
-  warn: {
-    shell: 'bg-warn-50 border-cream-border',
-    iconBox: 'bg-cream-card',
-    icon: 'text-warn-600',
-    status: 'text-warn-600',
-  },
-  info: {
-    shell: 'bg-info-50 border-cream-border',
-    iconBox: 'bg-cream-card',
-    icon: 'text-info-600',
-    status: 'text-info-600',
-  },
+// 1d: a tinted card in the hint's tone (face + walls), the icon on a raised
+// control in the matching glyph accent, and the action as a key-material
+// button. The icon prop stays a LucideIcon (the API every caller uses); it is
+// drawn at the 3c weight (2.4) in a glyph-tone colour so it sits with the
+// glyph set.
+const TONES: Record<Tone, { card: string; icon: string; status: string }> = {
+  accent: { card: 'm-violet', icon: 'text-glyph-violet', status: 'text-accent-text' },
+  receive: { card: 'm-mint', icon: 'text-glyph-green', status: 'text-receive-text' },
+  pay: { card: 'm-coral', icon: 'text-glyph-coral', status: 'text-pay-text' },
+  warn: { card: 'm-gold', icon: 'text-glyph-gold', status: 'text-warn-700' },
+  info: { card: 'm-blue', icon: 'text-glyph-blue', status: 'text-cobalt-text' },
 };
 
 export function NextStepHint({
@@ -57,18 +38,18 @@ export function NextStepHint({
   const t = useT();
 
   return (
-    <div className={`rounded-[18px] border ${tt.shell} p-4 flex items-start gap-3`}>
-      <div className={`w-9 h-9 rounded-xl ${tt.iconBox} ${tt.icon} flex items-center justify-center shrink-0`}>
-        <Icon size={16} strokeWidth={1.8} />
+    <div className={`m-card ${tt.card} p-4 flex items-start gap-3`}>
+      <div className="m-ctl w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0">
+        <Icon size={18} strokeWidth={2.4} className={tt.icon} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <CheckCircle2 size={12} className={tt.status} />
-          <p className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${tt.status}`}>
+          <Glyph name="check" size={12} strokeWidth={3} className={tt.status} />
+          <p className={`text-[10.5px] font-semibold uppercase tracking-[0.12em] ${tt.status}`}>
             {t('hint_current_status')}
           </p>
         </div>
-        <p className="text-[13px] font-semibold text-ink-900 tracking-tight mt-1 leading-snug">
+        <p className="text-[13.5px] font-semibold text-ink-900 tracking-tight mt-1 leading-snug">
           {status}
         </p>
         <p className="text-[12px] text-ink-600 mt-1.5 leading-relaxed">{next}</p>
@@ -76,10 +57,10 @@ export function NextStepHint({
           <button
             type="button"
             onClick={onAction}
-            className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink-900 active:opacity-70 transition-opacity"
+            className="m-btn m-btn-plain mt-3 min-h-[40px] px-3.5 py-2 rounded-xl text-[12px]"
           >
             {actionLabel}
-            <ArrowRight size={12} strokeWidth={2.4} />
+            <Glyph name="arrow-right" size={13} strokeWidth={2.8} />
           </button>
         ) : null}
       </div>

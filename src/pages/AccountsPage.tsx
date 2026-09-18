@@ -1,14 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Plus,
-  Wallet,
-  Landmark,
-  Smartphone,
-  PiggyBank,
-  CreditCard,
-  ChevronRight,
-} from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { useAccountStore } from '../stores/accountStore';
 import { useTransactionStore } from '../stores/transactionStore';
 import { NavyHero, TopBar } from '../components/NavyHero';
@@ -17,29 +9,34 @@ import { LanguageToggle } from '../components/LanguageToggle';
 import { EmptyState } from '../components/EmptyState';
 import { PageErrorState } from '../components/PageErrorState';
 import { ListSkeleton } from '../components/ListSkeleton';
+import { Glyph } from '../components/Glyph';
 import { AddAccountStepper } from './AddAccountStepper';
 import { formatMoney, formatSignedMoney } from '../lib/constants';
 import { groupAccountsByType } from '../lib/accountGroups';
 import { currencyMeta } from '../lib/design-tokens';
 import { daysUntilDayOfMonth } from '../lib/inboxInfo';
-import { useT } from '../lib/i18n';
+import { useT, type I18nKey } from '../lib/i18n';
+import type { GlyphName, GlyphTone } from '../lib/glyphs';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
 import { getPrimaryCurrency } from '../lib/primaryCurrency';
 
-const iconForType: Record<string, React.ElementType> = {
-  cash: Wallet,
-  bank: Landmark,
-  digital_wallet: Smartphone,
-  savings: PiggyBank,
-  credit_card: CreditCard,
+// Account-type glyph + accent — the same mapping AccountDetail, AccountCard
+// and the add-account stepper use: cash green, bank blue, wallet violet,
+// savings gold, card coral.
+const TYPE_GLYPH: Record<string, { glyph: GlyphName; tone: GlyphTone }> = {
+  cash: { glyph: 'banknote', tone: 'green' },
+  bank: { glyph: 'bank', tone: 'blue' },
+  digital_wallet: { glyph: 'wallet', tone: 'violet' },
+  savings: { glyph: 'savings', tone: 'gold' },
+  credit_card: { glyph: 'card', tone: 'coral' },
 };
 
-const labelForType: Record<string, string> = {
-  cash: 'Cash',
-  bank: 'Bank',
-  digital_wallet: 'Wallet',
-  savings: 'Savings',
-  credit_card: 'Credit',
+const TYPE_LABEL_KEY: Record<string, I18nKey> = {
+  cash: 'acct_type_cash',
+  bank: 'acct_type_bank',
+  digital_wallet: 'acct_type_wallet',
+  savings: 'type_savings',
+  credit_card: 'type_credit_card',
 };
 
 // Sukoon screen 03 — Accounts list. Entered from the net-worth tap on Home.
@@ -120,10 +117,15 @@ export function AccountsPage() {
   const showEmptyState = status === 'ready' && !hasAccounts;
 
   const renderRow = (account: typeof accounts[number]) => {
-    const Icon = iconForType[account.type] ?? Wallet;
+    const typeGlyph = TYPE_GLYPH[account.type] ?? TYPE_GLYPH.cash;
     const meta = currencyMeta[account.currency];
-    const typeLabel = labelForType[account.type] ?? account.type.replace(/_/g, ' ');
+    const typeLabel = TYPE_LABEL_KEY[account.type] ? t(TYPE_LABEL_KEY[account.type]) : account.type.replace(/_/g, ' ');
     const masked = account.metadata.last4 ? ` · ⋯${account.metadata.last4}` : '';
+    const icon = (
+      <div className="m-ctl w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0">
+        <Glyph name={typeGlyph.glyph} tone={typeGlyph.tone} size={19} />
+      </div>
+    );
     // Credit cards read as "available balance" + how much is owed, so the
     // liability is visible without decoding a negative net-worth figure.
     const isCreditCard = account.type === 'credit_card';
@@ -133,7 +135,11 @@ export function AccountsPage() {
       const utilPct = creditLimit > 0 ? Math.max(0, Math.min(100, (used / creditLimit) * 100)) : 0;
       // Utilisation colour: calm green under 50%, amber 50–80%, coral above —
       // the at-a-glance "how maxed is this card" read.
-      const utilColor = utilPct >= 80 ? 'bg-pay-600' : utilPct >= 50 ? 'bg-warn-600' : 'bg-receive-600';
+      const utilColor = utilPct >= 80
+        ? 'from-pay-600 to-pay-700'
+        : utilPct >= 50
+          ? 'from-warn-600 to-warn-700'
+          : 'from-receive-600 to-receive-700';
       const dueDay = parseInt(account.metadata.dueDay || '', 10);
       const dueIn = daysUntilDayOfMonth(dueDay, new Date());
       return (
@@ -142,9 +148,7 @@ export function AccountsPage() {
           onClick={() => navigate(`/account/${account.id}`)}
           className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-cream-soft transition-colors"
         >
-          <div className="w-9 h-9 rounded-xl bg-cream-soft border border-cream-hairline flex items-center justify-center shrink-0">
-            <Icon size={16} className="text-ink-600" />
-          </div>
+          {icon}
           <div className="flex-1 min-w-0">
             <p className="text-[14px] font-medium text-ink-900 truncate tracking-tight">
               {account.name}
@@ -154,44 +158,44 @@ export function AccountsPage() {
               {masked}
             </p>
             {creditLimit > 0 ? (
-              <div className="mt-1.5 flex items-center gap-2">
-                <div className="flex-1 max-w-[110px] h-1 rounded-full bg-cream-soft overflow-hidden">
-                  <div className={`h-full rounded-full ${utilColor}`} style={{ width: `${utilPct}%` }} />
+              <div className="mt-2 flex items-center gap-2">
+                <div className="m-inset flex-1 max-w-[110px] h-[6px] rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full bg-gradient-to-r ${utilColor}`} style={{ width: `${utilPct}%` }} />
                 </div>
-                <span className="text-[9.5px] text-ink-400 tabular-nums shrink-0">{Math.round(utilPct)}%</span>
+                <span className="text-[10px] text-ink-500 tabular-nums shrink-0">{Math.round(utilPct)}%</span>
                 {dueIn !== null && dueIn <= 7 && (
-                  <span className={`text-[9.5px] font-semibold shrink-0 ${dueIn <= 2 ? 'text-pay-text' : 'text-warn-700'}`}>
+                  <span className={`text-[10px] font-semibold shrink-0 ${dueIn <= 2 ? 'text-pay-text' : 'text-warn-700'}`}>
                     {dueIn === 0 ? t('cc_due_today') : t('cc_due_in').replace('{n}', String(dueIn))}
                   </span>
                 )}
               </div>
             ) : (
-              <span className="inline-flex items-center mt-1 text-[10px] font-semibold text-warn-700 bg-warn-50 rounded-md px-1.5 py-0.5">
+              <span className="m-chip m-chip-gold mt-1.5">
                 {t('acct_set_limit')}
               </span>
             )}
           </div>
           <div className="text-right shrink-0">
-            <p className={`text-[13.5px] font-semibold tabular-nums tracking-tight ${account.balance < 0 ? 'text-pay-text' : 'text-ink-900'}`}>
+            <p className={`text-[14px] font-semibold tabular-nums tracking-tight ${account.balance < 0 ? 'text-pay-text' : 'text-ink-900'}`}>
               {formatMoney(account.balance, account.currency)}
             </p>
-            <p className="text-[10px] text-ink-400 mt-0.5">
+            <p className="text-[10.5px] text-ink-400 mt-0.5">
               {t('acct_available')}
             </p>
             {creditLimit > 0 && used > 0.005 && (
-              <p className="text-[10px] text-pay-text mt-0.5 tabular-nums">
+              <p className="text-[10.5px] text-pay-text mt-0.5 tabular-nums">
                 {t('acct_owe').replace('{amount}', formatMoney(used, account.currency))}
               </p>
             )}
             {/* Negative "used" means the card was credited past its limit —
                 formatMoney's abs() used to render that as owed debt. */}
             {creditLimit > 0 && used < -0.005 && (
-              <p className="text-[10px] text-warn-700 mt-0.5 tabular-nums font-semibold">
+              <p className="text-[10.5px] text-warn-700 mt-0.5 tabular-nums font-semibold">
                 {t('acct_overpaid').replace('{amount}', formatMoney(Math.abs(used), account.currency))}
               </p>
             )}
           </div>
-          <ChevronRight size={14} className="text-ink-300 shrink-0 -mr-1" />
+          <Glyph name="chevron-right" size={14} className="text-ink-400 -mr-1" />
         </button>
       );
     }
@@ -201,9 +205,7 @@ export function AccountsPage() {
         onClick={() => navigate(`/account/${account.id}`)}
         className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-cream-soft transition-colors"
       >
-        <div className="w-9 h-9 rounded-xl bg-cream-soft border border-cream-hairline flex items-center justify-center shrink-0">
-          <Icon size={16} className="text-ink-600" />
-        </div>
+        {icon}
         <div className="flex-1 min-w-0">
           <p className="text-[14px] font-medium text-ink-900 truncate tracking-tight">
             {account.name}
@@ -214,14 +216,14 @@ export function AccountsPage() {
           </p>
         </div>
         <div className="text-right shrink-0">
-          <p className={`text-[13.5px] font-semibold tabular-nums tracking-tight ${account.balance < 0 ? 'text-pay-text' : 'text-ink-900'}`}>
+          <p className={`text-[14px] font-semibold tabular-nums tracking-tight ${account.balance < 0 ? 'text-pay-text' : 'text-ink-900'}`}>
             {formatMoney(account.balance, account.currency)}
           </p>
-          <p className="text-[10px] text-ink-400 mt-0.5">
+          <p className="text-[10.5px] text-ink-400 mt-0.5">
             {meta?.flag} {account.currency}
           </p>
         </div>
-        <ChevronRight size={14} className="text-ink-300 shrink-0 -mr-1" />
+        <Glyph name="chevron-right" size={14} className="text-ink-400 -mr-1" />
       </button>
     );
   };
@@ -236,41 +238,42 @@ export function AccountsPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowAdd(true)}
-                className="w-9 h-9 rounded-xl bg-white/10 active:bg-white/15 flex items-center justify-center transition-colors"
+                className="m-ctl relative w-9 h-9 flex items-center justify-center before:absolute before:-inset-1 before:content-['']"
                 aria-label={t('a11y_add_account')}
               >
-                <Plus size={15} strokeWidth={2.4} className="text-white" />
+                <Glyph name="plus" size={15} strokeWidth={3} className="text-accent-text" />
               </button>
               <LanguageToggle />
             </div>
           }
         />
         <div className="px-5 pb-7">
-          <p className="text-[10.5px] font-semibold text-white/50 tracking-[0.12em] uppercase">
+          <p className="text-[10.5px] font-semibold text-white/70 tracking-[0.12em] uppercase">
             {t('acct_total_balance')} · {primaryCurrency}
           </p>
           {isInitialLoading ? (
-            <div className="mt-1.5 h-10 w-44 rounded-xl bg-white/10 animate-pulse" />
+            <div className="m-skel mt-2 h-10 w-48 rounded-xl" />
           ) : showEmptyState ? (
             <p className="text-white text-[22px] font-semibold tracking-tight mt-1.5 leading-tight">
               {t('home_no_accounts_title')}
             </p>
           ) : (
             <>
-              <div className="mt-1.5">
+              <div className="mt-2">
                 <MoneyDisplay
                   amount={primaryTotal}
                   currency={primaryCurrency}
-                  size={36}
+                  size={38}
                   tone="on-navy"
+                  extrude="violet"
                 />
               </div>
               {hasCreditCard && (
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="inline-flex items-center text-[10px] font-semibold text-receive-100 bg-receive-600/25 rounded-md px-1.5 py-0.5 tabular-nums">
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full bg-white/10 px-2.5 py-1 text-[10.5px] font-semibold text-receive-text tabular-nums">
                     {t('acct_assets').replace('{amount}', formatMoney(primaryAssets, primaryCurrency))}
                   </span>
-                  <span className="inline-flex items-center text-[10px] font-semibold text-pay-100 bg-pay-600/25 rounded-md px-1.5 py-0.5 tabular-nums">
+                  <span className="inline-flex items-center rounded-full bg-white/10 px-2.5 py-1 text-[10.5px] font-semibold text-pay-text tabular-nums">
                     {t('acct_owe_total').replace('{amount}', formatMoney(primaryOwed, primaryCurrency))}
                   </span>
                 </div>
@@ -282,8 +285,8 @@ export function AccountsPage() {
                     return (
                       <span
                         key={cur}
-                        className={`inline-flex items-center gap-1 text-[10.5px] font-semibold rounded-md px-1.5 py-0.5 tabular-nums ${
-                          net < 0 ? 'bg-pay-600/25 text-pay-100' : 'bg-white/10 text-white/85'
+                        className={`inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-[10.5px] font-semibold tabular-nums ${
+                          net < 0 ? 'text-pay-text' : 'text-white/85'
                         }`}
                       >
                         <span>{currencyMeta[cur]?.flag}</span> {formatSignedMoney(net, cur)}
@@ -312,7 +315,8 @@ export function AccountsPage() {
         ) : showEmptyState ? (
           <EmptyState
             icon={Wallet}
-            tone="accent"
+            clayIcon="wallet"
+            tone="violet"
             title={t('home_no_accounts')}
             description={t('home_no_accounts_desc')}
             subhint={t('home_no_accounts_subhint')}
@@ -335,14 +339,14 @@ export function AccountsPage() {
                     </h2>
                     <div className="text-right min-w-0">
                       <span
-                        className={`text-[12px] font-semibold tabular-nums ${
-                          b.net < 0 ? 'text-pay-text' : 'text-ink-700'
+                        className={`text-[12.5px] font-semibold tabular-nums ${
+                          b.net < 0 ? 'text-pay-text' : 'text-ink-900'
                         }`}
                       >
                         {formatSignedMoney(b.net, cur)}
                       </span>
                       {b.hasCard && (b.assets > 0 || b.owed > 0) && (
-                        <p className="text-[9.5px] text-ink-400 tabular-nums mt-0.5 truncate">
+                        <p className="text-[10px] text-ink-400 tabular-nums mt-0.5 truncate">
                           {t('acct_cash_owed')
                             .replace('{cash}', formatMoney(b.assets, cur))
                             .replace('{owed}', formatMoney(b.owed, cur))}
@@ -358,15 +362,15 @@ export function AccountsPage() {
                     const typeGroups = groupAccountsByType(b.accounts);
                     const showGroupLabels = typeGroups.length > 1;
                     return (
-                      <div className="space-y-2.5">
+                      <div className="space-y-3">
                         {typeGroups.map((g) => (
                           <div key={g.id}>
                             {showGroupLabels && (
-                              <p className="text-[9.5px] font-semibold text-ink-400 uppercase tracking-[0.14em] mb-1 px-1">
+                              <p className="m-label mb-1.5 px-1">
                                 {t(g.labelKey)}
                               </p>
                             )}
-                            <div className="rounded-[18px] bg-cream-card border border-cream-border overflow-hidden divide-y divide-cream-hairline">
+                            <div className="m-card overflow-hidden divide-y divide-cream-hairline">
                               {g.accounts.map(renderRow)}
                             </div>
                           </div>
@@ -380,9 +384,9 @@ export function AccountsPage() {
 
             <button
               onClick={() => setShowAdd(true)}
-              className="w-full rounded-[14px] border-2 border-dashed border-cream-border bg-transparent text-ink-600 py-3 text-[13px] font-semibold active:bg-cream-soft transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2"
+              className="m-btn m-btn-plain w-full text-[13px]"
             >
-              <Plus size={14} strokeWidth={2.4} /> {t('home_create_account')}
+              <Glyph name="plus" size={15} strokeWidth={3} className="text-accent-text" /> {t('home_create_account')}
             </button>
           </>
         )}

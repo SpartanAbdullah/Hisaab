@@ -1,6 +1,8 @@
 ﻿import { useMemo, useState } from 'react';
-import { Wallet, Building2, Smartphone, PiggyBank, CreditCard, Check } from 'lucide-react';
 import { Modal } from '../components/Modal';
+import { Glyph } from '../components/Glyph';
+import { Tile3D } from '../components/Tile3D';
+import type { Tint } from '../lib/material';
 import { useDiscardGuard } from '../lib/useDiscardGuard';
 import { useSubmitGuard } from '../lib/useSubmitGuard';
 import { useAccountStore } from '../stores/accountStore';
@@ -16,12 +18,15 @@ import { track } from '../lib/telemetry';
 
 interface Props { open: boolean; onClose: () => void; onComplete?: () => void; inline?: boolean; }
 
-const ACCOUNT_TYPES = [
-  { value: 'cash' as AccountType, label_key: 'type_cash' as const, icon: Wallet, gradient: 'from-emerald-500 to-teal-500', soft: 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-receive-text border-receive-100' },
-  { value: 'bank' as AccountType, label_key: 'type_bank' as const, icon: Building2, gradient: 'from-blue-500 to-indigo-500', soft: 'bg-gradient-to-br from-blue-50 to-blue-100/50 text-blue-600 border-blue-100' },
-  { value: 'digital_wallet' as AccountType, label_key: 'type_wallet' as const, icon: Smartphone, gradient: 'from-purple-500 to-violet-500', soft: 'bg-gradient-to-br from-purple-50 to-purple-100/50 text-purple-600 border-purple-100' },
-  { value: 'savings' as AccountType, label_key: 'type_savings' as const, icon: PiggyBank, gradient: 'from-amber-500 to-orange-500', soft: 'bg-gradient-to-br from-amber-50 to-amber-100/50 text-warn-600 border-amber-100' },
-  { value: 'credit_card' as AccountType, label_key: 'type_credit_card' as const, icon: CreditCard, gradient: 'from-slate-700 to-slate-900', soft: 'bg-gradient-to-br from-slate-100 to-slate-200/50 text-ink-800 border-cream-border' },
+// One tinted tile per account type, each with its 3c glyph — the same
+// type→accent mapping the Accounts list uses (cash green, bank blue, wallet
+// violet, savings gold, card coral).
+const ACCOUNT_TYPES: { value: AccountType; label_key: 'type_cash' | 'type_bank' | 'type_wallet' | 'type_savings' | 'type_credit_card'; tint: Tint; glyph: string }[] = [
+  { value: 'cash', label_key: 'type_cash', tint: 'mint', glyph: 'banknote' },
+  { value: 'bank', label_key: 'type_bank', tint: 'sky', glyph: 'bank' },
+  { value: 'digital_wallet', label_key: 'type_wallet', tint: 'accent', glyph: 'wallet' },
+  { value: 'savings', label_key: 'type_savings', tint: 'gold', glyph: 'savings' },
+  { value: 'credit_card', label_key: 'type_credit_card', tint: 'coral', glyph: 'card' },
 ];
 
 const BANK_PRESETS = [
@@ -193,53 +198,60 @@ export function AddAccountStepper({ open, onClose, onComplete, inline }: Props) 
 
   const footerContent = step === 1 ? (
     <div className="flex gap-2.5">
-      <button onClick={() => setStep(0)} className="px-4 py-3.5 rounded-2xl text-sm font-semibold border border-cream-border text-ink-500 active:bg-cream-soft">&#x2190;</button>
+      <button onClick={() => setStep(0)} className="m-btn m-btn-plain px-4" aria-label={t('back')}>
+        <Glyph name="arrow-left" size={17} />
+      </button>
       {isCreditCard ? (
         <button onClick={handleSubmit} disabled={saving || !canProceedStep1()}
-          className="flex-1 bg-accent-600 text-white rounded-2xl py-3.5 text-sm font-bold disabled:opacity-30 shadow-md shadow-accent-600/20 flex items-center justify-center gap-2"
-        >{saving ? t('acct_creating') : <><Check size={16} /> {t('acct_create')}</>}</button>
+          className="m-btn m-btn-primary flex-1 py-3.5 text-[14px]"
+        >{saving ? t('acct_creating') : <><Glyph name="check" size={16} strokeWidth={3} /> {t('acct_create')}</>}</button>
       ) : (
-        <button onClick={() => setStep(2)} disabled={!canProceedStep1()} className="flex-1 bg-accent-600 text-white rounded-2xl py-3.5 text-sm font-bold disabled:opacity-30 shadow-md shadow-accent-600/20">{t('quick_next')} &#x2192;</button>
+        <button onClick={() => setStep(2)} disabled={!canProceedStep1()} className="m-btn m-btn-primary flex-1 py-3.5 text-[14px]">
+          {t('quick_next')}<Glyph name="arrow-right" size={16} strokeWidth={2.8} />
+        </button>
       )}
     </div>
   ) : step === 2 ? (
     <div className="flex gap-2.5">
-      <button onClick={() => setStep(1)} className="px-4 py-3.5 rounded-2xl text-sm font-semibold border border-cream-border text-ink-500 active:bg-cream-soft">&#x2190;</button>
+      <button onClick={() => setStep(1)} className="m-btn m-btn-plain px-4" aria-label={t('back')}>
+        <Glyph name="arrow-left" size={17} />
+      </button>
       <button onClick={handleSubmit} disabled={saving || !name.trim() || !balanceValid}
-        className="flex-1 bg-accent-600 text-white rounded-2xl py-3.5 text-sm font-bold disabled:opacity-30 shadow-md shadow-accent-600/20 flex items-center justify-center gap-2"
-      >{saving ? t('acct_creating') : <><Check size={16} /> {t('acct_create')}</>}</button>
+        className="m-btn m-btn-primary flex-1 py-3.5 text-[14px]"
+      >{saving ? t('acct_creating') : <><Glyph name="check" size={16} strokeWidth={3} /> {t('acct_create')}</>}</button>
     </div>
   ) : undefined;
+
+  const typeLabelKey = ACCOUNT_TYPES.find((at) => at.value === accountType)?.label_key ?? 'type_cash';
 
   return (
     <Modal open={open} onClose={handleClose} title={title} footer={footerContent} confirmClose={() => guardClose(isDirty)}>
       <div className="space-y-4">
-        <StepIndicator steps={['Type', 'Details', ...(isCreditCard ? [] : ['Balance'])]} current={step} />
+        <StepIndicator
+          steps={[t('onboard_acct_type'), t('acct_details'), ...(isCreditCard ? [] : [t('label_balance')])]}
+          current={step}
+        />
 
-        {/* Step 0: Type */}
+        {/* Step 0: Type — one tinted tile per kind; the violet ring marks the
+            current pick. */}
         {step === 0 && (
           <div className="space-y-2.5 animate-fade-in">
             {inline && (
-              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-warn-50 rounded-2xl p-3.5 mb-3">
-                <p className="text-[12px] text-warn-600 font-semibold tracking-tight">{t('acct_need_for_tx')}</p>
+              <div className="m-card m-violet p-3.5 mb-3 flex items-start gap-2.5">
+                <Glyph name="info" size={16} tone="violet" className="mt-0.5" />
+                <p className="text-[12px] text-accent-text font-semibold tracking-tight leading-snug">{t('acct_need_for_tx')}</p>
               </div>
             )}
-            {ACCOUNT_TYPES.map(at => {
-              const Icon = at.icon;
-              const isActive = accountType === at.value;
-              return (
-                <button key={at.value} onClick={() => selectType(at.value)}
-                  className={`w-full p-4 rounded-2xl border-2 flex items-center gap-3.5 text-left transition-all active:scale-[0.98] ${
-                    isActive ? `bg-gradient-to-r ${at.gradient} text-white border-transparent shadow-md` : `${at.soft}`
-                  }`}
-                >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isActive ? 'bg-white/20' : ''}`}>
-                    <Icon size={20} strokeWidth={1.8} />
-                  </div>
-                  <span className="font-semibold text-[13px] tracking-tight">{t(at.label_key)}</span>
-                </button>
-              );
-            })}
+            {ACCOUNT_TYPES.map(at => (
+              <Tile3D
+                key={at.value}
+                tint={at.tint}
+                icon={at.glyph}
+                title={t(at.label_key)}
+                selected={accountType === at.value}
+                onClick={() => selectType(at.value)}
+              />
+            ))}
           </div>
         )}
 
@@ -251,18 +263,19 @@ export function AddAccountStepper({ open, onClose, onComplete, inline }: Props) 
               <>
                 {/* Issuer presets */}
                 <div>
-                  <p className="text-[11px] font-bold text-ink-500 uppercase tracking-widest mb-2">{t('cc_issuer')}</p>
-                  <div className="grid grid-cols-2 gap-2 mb-3">
+                  <p className="form-label">{t('cc_issuer')}</p>
+                  <div className="grid grid-cols-2 gap-2.5 mb-3">
                     {CC_ISSUER_PRESETS.map(p => {
                       const meta = currencyMeta[p.currency];
                       return (
                         <button key={p.name} type="button" onClick={() => selectCcIssuer(p)}
-                          className={`p-3 rounded-2xl border-2 text-left transition-all active:scale-[0.97] ${
-                            ccIssuer === p.name ? 'border-accent-500 bg-accent-50 shadow-sm' : 'border-cream-border bg-cream-card'
+                          aria-pressed={ccIssuer === p.name}
+                          className={`selector-base flex-col items-start justify-center gap-0.5 p-3 ${
+                            ccIssuer === p.name ? 'selector-selected' : ''
                           }`}
                         >
-                          <p className="font-semibold text-[12px] text-ink-800 tracking-tight">{p.name}</p>
-                          <p className="text-[10px] text-ink-500 flex items-center gap-1 mt-0.5">{meta?.flag} {p.currency}</p>
+                          <p className="font-semibold text-[12.5px] text-ink-900 tracking-tight">{p.name}</p>
+                          <p className="text-[10.5px] text-ink-500 flex items-center gap-1">{meta?.flag} {p.currency}</p>
                         </button>
                       );
                     })}
@@ -312,18 +325,19 @@ export function AddAccountStepper({ open, onClose, onComplete, inline }: Props) 
                 {/* Bank/Wallet presets */}
                 {(accountType === 'bank' || accountType === 'digital_wallet') && (
                   <div>
-                    <p className="text-[11px] font-bold text-ink-500 uppercase tracking-widest mb-2">{t('acct_quick_select')}</p>
-                    <div className="grid grid-cols-2 gap-2">
+                    <p className="form-label">{t('acct_quick_select')}</p>
+                    <div className="grid grid-cols-2 gap-2.5">
                       {(accountType === 'bank' ? BANK_PRESETS : WALLET_PRESETS).map(p => {
                         const meta = currencyMeta[p.currency];
                         return (
-                          <button key={p.name} onClick={() => selectPreset(p)}
-                            className={`p-3.5 rounded-2xl border-2 text-left transition-all active:scale-[0.97] ${
-                              name === p.name ? 'border-accent-500 bg-accent-50 shadow-sm shadow-accent-500/5' : 'border-cream-border bg-cream-card'
+                          <button key={p.name} type="button" onClick={() => selectPreset(p)}
+                            aria-pressed={name === p.name}
+                            className={`selector-base flex-col items-start justify-center gap-0.5 p-3 ${
+                              name === p.name ? 'selector-selected' : ''
                             }`}
                           >
-                            <p className="font-semibold text-[12px] text-ink-800 tracking-tight">{p.name}</p>
-                            <p className="text-[10px] text-ink-500 flex items-center gap-1 mt-0.5">{meta?.flag} {p.currency}</p>
+                            <p className="font-semibold text-[12.5px] text-ink-900 tracking-tight">{p.name}</p>
+                            <p className="text-[10.5px] text-ink-500 flex items-center gap-1">{meta?.flag} {p.currency}</p>
                           </button>
                         );
                       })}
@@ -332,11 +346,17 @@ export function AddAccountStepper({ open, onClose, onComplete, inline }: Props) 
                 )}
 
                 <div className={accountType === 'bank' || accountType === 'digital_wallet' ? 'border-t border-cream-hairline pt-4' : ''}>
-                  <p className="text-[11px] font-bold text-ink-500 uppercase tracking-widest mb-2">
+                  <p className="form-label">
                     {accountType === 'bank' || accountType === 'digital_wallet' ? t('acct_or_type') : t('acct_name')}
                   </p>
                   <input value={name} onChange={e => setName(e.target.value)}
-                    placeholder={accountType === 'cash' ? 'e.g. Jaib Kharcha' : accountType === 'bank' ? 'e.g. My Account' : 'e.g. My Wallet'}
+                    placeholder={
+                      accountType === 'cash'
+                        ? t('mv_acct_name_ph_cash')
+                        : accountType === 'bank'
+                          ? t('mv_acct_name_ph_bank')
+                          : t('mv_acct_name_ph_wallet')
+                    }
                     className="input-field"
                   />
                 </div>
@@ -358,11 +378,11 @@ export function AddAccountStepper({ open, onClose, onComplete, inline }: Props) 
         {/* Step 2: Balance (non-credit-card only) */}
         {step === 2 && !isCreditCard && (
           <div className="space-y-4 animate-fade-in">
-            <div className="bg-cream-soft/80 rounded-2xl p-4 text-center border border-cream-hairline">
-              <p className="text-[10px] text-ink-500 uppercase tracking-widest">{t('acct_new')}</p>
-              <p className="font-bold text-[15px] mt-1 text-ink-900 tracking-tight">{name}</p>
-              <p className="text-[11px] text-ink-500 capitalize mt-0.5 flex items-center gap-1 justify-center">
-                <span>{currencyMeta[currency]?.flag}</span> {accountType.replace('_', ' ')} — {currency}
+            <div className="m-inset p-4 text-center">
+              <p className="m-label">{t('acct_new')}</p>
+              <p className="font-semibold text-[15px] mt-1 text-ink-900 tracking-tight">{name}</p>
+              <p className="text-[11.5px] text-ink-600 mt-0.5 flex items-center gap-1 justify-center">
+                <span>{currencyMeta[currency]?.flag}</span> {t(typeLabelKey)} — {currency}
               </p>
             </div>
 

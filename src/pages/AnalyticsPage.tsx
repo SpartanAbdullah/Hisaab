@@ -1,15 +1,14 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { ChevronRight, TrendingUp, TrendingDown } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import { useTransactionStore } from '../stores/transactionStore';
 import { useSplitStore } from '../stores/splitStore';
 import { NavyHero, TopBar } from '../components/NavyHero';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { EmptyState } from '../components/EmptyState';
-import { Card3D } from '../components/Card3D';
-import { ListSkeleton } from '../components/ListSkeleton';
+import { Glyph } from '../components/Glyph';
 import { PageErrorState } from '../components/PageErrorState';
+import { skeletonDelay } from '../lib/material';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
 import { useT } from '../lib/i18n';
 import { formatMoney } from '../lib/constants';
@@ -117,20 +116,311 @@ function previousRange(period: Period, now: Date): [Date, Date] {
 // so the RPC path (`sumByCurrencyFromSummary`) has something a unit test can be
 // proven equal to. Behaviour is unchanged — same filter, same sort.
 
-function MoneyLines({ totals, tone }: { totals: { currency: Currency; amount: number }[]; tone: 'expense' | 'income' }) {
-  const color = tone === 'expense' ? 'text-pay-text' : 'text-receive-text';
-
-  if (totals.length === 0) {
-    return <p className={`text-lg font-bold mt-1 tabular-nums ${color}`}>0.00</p>;
-  }
-
+// The handoff's tinted stat card: coral "Total spent", mint "Total income".
+// The first currency is the 21px card figure; any further currencies sit
+// under it at 13px in secondary ink — per-currency, never summed across.
+function StatCard({
+  label,
+  totals,
+  tone,
+  emptyCurrency,
+}: {
+  label: string;
+  totals: { currency: Currency; amount: number }[];
+  tone: 'expense' | 'income';
+  /** Shown as "AED 0.00" when the period has no entries of this kind. */
+  emptyCurrency: Currency;
+}) {
+  const [first, ...rest] = totals;
   return (
-    <div className="mt-1 space-y-0.5">
-      {totals.map(({ currency, amount }) => (
-        <p key={currency} className={`text-[15px] font-bold tabular-nums leading-tight ${color}`}>
+    <div className={`m-card ${tone === 'expense' ? 'm-coral' : 'm-mint'} rounded-[16px] p-3.5 min-w-0`}>
+      <p
+        className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${
+          tone === 'expense' ? 'text-pay-text' : 'text-receive-text'
+        }`}
+      >
+        {label}
+      </p>
+      <p className="mt-2 text-[21px] font-semibold tracking-[-0.03em] leading-tight tabular-nums text-ink-900 truncate">
+        {formatMoney(first ? first.amount : 0, first ? first.currency : emptyCurrency)}
+      </p>
+      {rest.map(({ currency, amount }) => (
+        <p key={currency} className="mt-0.5 text-[13px] font-semibold tabular-nums text-ink-600 truncate">
           {formatMoney(amount, currency)}
         </p>
       ))}
+    </div>
+  );
+}
+
+// ── Charts ─────────────────────────────────────────────────────────────────
+// Hand-built instead of recharts so the marks can wear the 1d material. Every
+// colour is a theme token read through var(), so both themes come for free.
+
+// Category ring, largest slice first. The order was chosen with the dataviz
+// validator over the design-system glyph tokens so no two touching slices
+// collapse under colour-blindness — including the wrap-around pair, since
+// the last slice meets the first on a ring (CVD ΔE 10.4 / normal ΔE 20 in
+// both themes). Categories past the fifth fold into one neutral, labelled
+// slice rather than cycling colours nobody can tell apart.
+const DONUT_TONES = [
+  'var(--color-glyph-violet)',
+  'var(--color-glyph-violet)',
+  'var(--color-glyph-pink)',
+  'var(--color-glyph-blue)',
+  'var(--color-glyph-coral)',
+] as const;
+const DONUT_REST_TONE = 'var(--color-ink-400)';
+const DONUT_SLOTS = DONUT_TONES.length;
+
+type BarTone = 'violet' | 'green';
+// Extruded bar faces: a lit gradient in the series' own hue and a hard wall
+// in a darker shade of it (color-mix keeps the wall on-hue in both themes).
+const BAR_TONES: Record<BarTone, { face: string; wall: string; swatch: string }> = {
+  violet: {
+    face: 'linear-gradient(var(--color-iris-500), var(--color-iris-600))',
+    wall: 'color-mix(in srgb, var(--color-iris-600) 55%, black)',
+    swatch: 'var(--color-iris-500)',
+  },
+  green: {
+    face: 'linear-gradient(var(--color-receive-600), var(--color-receive-700))',
+    wall: 'color-mix(in srgb, var(--color-receive-700) 55%, black)',
+    swatch: 'var(--color-receive-600)',
+  },
+};
+
+function CategoryDonut({
+  categories,
+  currency,
+  onOpen,
+}: {
+  categories: { category: string; amount: number; percentage: number }[];
+  currency: string;
+  onOpen: (category: string) => void;
+}) {
+  const t = useT();
+  const top = categories.slice(0, DONUT_SLOTS);
+  const rest = categories.slice(DONUT_SLOTS);
+  const restAmount = rest.reduce((s, c) => s + c.amount, 0);
+  const total = categories.reduce((s, c) => s + c.amount, 0);
+
+  const slices = [
+    ...top.map((c, i) => ({ key: c.category, amount: c.amount, color: DONUT_TONES[i] })),
+    ...(restAmount > 0 ? [{ key: '__rest', amount: restAmount, color: DONUT_REST_TONE }] : []),
+  ];
+
+  // conic-gradient stops, clockwise from 12 o'clock. A 2° cut of card
+  // surface (transparent) separates neighbours — the secondary encoding that
+  // keeps touching slices apart without relying on hue alone.
+  let acc = 0;
+  const stops: string[] = [];
+  for (const s of slices) {
+    const start = total > 0 ? (acc / total) * 360 : 0;
+    acc += s.amount;
+    const end = total > 0 ? (acc / total) * 360 : 0;
+    const gap = slices.length > 1 ? Math.min(2, (end - start) * 0.3) : 0;
+    stops.push(`${s.color} ${start.toFixed(2)}deg ${(end - gap).toFixed(2)}deg`);
+    if (gap > 0) stops.push(`transparent ${(end - gap).toFixed(2)}deg ${end.toFixed(2)}deg`);
+  }
+  const ring: CSSProperties = {
+    backgroundImage: `conic-gradient(${stops.join(', ')})`,
+    boxShadow: '0 12px 24px -12px var(--m-shadow)',
+  };
+
+  const totalText = Math.round(total).toLocaleString('en-US');
+  // The centre disc is 60px across; long figures step down instead of
+  // abbreviating — a finance app shows the real number.
+  const totalSize = totalText.length > 10 ? 8.5 : totalText.length > 8 ? 9.5 : totalText.length > 6 ? 11 : 12.5;
+  const restPct = total > 0 ? Math.round((restAmount / total) * 100) : 0;
+
+  return (
+    <div className="flex items-center gap-[18px]">
+      <div
+        className="relative w-[112px] h-[112px] rounded-full shrink-0"
+        style={ring}
+        role="img"
+        aria-label={`${t('label_total')} ${formatMoney(total, currency)}`}
+      >
+        <span className="m-inset absolute inset-[26px] rounded-full flex items-center justify-center">
+          <span
+            className="font-semibold text-ink-900 tabular-nums tracking-[-0.02em]"
+            style={{ fontSize: totalSize }}
+          >
+            {totalText}
+          </span>
+        </span>
+      </div>
+      <div className="flex-1 min-w-0">
+        {top.map((c, i) => (
+          <button
+            key={c.category}
+            type="button"
+            onClick={() => onOpen(c.category)}
+            className="w-full flex items-center gap-2 min-h-[44px] text-left rounded-lg active:bg-cream-soft transition-colors"
+          >
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: DONUT_TONES[i] }} />
+            <span className="text-[11.5px] text-ink-600 truncate flex-1">{c.category}</span>
+            <span className="text-[11.5px] font-semibold text-ink-900 tabular-nums">{c.percentage}%</span>
+            <Glyph name="chevron-right" size={12} className="text-ink-400" />
+          </button>
+        ))}
+        {rest.length > 0 && (
+          <div className="flex items-center gap-2 min-h-[36px]">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: DONUT_REST_TONE }} />
+            <span className="text-[11.5px] text-ink-500 truncate flex-1">
+              {t('wom_more_sources').replace('{n}', String(rest.length))}
+            </span>
+            <span className="text-[11.5px] font-semibold text-ink-900 tabular-nums me-[20px]">{restPct}%</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface BarSeries {
+  label: string;
+  tone: BarTone;
+}
+interface BarDatum {
+  /** Axis label under the column. */
+  label: string;
+  /** Readout name for the column (defaults to `label`). */
+  name?: string;
+  /** One value per series, same order as `series`. */
+  values: number[];
+}
+
+// Extruded bar chart — the handoff's trend bars: lit face, top + left
+// highlight, shaded right side, hard bottom wall. Replaces the recharts
+// tooltip with a readout line: the selected column (the latest one until
+// the user taps, drags across, hovers, or arrows to another) is marked by a
+// recessed violet band and its values are spelled out above the plot.
+function ExtrudedBars({
+  series,
+  data,
+  currency,
+  dense = false,
+  showLabel,
+}: {
+  series: BarSeries[];
+  data: BarDatum[];
+  currency: string;
+  /** Thin columns (daily): tighter radii, no side highlight. */
+  dense?: boolean;
+  /** Which axis labels to print (every one by default). */
+  showLabel?: (index: number) => boolean;
+}) {
+  const [picked, setPicked] = useState<number | null>(null);
+  const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  const last = data.length - 1;
+  const selected = Math.min(picked ?? last, last);
+  const max = Math.max(0, ...data.flatMap((d) => d.values));
+  const PLOT = 104;
+
+  // Hover (mouse), press and drag (touch) all move the selection — the
+  // column under the pointer is the one the readout describes.
+  const pickFromPointer = (e: PointerEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const i = Math.floor(((e.clientX - rect.left) / rect.width) * data.length);
+    setPicked(Math.max(0, Math.min(last, i)));
+  };
+  const onKey = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
+    const next = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? last : null;
+    if (next === null) return;
+    e.preventDefault();
+    const clamped = Math.max(0, Math.min(last, next));
+    setPicked(clamped);
+    buttons.current[clamped]?.focus();
+  };
+
+  const current = data[selected];
+  const describe = (d: BarDatum) =>
+    `${d.name ?? d.label}: ${series.map((s, k) => `${s.label} ${formatMoney(d.values[k] ?? 0, currency)}`).join(', ')}`;
+
+  return (
+    <div>
+      {current && (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] mb-3 min-h-[18px]" aria-live="polite">
+          <span className="font-semibold text-ink-900">{current.name ?? current.label}</span>
+          {series.map((s, k) => (
+            <span key={s.label} className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-[3px]" style={{ backgroundColor: BAR_TONES[s.tone].swatch }} aria-hidden />
+              <span className="text-ink-500">{s.label}</span>
+              <span className="font-semibold text-ink-900 tabular-nums">{formatMoney(current.values[k] ?? 0, currency)}</span>
+            </span>
+          ))}
+        </p>
+      )}
+      <div
+        className={`relative flex items-end ${dense ? 'gap-[2px]' : 'gap-2'}`}
+        style={{ height: PLOT }}
+        onPointerDown={pickFromPointer}
+        onPointerMove={pickFromPointer}
+      >
+        <span className="absolute inset-x-0 bottom-0 h-px bg-cream-hairline" aria-hidden />
+        {data.map((d, i) => {
+          const isSelected = i === selected;
+          return (
+            <button
+              key={`${d.label}-${i}`}
+              ref={(el) => { buttons.current[i] = el; }}
+              type="button"
+              tabIndex={isSelected ? 0 : -1}
+              aria-pressed={isSelected}
+              aria-label={describe(d)}
+              onClick={() => setPicked(i)}
+              onKeyDown={(e) => onKey(e, i)}
+              className="relative flex-1 min-w-0 h-full flex items-end justify-center gap-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 rounded-[10px]"
+            >
+              {isSelected && (
+                <span
+                  className={`absolute -top-1 bottom-0 bg-accent-50 shadow-[inset_0_2px_5px_var(--m-inset-shade)] ${
+                    dense ? 'inset-x-0 rounded-[5px]' : 'left-1/2 -translate-x-1/2 w-full max-w-[68px] rounded-[10px]'
+                  }`}
+                  aria-hidden
+                />
+              )}
+              {series.map((s, k) => {
+                const v = d.values[k] ?? 0;
+                const h = max > 0 && v > 0 ? Math.max(3, Math.round((v / max) * (PLOT - 10))) : 0;
+                const tone = BAR_TONES[s.tone];
+                return (
+                  <span
+                    key={s.label}
+                    aria-hidden
+                    className={`relative ${dense ? 'flex-1' : 'flex-1 max-w-[26px]'}`}
+                    style={{
+                      height: h,
+                      backgroundImage: tone.face,
+                      borderRadius: dense ? '3px 3px 1px 1px' : '7px 7px 3px 3px',
+                      boxShadow: dense
+                        ? `inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 0 ${tone.wall}`
+                        : `inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 2px 0 0 rgba(255, 255, 255, 0.16), inset -3px 0 0 rgba(0, 0, 0, 0.22), 0 2px 0 ${tone.wall}`,
+                    }}
+                  />
+                );
+              })}
+            </button>
+          );
+        })}
+      </div>
+      {/* Axis labels. Not truncated: a short month name may spill a pixel
+          into the gap on a 360px phone, which beats "S…". Thin (daily)
+          columns print only every fifth day; the readout names the rest. */}
+      <div className={`flex mt-2 ${dense ? 'gap-[2px]' : 'gap-2'}`} aria-hidden>
+        {data.map((d, i) => (
+          <span
+            key={`${d.label}-${i}`}
+            className={`flex-1 min-w-0 flex justify-center text-[9.5px] tabular-nums whitespace-nowrap ${
+              i === selected ? 'font-semibold text-accent-text' : 'font-medium text-ink-500'
+            }`}
+          >
+            {!showLabel || showLabel(i) ? d.label : ''}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -364,59 +654,89 @@ export function AnalyticsPage() {
   ];
   const periodLabel = periods.find((p) => p.key === period)?.label ?? '';
 
+  // Monthly trend: both existing series stay — spent in the Analytics violet,
+  // income in the receive green (a pair the validator clears in both themes).
+  const trendSeries: BarSeries[] = [
+    { label: t('flex_spent_word'), tone: 'violet' },
+    { label: t('tx_income'), tone: 'green' },
+  ];
+  const trendBars: BarDatum[] = trend.map((m) => ({ label: m.month, values: [m.expense, m.income] }));
+  const dailySeries: BarSeries[] = [{ label: t('flex_spent_word'), tone: 'violet' }];
+  const dailyBars: BarDatum[] = daily.map((d) => ({
+    label: d.day,
+    name: t('mv_day_n').replace('{n}', d.day),
+    values: [d.amount],
+  }));
+  const skelDelay = (i: number) => ({ '--m-skel-delay': skeletonDelay(i) }) as CSSProperties;
+  const sectionTitle = 'text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]';
+
   return (
     <main className="min-h-dvh bg-cream-bg pb-28">
-      <NavyHero>
+      <NavyHero accent="violet">
         <TopBar title={t('analytics_title')} back action={<LanguageToggle />} />
         <div className="px-5 pb-7">
-          <p className="text-[10.5px] font-semibold text-white/55 tracking-[0.12em] uppercase">
+          <p className="text-[10.5px] font-semibold text-white/70 tracking-[0.12em] uppercase">
             {t('analytics_hero_sub')}
           </p>
         </div>
       </NavyHero>
 
-      <div className="sukoon-body min-h-[60dvh] pt-4">
-      <div className="px-5 flex gap-2 overflow-x-auto no-scrollbar">
+      <div className="sukoon-body min-h-[60dvh] pt-[18px]">
+      {/* Period pills — the light-faced pill is the active window. */}
+      <div className="px-5 pb-1 flex gap-2 overflow-x-auto no-scrollbar">
         {periods.map(p => (
-          <button key={p.key} onClick={() => setPeriod(p.key)}
-            className={`shrink-0 px-3.5 py-2 rounded-xl text-[11px] font-bold transition-all ${period === p.key ? 'bg-ink-900 text-white' : 'bg-cream-card border border-cream-border text-ink-500'}`}>
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => setPeriod(p.key)}
+            aria-pressed={period === p.key}
+            className="m-pill shrink-0 px-3.5"
+          >
             {p.label}
           </button>
         ))}
       </div>
 
       {/* Period echo beside the cards so the figures are never ambiguous. */}
-      <div className="px-5 pt-4 flex items-center justify-between gap-2">
-        <p className="text-[10px] text-ink-500 font-semibold uppercase tracking-[0.12em]">
-          {t('analytics_showing')} · {periodLabel}
-        </p>
-      </div>
+      <p className="m-label px-5 pt-4">
+        {t('analytics_showing')} · {periodLabel}
+      </p>
 
-      {/* Summary cards. 3D clay tier 2 — informational, never tappable. The
-          tint carries the money direction the page already colours the
-          numbers with: coral out, mint in. */}
-      <div className="px-5 pt-2 grid grid-cols-2 gap-2.5">
-        <Card3D tint="coral" padding="sm">
-          <p className="text-[10px] text-ink-500 font-bold uppercase tracking-widest">{t('analytics_total_spent')}</p>
-          <MoneyLines totals={spentByCurrency} tone="expense" />
-        </Card3D>
-        <Card3D tint="mint" padding="sm">
-          <p className="text-[10px] text-ink-500 font-bold uppercase tracking-widest">{t('analytics_total_income')}</p>
-          <MoneyLines totals={incomeByCurrency} tone="income" />
-        </Card3D>
+      {isInitialLoading ? (
+        // Skeletons in the final geometry: the two stat cards, the trend row,
+        // then the category and trend cards.
+        <div className="px-5 pt-2.5 space-y-2.5" aria-hidden="true">
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="m-skel rounded-[16px] h-[92px]" style={skelDelay(0)} />
+            <div className="m-skel rounded-[16px] h-[92px]" style={skelDelay(1)} />
+          </div>
+          <div className="m-skel rounded-[16px] h-[46px]" style={skelDelay(2)} />
+          <div className="pt-4 space-y-2.5">
+            <div className="m-skel rounded-[22px] h-[168px]" style={skelDelay(3)} />
+            <div className="m-skel rounded-[22px] h-[188px]" style={skelDelay(3)} />
+          </div>
+        </div>
+      ) : (
+      <>
+      {/* Summary cards — informational, never tappable. The tint carries the
+          money direction the figures already mean: coral out, mint in. */}
+      <div className="px-5 pt-2.5 grid grid-cols-2 gap-2.5">
+        <StatCard label={t('analytics_total_spent')} totals={spentByCurrency} tone="expense" emptyCurrency={primaryCurrency} />
+        <StatCard label={t('analytics_total_income')} totals={incomeByCurrency} tone="income" emptyCurrency={primaryCurrency} />
       </div>
 
       {/* Spend trend vs the previous comparable period (chart currency). For
-          spending, up is coral (watch out), down is green (nice). */}
+          spending, up is coral (watch out), down is green (nice). The arrow
+          carries the direction so it never rests on colour alone. */}
       {spendCompare && (
         <div className="px-5 pt-2.5">
-          <div className="rounded-2xl bg-cream-card border border-cream-border px-4 py-3 flex items-center justify-between gap-2">
-            <p className="text-[11px] text-ink-500 font-semibold uppercase tracking-widest">{t('analytics_spend_trend')} · {chartCurrency}</p>
+          <div className="m-card rounded-[16px] px-4 py-3 flex items-center justify-between gap-2">
+            <p className="text-[10.5px] text-ink-600 font-semibold uppercase tracking-[0.1em]">{t('analytics_spend_trend')} · {chartCurrency}</p>
             {spendCompare.pct === 0 ? (
               <span className="text-[12px] font-semibold text-ink-500">{t('analytics_no_change')}</span>
             ) : (
-              <span className={`inline-flex items-center gap-1 text-[12.5px] font-bold ${spendCompare.pct > 0 ? 'text-pay-text' : 'text-receive-text'}`}>
-                {spendCompare.pct > 0 ? <TrendingUp size={13} strokeWidth={2.4} /> : <TrendingDown size={13} strokeWidth={2.4} />}
+              <span className={`inline-flex items-center gap-1 text-[12.5px] font-semibold tabular-nums ${spendCompare.pct > 0 ? 'text-pay-text' : 'text-receive-text'}`}>
+                <Glyph name={spendCompare.pct > 0 ? 'arrow-up' : 'arrow-down'} size={13} strokeWidth={2.8} />
                 {Math.abs(spendCompare.pct)}% {t('analytics_vs_prev')}
               </span>
             )}
@@ -428,15 +748,15 @@ export function AnalyticsPage() {
           colour-only: a leading +/− pairs with the receive/pay tint. */}
       {hasAnyData && netByCurrency.length > 0 && (
         <div className="px-5 pt-2.5">
-          <div className="rounded-2xl bg-cream-card border border-cream-border px-4 py-3 flex items-center justify-between gap-3">
-            <p className="text-[10px] text-ink-500 font-bold uppercase tracking-widest shrink-0">{t('analytics_net')} · {periodLabel}</p>
+          <div className="m-card rounded-[16px] px-4 py-3 flex items-center justify-between gap-3">
+            <p className="text-[10.5px] text-ink-600 font-semibold uppercase tracking-[0.1em] shrink-0">{t('analytics_net')} · {periodLabel}</p>
             <div className="flex flex-col items-end gap-0.5 min-w-0">
               {netByCurrency.map(({ currency, amount }) => {
                 const positive = amount >= 0;
                 return (
                   <p
                     key={currency}
-                    className={`text-[14px] font-bold tabular-nums leading-tight ${positive ? 'text-receive-text' : 'text-pay-text'}`}
+                    className={`text-[14px] font-semibold tabular-nums leading-tight ${positive ? 'text-receive-text' : 'text-pay-text'}`}
                   >
                     {positive ? '+' : '−'}{formatMoney(Math.abs(amount), currency)}
                   </p>
@@ -448,18 +768,16 @@ export function AnalyticsPage() {
       )}
 
       {currencies.length > 1 && (
-        <div className="px-5 pt-3">
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-ink-500 shrink-0">{t('analytics_currency')}</span>
+        <div className="px-5 pt-3.5">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+            <span className="m-label shrink-0">{t('analytics_currency')}</span>
             {currencies.map(currency => (
               <button
                 key={currency}
+                type="button"
                 onClick={() => setSelectedCurrency(currency)}
-                className={`shrink-0 rounded-xl px-3 py-1.5 text-[11px] font-bold transition-all ${
-                  chartCurrency === currency
-                    ? 'bg-ink-900 text-white'
-                    : 'bg-cream-card border border-cream-border text-ink-500'
-                }`}
+                aria-pressed={chartCurrency === currency}
+                className="m-pill shrink-0 px-3 tabular-nums"
               >
                 {currency}
               </button>
@@ -477,17 +795,13 @@ export function AnalyticsPage() {
             onRetry={retryLoad}
           />
         </div>
-      ) : isInitialLoading ? (
-        <div className="px-5 pt-6">
-          <ListSkeleton rows={4} withAvatar={false} />
-        </div>
       ) : !hasAnyData ? (
         // Only once the first load has RESOLVED — every store starts at [].
         loadStatus === 'ready' ? (
           <EmptyState
             icon={TrendingUp}
-            clayIcon="chart"
-            tone="accent"
+            clayIcon="analytics"
+            tone="violet"
             title={t('analytics_no_data')}
             description={t('analytics_empty_desc')}
             actionLabel={t('analytics_empty_cta')}
@@ -496,111 +810,97 @@ export function AnalyticsPage() {
         ) : null
       ) : (
         <>
-          {/* Category Pie Chart */}
+          {/* Category donut — recessed centre holds the total. */}
           {categories.length > 0 && (
-            <div className="px-5 pt-6">
+            <section className="px-5 pt-6">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="text-[11px] font-bold text-ink-500 uppercase tracking-widest">{t('analytics_categories')}</h2>
-                <span className="rounded-full bg-cream-soft px-2 py-1 text-[10px] font-bold text-ink-500">{chartCurrency}</span>
+                <h2 className={sectionTitle}>{t('analytics_categories')}</h2>
+                <span className="m-chip m-chip-neutral tabular-nums">{chartCurrency}</span>
               </div>
-              <div className="rounded-2xl bg-cream-card border border-cream-border p-4">
-                <div className="flex items-center">
-                  <ResponsiveContainer width="50%" height={140}>
-                    <PieChart>
-                      <Pie data={categories} dataKey="amount" nameKey="category" cx="50%" cy="50%" outerRadius={55} innerRadius={30}>
-                        {categories.map((c, i) => <Cell key={i} fill={c.color} />)}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex-1 space-y-1.5 pl-2">
-                    {categories.slice(0, 5).map(c => (
-                      <button
-                        key={c.category}
-                        onClick={() => navigate(insightHref(c.category))}
-                        className="w-full flex items-center gap-2 min-h-[44px] text-left active:opacity-70 transition-opacity"
-                      >
-                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
-                        <span className="text-[11px] text-ink-600 truncate flex-1">{c.category}</span>
-                        <span className="text-[11px] font-bold text-ink-800 tabular-nums">{c.percentage}%</span>
-                        <ChevronRight size={12} className="text-ink-300 shrink-0" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              <div className="m-card m-card-feature p-[18px]">
+                <CategoryDonut
+                  categories={categories}
+                  currency={chartCurrency}
+                  onOpen={(category) => navigate(insightHref(category))}
+                />
               </div>
-            </div>
+            </section>
           )}
 
-          {/* Monthly Trend */}
+          {/* Monthly Trend — extruded bars, spent + income per month. */}
           {trend.length > 0 && (
-            <div className="px-5 pt-6">
+            <section className="px-5 pt-6">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="text-[11px] font-bold text-ink-500 uppercase tracking-widest">{t('analytics_trend')}</h2>
-                <span className="rounded-full bg-cream-soft px-2 py-1 text-[10px] font-bold text-ink-500">{chartCurrency}</span>
+                <h2 className={sectionTitle}>{t('analytics_trend')}</h2>
+                <span className="m-chip m-chip-neutral tabular-nums">{chartCurrency}</span>
               </div>
-              <div className="rounded-2xl bg-cream-card border border-cream-border p-4">
-                <ResponsiveContainer width="100%" height={160}>
-                  <BarChart data={trend}>
-                    <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} width={40} />
-                    <Tooltip formatter={(value: unknown) => formatMoney(Number(value), chartCurrency)} />
-                    <Bar dataKey="income" fill="#0F9D7B" radius={[4, 4, 0, 0]} name="Income" />
-                    <Bar dataKey="expense" fill="#D9614A" radius={[4, 4, 0, 0]} name="Expense" />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="m-card m-card-feature p-[18px]">
+                <ExtrudedBars
+                  key={`${period}-${chartCurrency}-${now.getTime()}`}
+                  series={trendSeries}
+                  data={trendBars}
+                  currency={chartCurrency}
+                />
               </div>
-            </div>
+            </section>
           )}
 
           {/* Daily Spending */}
           {daily.some(d => d.amount > 0) && (
-            <div className="px-5 pt-6">
+            <section className="px-5 pt-6">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="text-[11px] font-bold text-ink-500 uppercase tracking-widest">{t('analytics_daily')}</h2>
-                <span className="rounded-full bg-cream-soft px-2 py-1 text-[10px] font-bold text-ink-500">{chartCurrency}</span>
+                <h2 className={sectionTitle}>{t('analytics_daily')}</h2>
+                <span className="m-chip m-chip-neutral tabular-nums">{chartCurrency}</span>
               </div>
-              <div className="rounded-2xl bg-cream-card border border-cream-border p-4">
-                <ResponsiveContainer width="100%" height={120}>
-                  <BarChart data={daily}>
-                    <XAxis dataKey="day" tick={{ fontSize: 9 }} />
-                    <Tooltip formatter={(value: unknown) => formatMoney(Number(value), chartCurrency)} />
-                    <Bar dataKey="amount" fill="#5B47E8" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="m-card m-card-feature p-[18px]">
+                <ExtrudedBars
+                  key={`${period}-${chartCurrency}-${now.getTime()}`}
+                  series={dailySeries}
+                  data={dailyBars}
+                  currency={chartCurrency}
+                  dense
+                  showLabel={(i) => {
+                    const day = Number(dailyBars[i]?.label);
+                    return day === 1 || day % 5 === 0;
+                  }}
+                />
               </div>
-            </div>
+            </section>
           )}
 
           {/* Top Expenses */}
           {topExp.length > 0 && (
-            <div className="px-5 pt-6">
+            <section className="px-5 pt-6">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="text-[11px] font-bold text-ink-500 uppercase tracking-widest">{t('analytics_top')}</h2>
-                <span className="rounded-full bg-cream-soft px-2 py-1 text-[10px] font-bold text-ink-500">{chartCurrency}</span>
+                <h2 className={sectionTitle}>{t('analytics_top')}</h2>
+                <span className="m-chip m-chip-neutral tabular-nums">{chartCurrency}</span>
               </div>
-              <div className="rounded-2xl bg-cream-card border border-cream-border divide-y divide-cream-hairline">
+              <div className="m-card m-card-feature overflow-hidden divide-y divide-cream-hairline">
                 {topExp.map(tx => {
                   const subtitle = getTransactionSubtitle(tx.notes);
                   const cat = tx.category || 'Other';
                   return (
                     <button
                       key={tx.id}
+                      type="button"
                       onClick={() => navigate(insightHref(cat))}
-                      className="w-full px-4 py-3 min-h-[44px] flex items-center justify-between text-left active:bg-cream-soft transition-colors"
+                      className="w-full px-4 py-3 min-h-[48px] flex items-center gap-2.5 text-left active:bg-cream-soft transition-colors"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-[12px] font-semibold text-ink-800 truncate">{cat}</p>
-                        {subtitle ? <p className="text-[10px] text-ink-500 truncate">{subtitle}</p> : null}
+                        <p className="text-[12.5px] font-semibold text-ink-900 truncate tracking-tight">{cat}</p>
+                        {subtitle ? <p className="text-[10.5px] text-ink-400 truncate mt-0.5">{subtitle}</p> : null}
                       </div>
-                      <p className="text-[13px] font-bold text-pay-text tabular-nums shrink-0 ml-2">−{formatMoney(tx.amount, tx.currency)}</p>
-                      <ChevronRight size={13} className="text-ink-300 shrink-0 ml-1.5" />
+                      <p className="text-[13px] font-semibold text-pay-text tabular-nums shrink-0">−{formatMoney(tx.amount, tx.currency)}</p>
+                      <Glyph name="chevron-right" size={13} className="text-ink-400" />
                     </button>
                   );
                 })}
               </div>
-            </div>
+            </section>
           )}
         </>
+      )}
+      </>
       )}
       </div>
     </main>

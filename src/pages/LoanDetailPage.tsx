@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { format, isPast, differenceInDays } from 'date-fns';
-import { AlertCircle, Bell, CheckCircle, Clock, CreditCard, MoreVertical, Pencil, RotateCcw, ChevronRight, Handshake, FileText, Trash2 } from 'lucide-react';
+import { FileQuestion } from 'lucide-react';
 import { useLoanStore } from '../stores/loanStore';
 import { useEmiStore } from '../stores/emiStore';
 import { useTransactionStore } from '../stores/transactionStore';
@@ -9,7 +9,9 @@ import { useAccountStore } from '../stores/accountStore';
 import { useAppModeStore } from '../stores/appModeStore';
 import { track } from '../lib/telemetry';
 import { Modal } from '../components/Modal';
-import { VerifiedBadge } from '../components/VerifiedBadge';
+import { Glyph } from '../components/Glyph';
+import { EmptyState } from '../components/EmptyState';
+import { ListSkeleton } from '../components/ListSkeleton';
 import { useLinkedRequestStore } from '../stores/linkedRequestStore';
 import { useSettlementRequestStore } from '../stores/settlementRequestStore';
 import { usePersonStore } from '../stores/personStore';
@@ -30,6 +32,7 @@ import { useToast } from '../components/Toast';
 import { useSubmitGuard } from '../lib/useSubmitGuard';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
 import { formatMoney } from '../lib/constants';
+import { skeletonDelay } from '../lib/material';
 import { useT } from '../lib/i18n';
 import { RepaymentModal } from './RepaymentModal';
 import { SettleLinkedLoanModal } from './SettleLinkedLoanModal';
@@ -107,18 +110,49 @@ export function LoanDetailPage() {
       );
     }
     if (loadStatus === 'loading') {
+      // Skeleton in the page's final geometry: identity row, hero figure,
+      // progress track, then the next-instalment card and a history list.
+      const delay = (i: number) => ({ '--m-skel-delay': skeletonDelay(i) }) as React.CSSProperties;
       return (
-        <main className="min-h-dvh bg-cream-bg flex items-center justify-center">
-          <div className="flex items-center gap-2 text-ink-500 text-[13px]">
-            <div className="w-3 h-3 rounded-full bg-cream-hairline animate-pulse" />
-            {t('loading')}
+        <main className="min-h-dvh bg-cream-bg pb-28">
+          <NavyHero accent="violet">
+            <TopBar back />
+            <div className="px-5 pb-7" aria-hidden>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="m-skel w-14 h-14 rounded-full shrink-0" />
+                <div className="flex-1">
+                  <div className="m-skel h-4 w-36" />
+                  <div className="m-skel h-3 w-24 mt-2" style={delay(1)} />
+                </div>
+              </div>
+              <div className="m-skel h-3 w-28" style={delay(1)} />
+              <div className="m-skel h-10 w-52 mt-2.5 rounded-xl" style={delay(2)} />
+              <div className="m-skel h-1.5 w-full mt-5 rounded-full" style={delay(3)} />
+            </div>
+          </NavyHero>
+          <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-4">
+            <p className="sr-only" role="status">{t('loading')}</p>
+            <div className="m-skel h-[132px] rounded-[18px]" aria-hidden />
+            <ListSkeleton rows={3} withAvatar={false} />
           </div>
         </main>
       );
     }
     return (
-      <main className="min-h-dvh bg-cream-bg flex items-center justify-center">
-        <p className="text-ink-500 text-[13px]">{t('loan_not_found')}</p>
+      <main className="min-h-dvh bg-cream-bg pb-28">
+        <NavyHero accent="violet">
+          <TopBar back />
+          <div className="pb-7" />
+        </NavyHero>
+        <div className="sukoon-body min-h-[60dvh] px-5 pt-5">
+          <EmptyState
+            icon={FileQuestion}
+            clayIcon="banknote"
+            tone="violet"
+            title={t('loan_not_found')}
+            description={t('ldp_not_found_desc')}
+          />
+        </div>
       </main>
     );
   }
@@ -368,7 +402,7 @@ export function LoanDetailPage() {
 
   return (
     <main className="min-h-dvh bg-cream-bg pb-28">
-      <NavyHero>
+      <NavyHero accent="violet">
         <TopBar
           back
           action={
@@ -376,19 +410,20 @@ export function LoanDetailPage() {
               {loan.status === 'active' && loan.remainingAmount > 0 && !isCardLoan && (
                 <button
                   onClick={() => setShowReminder(true)}
-                  className="h-9 px-3 rounded-xl bg-white/10 active:bg-white/15 flex items-center gap-1.5 text-[11.5px] font-semibold text-white transition-colors"
+                  className="m-ctl h-9 px-3 flex items-center gap-1.5 text-[11.5px] font-semibold text-white"
                   aria-label={t('reminder_cta')}
                 >
-                  <Bell size={12} strokeWidth={2.4} /> {t('reminder_cta')}
+                  <Glyph name="bell" size={13} tone="violet" /> {t('reminder_cta')}
                 </button>
               )}
               <div className="relative">
                 <button
                   onClick={() => setShowMenu(!showMenu)}
-                  className="w-9 h-9 rounded-xl bg-white/10 active:bg-white/15 flex items-center justify-center transition-colors"
+                  className="m-ctl relative w-9 h-9 flex items-center justify-center before:absolute before:-inset-1 before:content-['']"
                   aria-label={t('a11y_more')}
+                  aria-expanded={showMenu}
                 >
-                  <MoreVertical size={15} className="text-white" />
+                  <Glyph name="more" size={17} strokeWidth={3} className="text-white/90" />
                 </button>
                 {showMenu && (
                   <>
@@ -397,7 +432,11 @@ export function LoanDetailPage() {
                       role="presentation"
                       onClick={() => setShowMenu(false)}
                     />
-                    <div className="absolute right-0 top-11 z-50 bg-cream-card rounded-2xl shadow-xl shadow-navy-900/15 border border-cream-border py-1.5 w-56 animate-fade-in">
+                    {/* The menu opens inside the hero, which is dark in both
+                        themes — so it is dark material with white ink in both
+                        themes too (a theme-following ink would vanish on the
+                        hero-scoped card face in light mode). */}
+                    <div className="m-card absolute right-0 top-11 z-50 py-1.5 w-56 overflow-hidden animate-fade-in">
                       <button
                         onClick={() => {
                           setShowMenu(false);
@@ -405,9 +444,9 @@ export function LoanDetailPage() {
                           setEditNotes(loan.notes ?? '');
                           setShowEditDetails(true);
                         }}
-                        className="w-full px-4 py-2.5 flex items-center gap-2.5 text-[13px] font-medium text-ink-800 active:bg-cream-soft"
+                        className="w-full px-4 py-2.5 flex items-center gap-2.5 text-[13px] font-medium text-white active:bg-white/10"
                       >
-                        <Pencil size={14} className="text-ink-500" /> {t('loan_edit_details')}
+                        <Glyph name="edit" size={15} className="text-white/70" /> {t('loan_edit_details')}
                       </button>
                       {/* Nothing left to forgive → no action. applyRepayment
                           now REFUSES a zero/sub-paisa amount (it would be a
@@ -418,18 +457,18 @@ export function LoanDetailPage() {
                         <button
                           onClick={() => { setShowMenu(false); void handleSettleNoMoney(); }}
                           disabled={settlingNoMoney}
-                          className="w-full px-4 py-2.5 flex items-center gap-2.5 text-[13px] font-medium text-ink-800 active:bg-cream-soft disabled:opacity-50"
+                          className="w-full px-4 py-2.5 flex items-center gap-2.5 text-[13px] font-medium text-white active:bg-white/10 disabled:opacity-50"
                         >
-                          <CheckCircle size={14} className="text-receive-text" /> {t('loan_settle_nomoney')}
+                          <Glyph name="check" size={15} tone="green" /> {t('loan_settle_nomoney')}
                         </button>
                       )}
                       {!(isLinkedLoan && loan.status === 'active') && (
                         <button
                           onClick={() => { setShowMenu(false); void handleDeleteLoan(); }}
                           disabled={deletingLoan}
-                          className="w-full px-4 py-2.5 flex items-center gap-2.5 text-[13px] font-medium text-pay-text active:bg-pay-50 disabled:opacity-50"
+                          className="w-full px-4 py-2.5 flex items-center gap-2.5 text-[13px] font-medium text-pay-text active:bg-white/10 disabled:opacity-50"
                         >
-                          <Trash2 size={14} /> {t('loan_delete')}
+                          <Glyph name="trash" size={15} /> {t('loan_delete')}
                         </button>
                       )}
                     </div>
@@ -446,77 +485,88 @@ export function LoanDetailPage() {
               which have no human counterparty. */}
           <div className="flex items-center gap-3 mb-5">
             {isCardLoan ? (
-              <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                <CreditCard size={24} className="text-white/85" strokeWidth={1.8} />
+              <div className="m-ctl w-14 h-14 rounded-full flex items-center justify-center shrink-0">
+                <Glyph name="card" size={24} tone="violet" extrude />
               </div>
             ) : (
               <UserAvatar name={displayName || loan.personName} size={56} />
             )}
             <div className="min-w-0">
-              <p className="text-white text-[17px] font-semibold tracking-tight truncate">
+              <p className="text-white text-[17px] font-semibold tracking-[-0.01em] truncate">
                 {displayName || loan.personName}
               </p>
-              <p className="text-[11px] text-white/55 mt-0.5">
-                {t('loan_since_date').replace('{date}', format(new Date(loan.createdAt), 'd MMM yyyy'))}
-                {isLinkedLoan && <span className="ml-1.5 inline-flex items-center text-[9.5px] font-semibold uppercase tracking-[0.1em] text-accent-500/90 bg-accent-500/15 rounded-full px-1.5 py-0.5">{t('ldp_linked_pill')}</span>}
-                {isCardLoan && <span className="ml-1.5 inline-flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.1em] text-warn-600 bg-warn-50 rounded-full px-2 py-0.5">{t('ca_pill')}</span>}
+              <p className="text-[11px] text-white/70 mt-1 flex items-center gap-1.5 flex-wrap">
+                <span>{t('loan_since_date').replace('{date}', format(new Date(loan.createdAt), 'd MMM yyyy'))}</span>
+                {/* Hero chips use hero-safe fills: the hero is dark in both
+                    themes, so a theme-following chip tint would go light. */}
+                {isLinkedLoan && (
+                  <span className="inline-flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-iris-text bg-iris-500/20 rounded-full px-1.5 py-0.5">
+                    <Glyph name="link" size={10} strokeWidth={2.8} />
+                    {t('ldp_linked_pill')}
+                  </span>
+                )}
+                {isCardLoan && (
+                  <span className="inline-flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-warn-700 bg-white/10 rounded-full px-2 py-0.5">
+                    {t('ca_pill')}
+                  </span>
+                )}
               </p>
             </div>
           </div>
 
-          <p className="text-[10.5px] font-semibold text-white/50 tracking-[0.12em] uppercase">
+          <p className="text-[10.5px] font-semibold text-white/70 tracking-[0.12em] uppercase">
             {heroLabel}
           </p>
-          <div className="mt-1.5">
+          <div className="mt-2">
             <MoneyDisplay
               amount={loan.remainingAmount}
               currency={loan.currency}
               size={40}
               tone="on-navy"
+              extrude="violet"
             />
           </div>
-          <p className="text-[12px] text-white/55 mt-2">
+          <p className="text-[12px] text-white/70 mt-2.5">
             {t('loan_of_total').replace('{amount}', formatMoney(loan.totalAmount, loan.currency))}
             {totalCount > 0 && (
               <> · {t('emi_cleared_line').replace('{paid}', String(paidCount)).replace('{total}', String(totalCount))}</>
             )}
           </p>
 
-          {/* Segmented progress — N segments when EMI plan exists, else a
-              single smooth bar. White on white-18% track per Sukoon. */}
+          {/* Segmented progress — one lit violet segment per paid instalment
+              (coral when overdue) when an EMI plan exists, else a single
+              smooth bar, in a recessed white-10% track. */}
           {totalCount > 0 ? (
             <div className="flex gap-1 mt-4">
               {enrichedEmis.map((s) => (
                 <div
                   key={s.id}
-                  className="flex-1 h-1.5 rounded-full"
-                  style={{
-                    background:
-                      s.status === 'paid'
-                        ? '#FFFFFF'
-                        : s.isOverdue
-                        ? 'rgba(217,97,74,0.55)'
-                        : 'rgba(255,255,255,0.18)',
-                  }}
+                  className={`flex-1 h-1.5 rounded-full ${
+                    s.status === 'paid'
+                      ? 'bg-gradient-to-b from-accent-500 to-accent-600 shadow-[inset_0_1px_0_rgb(255_255_255/0.45)]'
+                      : s.isOverdue
+                      ? 'bg-pay-600/70'
+                      : 'bg-white/10'
+                  }`}
                 />
               ))}
             </div>
           ) : (
-            <div className="mt-4 h-1.5 rounded-full bg-white/15 overflow-hidden">
+            <div className="mt-4 h-2 rounded-full bg-white/10 overflow-hidden">
               <div
-                className="h-full rounded-full bg-white"
+                className="h-full rounded-full bg-gradient-to-b from-accent-500 to-accent-600 shadow-[inset_0_1px_0_rgb(255_255_255/0.45)]"
                 style={{ width: `${Math.max(0, Math.min(100, progressPct * 100))}%` }}
               />
             </div>
           )}
 
           {loan.status === 'settled' && (
-            <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-receive-600/25 px-3 py-1 text-[11px] font-semibold text-white">
-              <VerifiedBadge size={14} /> {t('loan_completed')}
+            <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-receive-text">
+              <Glyph name="check" size={13} strokeWidth={3} /> {t('loan_completed')}
             </div>
           )}
           {loan.notes && (
-            <p className="mt-3 text-[11px] text-white/55 italic">"{loan.notes}"</p>
+            <p className="mt-3 text-[11.5px] text-white/70 italic">"{loan.notes}"</p>
           )}
         </div>
       </NavyHero>
@@ -528,10 +578,10 @@ export function LoanDetailPage() {
             a no-money "mark paid" instead of forcing another payment. Shown
             even on settled loans so an orphaned instalment is never stuck. */}
         {coveredUnpaidIds.size > 0 && (
-          <div className="rounded-[20px] bg-receive-50 border border-receive-100 p-4">
+          <div className="m-card m-mint p-4">
             <div className="flex items-center gap-2">
-              <CheckCircle size={15} className="text-receive-text shrink-0" strokeWidth={2.2} />
-              <p className="text-[13px] font-semibold text-ink-900">{t('emi_reconcile_title')}</p>
+              <Glyph name="check" size={16} tone="green" />
+              <p className="text-[13.5px] font-semibold text-ink-900 tracking-[-0.01em]">{t('emi_reconcile_title')}</p>
             </div>
             <p className="text-[11.5px] text-ink-600 mt-1.5 leading-relaxed">
               {t('emi_reconcile_body')
@@ -541,7 +591,7 @@ export function LoanDetailPage() {
             <button
               onClick={handleReconcile}
               disabled={reconciling}
-              className="mt-3 w-full bg-ink-900 text-white rounded-xl py-2.5 text-[12px] font-semibold disabled:opacity-50 press"
+              className="m-btn m-btn-green mt-3.5 w-full py-2.5 text-[12.5px]"
             >
               {reconciling ? t('emi_reconcile_marking') : t('emi_reconcile_cta').replace('{n}', String(coveredUnpaidIds.size))}
             </button>
@@ -552,30 +602,30 @@ export function LoanDetailPage() {
             there's an unpaid instalment. Without an EMI plan, the same
             actions surface as full-width buttons in the next section. */}
         {nextInstalment && loan.status === 'active' && (
-          <div className="rounded-[20px] bg-cream-card border border-cream-border p-4">
+          <div className="m-card m-card-feature p-4">
             <div className="flex items-center gap-3">
+              {/* Date block: a tinted square — coral when overdue, violet
+                  (the page accent) otherwise. */}
               <div
-                className={`w-12 h-14 rounded-xl flex flex-col items-center justify-center shrink-0 ${
-                  nextInstalment.isOverdue ? 'bg-pay-50' : 'bg-accent-100'
-                }`}
+                className={`m-card ${nextInstalment.isOverdue ? 'm-coral' : 'm-violet'} w-12 h-14 rounded-[14px] flex flex-col items-center justify-center shrink-0`}
               >
                 <p
                   className={`text-[9px] font-semibold uppercase tracking-[0.1em] ${
-                    nextInstalment.isOverdue ? 'text-pay-text' : 'text-accent-600'
+                    nextInstalment.isOverdue ? 'text-pay-text' : 'text-accent-text'
                   }`}
                 >
                   {format(new Date(nextInstalment.dueDate), 'MMM').toUpperCase()}
                 </p>
                 <p
-                  className={`text-[18px] font-semibold tabular-nums leading-none ${
-                    nextInstalment.isOverdue ? 'text-pay-text' : 'text-accent-600'
+                  className={`text-[18px] font-semibold tabular-nums leading-none mt-0.5 ${
+                    nextInstalment.isOverdue ? 'text-pay-text' : 'text-accent-text'
                   }`}
                 >
                   {format(new Date(nextInstalment.dueDate), 'd')}
                 </p>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.1em]">
+                <p className={`text-[10.5px] font-semibold uppercase tracking-[0.1em] ${nextInstalment.isOverdue ? 'text-pay-text' : 'text-ink-400'}`}>
                   {t('emi_next_label')} ·{' '}
                   {nextInstalment.isOverdue
                     ? t('reminder_overdue_days').replace('{count}', String(Math.abs(daysToNext ?? 0)))
@@ -583,11 +633,11 @@ export function LoanDetailPage() {
                     ? t('reminder_duration_today')
                     : t('emi_due_in_days').replace('{n}', String(daysToNext))}
                 </p>
-                <p className="text-[18px] font-semibold text-ink-900 tabular-nums tracking-tight mt-0.5">
+                <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em] mt-0.5">
                   {formatMoney(nextInstalment.amount, loan.currency)}
                 </p>
                 {isLinkedLoan && (
-                  <p className="text-[10.5px] text-ink-500 mt-0.5">
+                  <p className="text-[10.5px] text-ink-600 mt-0.5">
                     {t('ldp_linked_to_account')}
                   </p>
                 )}
@@ -599,27 +649,27 @@ export function LoanDetailPage() {
                 linked loans it routes to the settlement flow; for unlinked
                 it opens RepaymentModal pre-filled with the next instalment
                 amount (editable). */}
-            <div className="mt-3">
+            <div className="mt-4">
               {canSettleLinked ? (
                 <button
                   onClick={() => setShowSettleLinked(true)}
-                  className="w-full bg-ink-900 text-white rounded-xl py-2.5 text-[12px] font-semibold flex items-center justify-center gap-1.5 press"
+                  className="m-btn m-btn-primary w-full py-3 text-[13px]"
                 >
-                  <Handshake size={12} /> {t('loan_record_payment')}
+                  <Glyph name="link" size={15} /> {t('loan_record_payment')}
                 </button>
               ) : isLinkedLoan ? (
-                <p className="text-[11px] text-ink-500 text-center py-2">
+                <p className="text-[11px] text-ink-600 text-center py-2">
                   {t('ldp_use_linked_settle')}
                 </p>
               ) : (
                 <button
                   onClick={() => setSelectedEmi(nextInstalment)}
-                  className="w-full bg-ink-900 text-white rounded-xl py-2.5 text-[12px] font-semibold flex items-center justify-center gap-1.5 press"
+                  className="m-btn m-btn-primary w-full py-3 text-[13px]"
                 >
-                  <RotateCcw size={12} /> {t('loan_record_payment')}
+                  <Glyph name="banknote" size={15} /> {t('loan_record_payment')}
                 </button>
               )}
-              <p className="text-[10.5px] text-ink-500 mt-1.5 text-center leading-relaxed">
+              <p className="text-[10.5px] text-ink-500 mt-2.5 text-center leading-relaxed">
                 {canSettleLinked
                   ? t('loan_record_payment_linked_sub').replace('{person}', displayName)
                   : isLinkedLoan
@@ -637,19 +687,19 @@ export function LoanDetailPage() {
             {canSettleLinked ? (
               <button
                 onClick={() => setShowSettleLinked(true)}
-                className="w-full bg-ink-900 text-white rounded-xl py-3 text-[13px] font-semibold flex items-center justify-center gap-1.5 press"
+                className="m-btn m-btn-primary w-full py-3.5 text-[13.5px]"
               >
-                <Handshake size={13} /> {t('loan_record_payment')}
+                <Glyph name="link" size={16} /> {t('loan_record_payment')}
               </button>
             ) : (
               <button
                 onClick={() => setShowRepayment(true)}
-                className="w-full bg-ink-900 text-white rounded-xl py-3 text-[13px] font-semibold flex items-center justify-center gap-1.5 press"
+                className="m-btn m-btn-primary w-full py-3.5 text-[13.5px]"
               >
-                <RotateCcw size={13} /> {t('loan_record_payment')}
+                <Glyph name="banknote" size={16} /> {t('loan_record_payment')}
               </button>
             )}
-            <p className="text-[10.5px] text-ink-500 mt-1.5 text-center leading-relaxed">
+            <p className="text-[10.5px] text-ink-500 mt-2.5 text-center leading-relaxed">
               {canSettleLinked
                 ? t('loan_record_payment_linked_sub').replace('{person}', displayName)
                 : t('loan_record_payment_local_sub')}
@@ -660,10 +710,10 @@ export function LoanDetailPage() {
         {/* EMI schedule rows */}
         {enrichedEmis.length > 0 && (
           <div>
-            <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2.5 px-1">
+            <h2 className="m-label mb-2.5 px-0.5">
               {t('emi_schedule_heading')} · {paidCount}/{totalCount}
             </h2>
-            <div className="rounded-[18px] bg-cream-card border border-cream-border overflow-hidden divide-y divide-cream-hairline">
+            <div className="m-card overflow-hidden divide-y divide-cream-hairline">
               {enrichedEmis.map((schedule) => {
                 const isPaid = schedule.status === 'paid';
                 const isNext = !isPaid && schedule === nextInstalment;
@@ -672,31 +722,32 @@ export function LoanDetailPage() {
                     key={schedule.id}
                     className="flex items-center gap-3 px-4 py-3"
                   >
-                    {/* State tile: paid (receive check) / next (accent number) /
-                        future (dashed cream) / overdue (pay alert) */}
+                    {/* State square: paid (green check) / overdue (coral
+                        alert) / next (violet number) / future (recessed well
+                        with a clock — not due yet). */}
                     {isPaid ? (
-                      <div className="w-9 h-9 rounded-xl bg-receive-50 flex items-center justify-center shrink-0">
-                        <CheckCircle size={16} className="text-receive-text" strokeWidth={2} />
+                      <div className="m-card m-mint w-9 h-9 rounded-[12px] flex items-center justify-center shrink-0">
+                        <Glyph name="check" size={16} tone="green" />
                       </div>
                     ) : schedule.isOverdue ? (
-                      <div className="w-9 h-9 rounded-xl bg-pay-50 flex items-center justify-center shrink-0">
-                        <AlertCircle size={16} className="text-pay-text" strokeWidth={2} />
+                      <div className="m-card m-coral w-9 h-9 rounded-[12px] flex items-center justify-center shrink-0">
+                        <Glyph name="alert" size={16} tone="coral" />
                       </div>
                     ) : isNext ? (
-                      <div className="w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center shrink-0 text-[12px] font-semibold text-accent-600 tabular-nums">
+                      <div className="m-card m-violet w-9 h-9 rounded-[12px] flex items-center justify-center shrink-0 text-[12.5px] font-semibold text-accent-text tabular-nums">
                         {schedule.installmentNumber}
                       </div>
                     ) : (
-                      <div className="w-9 h-9 rounded-xl border border-dashed border-cream-border bg-cream-soft flex items-center justify-center shrink-0">
-                        <Clock size={14} className="text-ink-300" strokeWidth={1.8} />
+                      <div className="m-inset w-9 h-9 rounded-[12px] flex items-center justify-center shrink-0">
+                        <Glyph name="clock" size={15} className="text-ink-400" />
                       </div>
                     )}
 
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium text-ink-900 tracking-tight">
+                      <p className="text-[13.5px] font-medium text-ink-900 tracking-[-0.01em]">
                         {t('emi_instalment_n').replace('{n}', String(schedule.installmentNumber))}
                       </p>
-                      <p className="text-[10.5px] text-ink-500 mt-0.5">
+                      <p className="text-[10.5px] text-ink-600 mt-0.5">
                         {format(new Date(schedule.dueDate), 'd MMM yyyy')}
                         {isPaid && ` · ${t('emi_row_paid')}`}
                         {schedule.isOverdue && (
@@ -740,7 +791,7 @@ export function LoanDetailPage() {
         {/* Settlement history (linked loans only) */}
         {isLinkedLoan && (
           <div>
-            <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2.5 px-1">
+            <h2 className="m-label mb-2.5 px-0.5">
               {t('stl_history_title')}
             </h2>
             {settlementHistory.length === 0 ? (
@@ -748,7 +799,7 @@ export function LoanDetailPage() {
                 {t('stl_history_empty')}
               </p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {settlementHistory.map((s) => {
                   const appliedFromName =
                     s.requesterAccountId && s.fromUserId === currentUserId
@@ -773,17 +824,17 @@ export function LoanDetailPage() {
 
         {/* Transaction history */}
         <div>
-          <div className="flex items-center justify-between mb-2.5 px-1">
-            <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
+          <div className="flex items-center justify-between mb-2.5 px-0.5">
+            <h2 className="m-label">
               {t('tx_history')}
             </h2>
             {(loanTransactions.length > 0 || loan.remainingAmount > 0.005) && !isCardLoan && (
               <button
                 type="button"
                 onClick={() => { setStatementIntro(undefined); setShowStatement(true); }}
-                className="text-[11px] font-semibold text-accent-600 flex items-center gap-1 active:opacity-70"
+                className="min-h-[32px] text-[11.5px] font-semibold text-accent-600 flex items-center gap-1 active:opacity-70"
               >
-                <FileText size={12} strokeWidth={2.2} /> {t('soa_cta')}
+                <Glyph name="document" size={13} /> {t('soa_cta')}
               </button>
             )}
           </div>
@@ -792,7 +843,7 @@ export function LoanDetailPage() {
               {t('loan_no_tx')}
             </p>
           ) : (
-            <div className="rounded-[18px] bg-cream-card border border-cream-border px-4 divide-y divide-cream-hairline">
+            <div className="m-card px-4 divide-y divide-cream-hairline">
               {loanTransactions.map((transaction) => (
                 <button
                   key={transaction.id}
@@ -849,7 +900,7 @@ export function LoanDetailPage() {
           <div>
             <label className="form-label">{t('loan_edit_name')}</label>
             {loan.personId ? (
-              <p className="text-[12px] text-ink-500 bg-cream-soft border border-cream-hairline rounded-2xl p-3 leading-relaxed">
+              <p className="m-inset text-[12px] text-ink-600 p-3 leading-relaxed">
                 {t('loan_edit_name_locked')}
               </p>
             ) : (
@@ -943,20 +994,21 @@ function SettlementHistoryRow({
   const t = useT();
   const statusKey = (`stl_status_${request.status}`) as
     | 'stl_status_pending' | 'stl_status_accepted' | 'stl_status_rejected' | 'stl_status_cancelled';
-  const statusClasses = {
-    pending:   'bg-warn-50 text-warn-600',
-    accepted:  'bg-receive-50 text-receive-text',
-    rejected:  'bg-cream-soft text-ink-500',
-    cancelled: 'bg-cream-soft text-ink-500',
+  // Pending = violet (it lives in the Inbox), accepted = green, closed = neutral.
+  const statusChip = {
+    pending:   'm-chip-violet',
+    accepted:  'm-chip-receive',
+    rejected:  'm-chip-neutral',
+    cancelled: 'm-chip-neutral',
   }[request.status];
   return (
-    <div className="rounded-[18px] bg-cream-card border border-cream-border p-3.5">
+    <div className="m-card p-3.5">
       <div className="flex items-center gap-3">
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-semibold text-ink-900 tabular-nums">
+        <p className="text-[13.5px] font-semibold text-ink-900 tabular-nums tracking-[-0.01em]">
           {formatMoney(request.amount, currency)}
         </p>
-        <p className="text-[10.5px] text-ink-500 mt-0.5">
+        <p className="text-[10.5px] text-ink-400 mt-0.5 tabular-nums">
           {format(new Date(request.createdAt), 'MMM d, h:mm a')}
         </p>
         {appliedFromAccountName && (
@@ -965,29 +1017,29 @@ function SettlementHistoryRow({
           </p>
         )}
         {request.note && (
-          <p className="text-[11px] text-ink-500 italic mt-1 truncate">&ldquo;{request.note}&rdquo;</p>
+          <p className="text-[11px] text-ink-600 italic mt-1 truncate">&ldquo;{request.note}&rdquo;</p>
         )}
       </div>
-      <span className={`text-[10px] font-semibold uppercase tracking-[0.1em] rounded-full px-2.5 py-1 ${statusClasses}`}>
+      <span className={`m-chip m-chip-caps shrink-0 ${statusChip}`}>
         {t(statusKey)}
       </span>
       {request.status === 'pending' && (
         <Link
           to="/inbox"
-          className="relative text-[10px] text-accent-600 font-semibold active:opacity-70 transition-opacity flex items-center gap-0.5 before:absolute before:-inset-2 before:content-['']"
+          className="relative text-[10.5px] text-iris-text font-semibold active:opacity-70 transition-opacity flex items-center gap-0.5 before:absolute before:-inset-2 before:content-['']"
         >
-          {t('stl_history_view_in_inbox')} <ChevronRight size={10} />
+          {t('stl_history_view_in_inbox')} <Glyph name="chevron-right" size={11} strokeWidth={2.8} />
         </Link>
       )}
       </div>
-      {/* Withdraw a still-pending request you sent. pay-50 tint + "request"
-          wording keeps it calm but clearly destructive. */}
+      {/* Withdraw a still-pending request you sent — the coral-tinted
+          secondary: calm, but clearly destructive. */}
       {canCancel && onCancel && (
         <button
           type="button"
           onClick={onCancel}
           disabled={cancelling}
-          className="mt-3 w-full min-h-[44px] rounded-xl bg-pay-50 text-pay-text text-[12px] font-semibold active:bg-pay-100 transition-colors disabled:opacity-50"
+          className="m-btn m-btn-danger mt-3.5 w-full text-[12.5px]"
         >
           {cancelling ? t('ltr_cancelling') : t('loan_cancel_request')}
         </button>

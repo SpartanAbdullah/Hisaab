@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react';
-import { Handshake, CheckCircle2 } from 'lucide-react';
 import { Modal } from '../components/Modal';
+import { Glyph } from '../components/Glyph';
 import { useSplitStore } from '../stores/splitStore';
 import { useToast } from '../components/Toast';
 import { useT } from '../lib/i18n';
@@ -55,9 +55,9 @@ export function SettleUpModal({ open, group, debts, currentMemberId, onClose }: 
       <span>{name}</span>
     );
 
-  // Same as renderParty but for the accent-tinted summary card, where the
-  // surrounding text is already accent-600 — "You" gets underline + heavier
-  // weight so it still reads as emphasised.
+  // Same as renderParty but for the violet-tinted summary card, where the
+  // surrounding text is already the readable violet — "You" gets underline +
+  // heavier weight so it still reads as emphasised.
   const renderPartyOnNavy = (memberId: string, name: string) =>
     memberId === currentMemberId ? (
       <span className="font-extrabold underline decoration-2 underline-offset-2">{t('label_you')}</span>
@@ -127,7 +127,8 @@ export function SettleUpModal({ open, group, debts, currentMemberId, onClose }: 
     finally { setSaving(false); }
   };
 
-  const inputClass = "w-full border border-cream-border rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all";
+  // The 1d sunken field (index.css .input-field): inset face, 3:1 edge, violet focus.
+  const inputClass = "input-field";
 
   // Live "remaining after this" figure for the amount step.
   const enteredAmount = Number(amount);
@@ -163,12 +164,12 @@ export function SettleUpModal({ open, group, debts, currentMemberId, onClose }: 
     <Modal open={open} onClose={onClose} title={t('group_settle_title')} footer={
       selectedDebt ? (
         <button onClick={handleSettle} disabled={saving || !canSettle}
-          className="w-full bg-accent-600 text-white rounded-2xl py-3.5 text-sm font-bold disabled:opacity-30 shadow-md shadow-accent-600/20">
+          className="cta-primary">
           {saving ? t('quick_processing') : t('group_settle_save')}
         </button>
       ) : activeDebts.length === 0 ? (
         <button onClick={onClose}
-          className="w-full bg-accent-600 text-white rounded-2xl py-3.5 text-sm font-bold shadow-md shadow-accent-600/20">
+          className="cta-primary">
           {t('settle_done')}
         </button>
       ) : undefined
@@ -176,89 +177,88 @@ export function SettleUpModal({ open, group, debts, currentMemberId, onClose }: 
       <div className="p-5 space-y-4">
         {!selectedDebt ? (
           activeDebts.length === 0 ? (
-            // Calm "all square" empty state — reassuring, not a dead-end line.
+            // Calm "all square" empty state — a green plate + check, the 1d
+            // empty-state recipe; reassuring, not a dead-end line.
             <div className="text-center py-6">
-              <div className="mx-auto w-14 h-14 rounded-3xl bg-receive-50 text-receive-text flex items-center justify-center">
-                <Handshake size={26} strokeWidth={1.8} />
+              <div className="m-plate m-mint mx-auto" aria-hidden>
+                <Glyph name="check" size={26} tone="green" extrude />
               </div>
-              <p className="text-[15px] font-bold text-ink-900 tracking-tight mt-4">{t('settle_all_square')}</p>
-              <p className="text-[12px] text-ink-500 mt-1.5 leading-relaxed max-w-[260px] mx-auto">
+              <p className="text-[15px] font-semibold text-ink-900 tracking-[-0.01em] mt-[18px]">{t('settle_all_square')}</p>
+              <p className="text-[12px] text-ink-600 mt-1.5 leading-relaxed max-w-[260px] mx-auto">
                 {t('settle_all_square_sub')}
               </p>
             </div>
           ) : (
-            activeDebts.map((d, i) => {
-              const involvesMe = d.from === currentMemberId || d.to === currentMemberId;
-              return (
-                <button key={i} onClick={() => selectDebt(d)}
-                  className={`w-full rounded-2xl border p-4 flex items-center justify-between gap-3 text-left active:scale-[0.98] transition-all min-h-[44px] ${
-                    involvesMe ? 'bg-accent-50 border-accent-100' : 'bg-cream-card border-cream-border'
-                  }`}>
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-semibold text-ink-800 flex items-center gap-1 flex-wrap">
-                      {renderParty(d.from, d.fromName)}
-                      <span className="text-ink-400">&rarr;</span>
-                      {renderParty(d.to, d.toName)}
-                    </p>
-                    <p className="text-[10.5px] text-ink-500 mt-0.5">{directionalSubtitle(d)}</p>
-                    {onBehalfOf(d) && (
-                      <p className="text-[10px] text-ink-400 mt-0.5">{t('guest_on_behalf')}</p>
-                    )}
-                  </div>
-                  <p className="text-[14px] font-bold text-ink-900 tabular-nums shrink-0">{formatMoney(d.amount, group.currency)}</p>
-                </button>
-              );
-            })
+            <div className="space-y-2.5">
+              {activeDebts.map((d, i) => {
+                const involvesMe = d.from === currentMemberId || d.to === currentMemberId;
+                return (
+                  <button key={i} onClick={() => selectDebt(d)}
+                    // Debts that involve "You" sit on a violet-tinted tile.
+                    className={`m-tile ${involvesMe ? 'm-violet' : ''} p-4 flex items-center justify-between gap-3 text-left`}>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-ink-800 flex items-center gap-1 flex-wrap">
+                        {renderParty(d.from, d.fromName)}
+                        <Glyph name="arrow-right" size={12} strokeWidth={2.8} className="text-ink-400" />
+                        {renderParty(d.to, d.toName)}
+                      </p>
+                      <p className="text-[10.5px] text-ink-600 mt-0.5">{directionalSubtitle(d)}</p>
+                      {onBehalfOf(d) && (
+                        <p className="text-[10px] text-ink-500 mt-0.5">{t('guest_on_behalf')}</p>
+                      )}
+                    </div>
+                    <p className="text-[14px] font-semibold text-ink-900 tabular-nums tracking-[-0.01em] shrink-0">{formatMoney(d.amount, group.currency)}</p>
+                  </button>
+                );
+              })}
+            </div>
           )
         ) : (
           <>
-            <div className="bg-accent-100 rounded-2xl p-4 text-center">
-              <p className="text-[12px] text-accent-600 font-semibold flex items-center justify-center gap-1.5 flex-wrap">
+            <div className="m-card m-violet p-4 text-center">
+              <p className="text-[12px] text-accent-text font-semibold flex items-center justify-center gap-1.5 flex-wrap">
                 {renderPartyOnNavy(selectedDebt.from, selectedDebt.fromName)}
-                <span className="opacity-60">&rarr;</span>
+                <Glyph name="arrow-right" size={12} strokeWidth={2.8} />
                 {renderPartyOnNavy(selectedDebt.to, selectedDebt.toName)}
               </p>
-              <p className="text-[11px] text-accent-600/80 mt-0.5">{directionalSubtitle(selectedDebt)}</p>
-              <p className="text-xl font-bold text-accent-600 mt-1.5">{formatMoney(selectedDebt.amount, group.currency)}</p>
+              <p className="text-[11px] text-ink-600 mt-0.5">{directionalSubtitle(selectedDebt)}</p>
+              <p className="text-[21px] font-semibold text-accent-text tabular-nums tracking-[-0.03em] mt-1.5">{formatMoney(selectedDebt.amount, group.currency)}</p>
             </div>
 
             {onBehalfOf(selectedDebt) && (
-              <p className="text-[11.5px] text-ink-600 bg-cream-soft border border-cream-hairline rounded-xl px-3 py-2 leading-relaxed">
+              <p className="m-inset text-[11.5px] text-ink-600 px-3 py-2.5 leading-relaxed">
                 {t('guest_settle_note').replace('{name}', onBehalfOf(selectedDebt) ?? '')}
               </p>
             )}
 
             {/* Full / Partial selector. Full is the default and prefills the
                 whole outstanding amount; Partial clears it for a custom slice. */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={chooseFull}
-                className={`min-h-[44px] rounded-2xl px-3 py-2.5 text-[12.5px] font-semibold border transition-all active:scale-[0.98] ${
-                  mode === 'full'
-                    ? 'bg-accent-600 text-white border-accent-600'
-                    : 'bg-cream-card text-ink-700 border-cream-border'
-                }`}
+                aria-pressed={mode === 'full'}
+                className={`selector-base justify-center text-center text-[12.5px] font-semibold text-ink-800 ${mode === 'full' ? 'selector-selected' : ''}`}
               >
                 {t('settle_full').replace('{amount}', formatMoney(selectedDebt.amount, group.currency))}
               </button>
               <button
                 type="button"
                 onClick={choosePartial}
-                className={`min-h-[44px] rounded-2xl px-3 py-2.5 text-[12.5px] font-semibold border transition-all active:scale-[0.98] ${
-                  mode === 'partial'
-                    ? 'bg-accent-600 text-white border-accent-600'
-                    : 'bg-cream-card text-ink-700 border-cream-border'
-                }`}
+                aria-pressed={mode === 'partial'}
+                className={`selector-base justify-center text-center text-[12.5px] font-semibold text-ink-800 ${mode === 'partial' ? 'selector-selected' : ''}`}
               >
                 {t('settle_partial')}
               </button>
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_settle_amount')}</label>
+              <label className="form-label">{t('group_settle_amount')}</label>
               <input
-                className={inputClass + ' mt-1.5 text-lg font-bold'}
+                className={inputClass + ' font-semibold tabular-nums'}
+                // Inline on purpose: index.css pins every <input> to 16px
+                // (iOS focus-zoom guard), which beats font-size utilities.
+                style={{ fontSize: 18 }}
                 type="number"
                 inputMode="decimal"
                 value={amount}
@@ -269,26 +269,26 @@ export function SettleUpModal({ open, group, debts, currentMemberId, onClose }: 
               {hasValidAmount && (
                 fullySettled ? (
                   <p className="text-[11px] font-semibold text-receive-text mt-1.5 flex items-center gap-1">
-                    <CheckCircle2 size={12} />
+                    <Glyph name="check" size={12} strokeWidth={3} />
                     {t('settle_fully_settled')}
                   </p>
                 ) : (
-                  <p className="text-[11px] text-ink-500 mt-1.5">
-                    {t('settle_remaining').replace('{amount}', '')}<span className="font-semibold tabular-nums text-ink-700">{formatMoney(Math.max(0, remainingAfter), group.currency)}</span>
+                  <p className="text-[11px] text-ink-600 mt-1.5">
+                    {t('settle_remaining').replace('{amount}', '')}<span className="font-semibold tabular-nums text-ink-800">{formatMoney(Math.max(0, remainingAfter), group.currency)}</span>
                   </p>
                 )
               )}
             </div>
             {error && (
-              <p role="alert" className="text-[12px] font-medium text-pay-text bg-pay-50 border border-pay-100 rounded-xl px-3 py-2">
+              <p role="alert" className="text-[12px] font-medium text-pay-text bg-pay-50 rounded-xl px-3 py-2">
                 {error}
               </p>
             )}
             <div>
-              <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('group_settle_note')}</label>
-              <input className={inputClass + ' mt-1.5'} value={note} onChange={e => setNote(e.target.value)} placeholder={t('sum_note_placeholder')} />
+              <label className="form-label">{t('group_settle_note')}</label>
+              <input className={inputClass} value={note} onChange={e => setNote(e.target.value)} placeholder={t('sum_note_placeholder')} />
             </div>
-            <button onClick={() => { setSelectedDebt(null); setError(''); }} className="text-[12px] text-ink-500 font-medium underline min-h-[44px]">
+            <button onClick={() => { setSelectedDebt(null); setError(''); }} className="text-[12px] text-ink-600 font-medium underline min-h-[44px]">
               {t('common_back_arrow')}
             </button>
           </>

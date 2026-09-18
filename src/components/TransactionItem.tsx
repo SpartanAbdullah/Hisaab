@@ -1,7 +1,3 @@
-import {
-  ArrowDownLeft, ArrowUpRight, ArrowLeftRight,
-  HandCoins, Handshake, RotateCcw, Target, Landmark, Check, Paperclip, TrendingUp, SlidersHorizontal,
-} from 'lucide-react';
 import { useState } from 'react';
 import type { MouseEvent } from 'react';
 import { format } from 'date-fns';
@@ -9,58 +5,36 @@ import type { Transaction } from '../db';
 import { useAccountStore } from '../stores/accountStore';
 import { useTransactionStore } from '../stores/transactionStore';
 import { useToast } from './Toast';
+import { Glyph } from './Glyph';
 import { useLoanStore } from '../stores/loanStore';
 import { formatMoney } from '../lib/constants';
 import { useT } from '../lib/i18n';
+import type { GlyphName, GlyphTone } from '../lib/glyphs';
 import { parseInternalNote } from '../lib/internalNotes';
 import { resolvePersonName } from '../lib/resolvePersonName';
 import { getActionLabel } from '../lib/transactionLabel';
 
-const iconMap: Record<string, React.ElementType> = {
-  income: ArrowDownLeft,
-  expense: ArrowUpRight,
-  transfer: ArrowLeftRight,
-  loan_given: HandCoins,
-  loan_taken: Handshake,
-  repayment: RotateCcw,
-  goal_contribution: Target,
-  opening_balance: Landmark,
-  adjustment: SlidersHorizontal,
-  investment_buy: TrendingUp,
-  investment_sell: TrendingUp,
-  investment_dividend: TrendingUp,
+// 1d row icon: a 40px tinted square per transaction TYPE, holding a 3c glyph
+// in the same semantic accent — money in on mint, money out on coral, moves
+// between your own accounts on blue, investments on violet, loans you took on
+// gold. Bookkeeping entries (opening balance, corrections) sit on a neutral
+// raised control. Direction still comes from the signed, coloured amount on
+// the right, so the square is never the only cue.
+const TYPE_ICON: Record<string, { square: string; glyph: GlyphName; tone: GlyphTone }> = {
+  income:              { square: 'm-card m-mint', glyph: 'arrow-down', tone: 'green' },
+  repayment:           { square: 'm-card m-mint', glyph: 'undo', tone: 'green' },
+  expense:             { square: 'm-card m-coral', glyph: 'arrow-up', tone: 'coral' },
+  loan_given:          { square: 'm-card m-coral', glyph: 'coins', tone: 'coral' },
+  loan_taken:          { square: 'm-card m-gold', glyph: 'coins', tone: 'gold' },
+  goal_contribution:   { square: 'm-card m-mint', glyph: 'savings', tone: 'green' },
+  transfer:            { square: 'm-card m-blue', glyph: 'swap', tone: 'blue' },
+  opening_balance:     { square: 'm-ctl', glyph: 'bank', tone: 'neutral' },
+  adjustment:          { square: 'm-ctl', glyph: 'sliders', tone: 'neutral' },
+  investment_buy:      { square: 'm-card m-violet', glyph: 'trend', tone: 'violet' },
+  investment_sell:     { square: 'm-card m-violet', glyph: 'trend', tone: 'violet' },
+  investment_dividend: { square: 'm-card m-violet', glyph: 'coins', tone: 'violet' },
 };
-
-// Type-mapped icon chrome. Sukoon collapses the old per-type rainbow into
-// the four semantic buckets that actually carry meaning: money-in (receive
-// green), money-out (pay coral), neutral movement (cream/ink), and "watch"
-// (loan_taken / opening_balance use accent + warn).
-const defaultStyleMap: Record<string, { text: string; bg: string }> = {
-  income:            { text: 'text-receive-text', bg: 'bg-receive-50' },
-  repayment:         { text: 'text-receive-text', bg: 'bg-receive-50' },
-  expense:           { text: 'text-pay-text', bg: 'bg-pay-50' },
-  loan_given:        { text: 'text-pay-text', bg: 'bg-pay-50' },
-  goal_contribution: { text: 'text-accent-600', bg: 'bg-accent-100' },
-  transfer:          { text: 'text-ink-600', bg: 'bg-cream-soft' },
-  loan_taken:        { text: 'text-warn-600', bg: 'bg-warn-50' },
-  opening_balance:   { text: 'text-info-600', bg: 'bg-info-50' },
-  adjustment:        { text: 'text-info-600', bg: 'bg-info-50' },
-  // Investments: buy = money leaving (pay), sell/dividend = money arriving.
-  investment_buy:      { text: 'text-pay-text', bg: 'bg-pay-50' },
-  investment_sell:     { text: 'text-receive-text', bg: 'bg-receive-50' },
-  investment_dividend: { text: 'text-receive-text', bg: 'bg-receive-50' },
-};
-
-// When viewing an account-scoped list (AccountDetailPage), colour the row
-// by where the money actually went rather than its abstract type. Cream/ink
-// neutral tones — the account-page hero already conveys identity in colour.
-const accountTypeStyleMap: Record<string, { text: string; bg: string }> = {
-  cash:           { text: 'text-ink-600', bg: 'bg-cream-soft' },
-  bank:           { text: 'text-ink-600', bg: 'bg-cream-soft' },
-  digital_wallet: { text: 'text-accent-600', bg: 'bg-accent-100' },
-  savings:        { text: 'text-warn-600', bg: 'bg-warn-50' },
-  credit_card:    { text: 'text-pay-text', bg: 'bg-pay-50' },
-};
+const FALLBACK_ICON = { square: 'm-ctl', glyph: 'swap', tone: 'neutral' } as const;
 
 interface Props {
   transaction: Transaction;
@@ -75,18 +49,12 @@ export function TransactionItem({ transaction, accountContextId, onClick }: Prop
   const accounts = useAccountStore((state) => state.accounts);
   const loans = useLoanStore((state) => state.loans);
   const setReconciled = useTransactionStore((state) => state.setReconciled);
-  const Icon = iconMap[transaction.type] ?? ArrowLeftRight;
+  const icon = TYPE_ICON[transaction.type] ?? FALLBACK_ICON;
   const { visibleNote, meta } = parseInternalNote(transaction.notes);
   const isReconciled = transaction.isReconciled ?? false;
 
-  const primaryAccountId = accountContextId || transaction.sourceAccountId || transaction.destinationAccountId;
-  const primaryAccount = primaryAccountId ? accounts.find((account) => account.id === primaryAccountId) : null;
   const sourceAccount = transaction.sourceAccountId ? accounts.find((account) => account.id === transaction.sourceAccountId) : null;
   const destinationAccount = transaction.destinationAccountId ? accounts.find((account) => account.id === transaction.destinationAccountId) : null;
-
-  const style = primaryAccount && accountTypeStyleMap[primaryAccount.type]
-    ? accountTypeStyleMap[primaryAccount.type]
-    : defaultStyleMap[transaction.type] ?? { text: 'text-ink-500', bg: 'bg-cream-soft' };
 
   const personName = resolvePersonName({ personId: transaction.personId, fallback: transaction.relatedPerson });
   const linkedLoan = transaction.relatedLoanId ? loans.find((l) => l.id === transaction.relatedLoanId) ?? null : null;
@@ -174,8 +142,10 @@ export function TransactionItem({ transaction, accountContextId, onClick }: Prop
           onClick();
         }
       } : undefined}
-      className={`flex items-center gap-2.5 py-2.5 ${onClick ? 'cursor-pointer active:opacity-80 transition-opacity' : ''}`}
+      className={`flex items-center gap-2.5 py-3 ${onClick ? 'cursor-pointer active:opacity-80 transition-opacity' : ''}`}
     >
+      {/* Reconcile toggle: a sunken well until checked off, then the green
+          extruded dot. 24px visual, 44px hit area (the ::before). */}
       <button
         type="button"
         onClick={handleReconcileClick}
@@ -183,32 +153,32 @@ export function TransactionItem({ transaction, accountContextId, onClick }: Prop
         aria-pressed={isReconciled}
         aria-label={isReconciled ? t('reconcile_tip_done') : t('reconcile_tip_todo')}
         title={isReconciled ? t('reconcile_tip_done') : t('reconcile_tip_todo')}
-        className={`relative w-6 h-6 rounded-full border flex items-center justify-center shrink-0 transition-all active:scale-95 disabled:opacity-60 before:absolute before:-inset-2.5 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 ${
+        className={`relative w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-transform active:translate-y-px disabled:opacity-60 before:absolute before:-inset-2.5 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 focus-visible:ring-offset-cream-card ${
           isReconciled
-            ? 'bg-receive-600 border-receive-600 text-white'
-            : 'bg-cream-card border-cream-border text-transparent hover:border-receive-600'
+            ? 'm-stat-dot m-stat-dot-receive'
+            : 'm-inset border border-field-border text-transparent hover:border-receive-600'
         }`}
       >
-        <Check size={12} strokeWidth={3} />
+        <Glyph name="check" size={12} strokeWidth={3} />
       </button>
-      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${style.bg} ${style.text}`}>
-        <Icon size={15} strokeWidth={1.8} />
+      <div className={`${icon.square} w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0`}>
+        <Glyph name={icon.glyph} tone={icon.tone} size={19} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-medium text-ink-900 tracking-tight flex items-center gap-1">
+        <p className="text-[13.5px] font-medium text-ink-900 tracking-tight flex items-center gap-1">
           <span className="truncate">
             {title}
             {!labelHasPerson && personName ? ` · ${personName}` : ''}
           </span>
           {transaction.receiptPath ? (
-            <Paperclip size={11} className="text-ink-400 shrink-0" aria-label={t('receipt_attached')} />
+            <Glyph name="receipt" size={12} className="text-ink-400" label={t('receipt_attached')} />
           ) : null}
         </p>
-        <p className="text-[10.5px] text-ink-500 mt-0.5 truncate">
+        <p className="text-[11px] text-ink-500 mt-0.5 truncate">
           {detailParts.join(' · ')}
         </p>
       </div>
-      <p className={`text-[14px] font-semibold tabular-nums tracking-tight ${isDebit ? 'text-pay-text' : 'text-receive-text'}`}>
+      <p className={`text-[14px] font-semibold tabular-nums tracking-tight shrink-0 ${isDebit ? 'text-pay-text' : 'text-receive-text'}`}>
         {isDebit ? '−' : '+'}{formatMoney(displayMoney.amount, displayMoney.currency)}
       </p>
     </div>

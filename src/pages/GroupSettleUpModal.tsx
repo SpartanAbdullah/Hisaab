@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FileText, Copy, MessageCircle } from 'lucide-react';
 import { Modal } from '../components/Modal';
+import { Glyph } from '../components/Glyph';
 import { useToast } from '../components/Toast';
 import { useT } from '../lib/i18n';
 import { useSubmitGuard } from '../lib/useSubmitGuard';
@@ -118,78 +118,80 @@ export function GroupSettleUpModal({ open, onClose, group, debts, expenses, simp
       title={t('gsu_title')}
       footer={
         <div className="flex flex-col gap-2.5">
+          {/* The full plan PDF is this sheet's primary action — violet. */}
           <button
             onClick={handleFullPlanPdf}
             disabled={preparing}
-            className="w-full rounded-2xl py-3.5 text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-40 press"
-            style={{ background: '#0B0E2A' }}
+            className="cta-primary"
           >
-            <FileText size={16} strokeWidth={2.2} /> {preparing ? t('soa_preparing') : t('gsu_full_plan_pdf')}
+            <Glyph name="document" size={17} strokeWidth={2.6} /> {preparing ? t('soa_preparing') : t('gsu_full_plan_pdf')}
           </button>
           <div className="flex gap-2.5">
+            {/* WhatsApp keeps its brand green (the whatsapp token). */}
             <a
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => toast.show({ type: 'success', title: t('reminder_wa_opening') })}
-              className="flex-1 rounded-2xl py-3 text-[13px] font-bold flex items-center justify-center gap-2 press"
-              style={{ background: '#1FA855', color: '#fff' }}
+              className="m-btn m-btn-whatsapp flex-1 text-[13px]"
             >
-              <MessageCircle size={14} /> {t('gsu_send_card')}
+              <Glyph name="whatsapp" size={15} strokeWidth={2.6} /> {t('gsu_send_card')}
             </a>
             <button
               onClick={handleCopy}
               disabled={copying}
-              className="px-4 rounded-2xl py-3 text-[13px] font-bold bg-cream-soft text-ink-700 flex items-center justify-center gap-2 active:bg-cream-border disabled:opacity-30"
+              className="m-btn m-btn-plain px-4 text-[13px]"
             >
-              <Copy size={14} /> {copying ? t('quick_processing') : t('soa_copy')}
+              <Glyph name="copy" size={15} /> {copying ? t('quick_processing') : t('soa_copy')}
             </button>
           </div>
         </div>
       }
     >
-      <div className="space-y-4">
-        <p className="text-[12px] text-ink-500 leading-relaxed">{t('gsu_intro')}</p>
+      <div className="space-y-5">
+        <p className="text-[12px] text-ink-600 leading-relaxed">{t('gsu_intro')}</p>
 
         {/* Member picker — whose card to send. Defaults to you. */}
         <div>
           <p className="form-label">{t('gsu_for_member')}</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2.5">
             {group.members.map((m) => (
               <button
                 key={m.id}
                 type="button"
                 onClick={() => setSelectedId(m.id)}
-                className={`px-3 py-2 rounded-xl text-[12px] font-bold border transition-all active:scale-95 ${
-                  selectedId === m.id ? 'bg-ink-900 text-white border-ink-900' : 'bg-cream-card text-ink-500 border-cream-border'
+                aria-pressed={selectedId === m.id}
+                className={`selector-base w-auto justify-center gap-1.5 min-h-[40px] px-3.5 py-2 rounded-[14px] text-[12px] font-semibold text-ink-800 ${
+                  selectedId === m.id ? 'selector-selected' : ''
                 }`}
               >
+                {selectedId === m.id && <Glyph name="check" size={12} strokeWidth={3} tone="violet" />}
                 {m.name}{m.id === currentMemberId ? ` · ${t('label_you')}` : ''}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Net headline for the selected member. */}
-        <div className={`rounded-2xl p-4 border ${su.net > 0.005 ? 'bg-receive-50/60 border-receive-100/70' : su.net < -0.005 ? 'bg-pay-50/60 border-pay-100/70' : 'bg-cream-soft border-cream-border'}`}>
-          <p className={`text-[10px] font-bold uppercase tracking-widest ${su.net > 0.005 ? 'text-receive-text' : su.net < -0.005 ? 'text-pay-text' : 'text-ink-500'}`}>
+        {/* Net headline for the selected member — a tinted stat card: green
+            when they receive, coral when they pay, plain when square. */}
+        <div className={`m-card p-4 ${su.net > 0.005 ? 'm-mint' : su.net < -0.005 ? 'm-coral' : ''}`}>
+          <p className={`text-[10.5px] font-semibold uppercase tracking-[0.12em] ${su.net > 0.005 ? 'text-receive-text' : su.net < -0.005 ? 'text-pay-text' : 'text-ink-500'}`}>
             {group.currency}
           </p>
-          <p className="text-[15px] font-extrabold text-ink-900 mt-1">{netLabel}</p>
+          <p className="text-[15px] font-semibold text-ink-900 tracking-[-0.01em] mt-1">{netLabel}</p>
         </div>
 
-        {/* Greeting selector (opens the member card). */}
+        {/* Greeting selector (opens the member card) — one of four. */}
         <div>
           <p className="form-label">{t('soa_greeting_label')}</p>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="m-seg flex w-full">
             {(['hello', 'salaam', 'dear', 'none'] as GreetingStyle[]).map((style) => (
               <button
                 key={style}
                 type="button"
                 onClick={() => setGreetingStyle(style)}
-                className={`py-2 rounded-xl text-[11px] font-bold border transition-all active:scale-95 ${
-                  greetingStyle === style ? 'bg-ink-900 text-white border-ink-900' : 'bg-cream-card text-ink-500 border-cream-border'
-                }`}
+                aria-pressed={greetingStyle === style}
+                className="flex-1 min-w-0 min-h-[40px] px-1 text-[11.5px]"
               >
                 {greetLabels[style]}
               </button>
@@ -197,27 +199,29 @@ export function GroupSettleUpModal({ open, onClose, group, debts, expenses, simp
           </div>
         </div>
 
-        {/* Privacy: hide the numbers — names and structure stay. */}
-        <label className="flex items-center justify-between gap-3 rounded-2xl bg-cream-card border border-cream-border px-4 py-3 cursor-pointer">
-          <span className="text-[12.5px] font-semibold text-ink-800">
+        {/* Privacy: hide the numbers — names and structure stay. The whole
+            row is the switch. */}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={hideAmounts}
+          onClick={() => setHideAmounts((v) => !v)}
+          className="selector-base gap-3 px-4 py-3"
+        >
+          <span className="min-w-0 text-[12.5px] font-semibold text-ink-800">
             {t('soa_hide_amounts')}
             <span className="block text-[10.5px] font-normal text-ink-500 mt-0.5">{t('soa_hide_amounts_sub')}</span>
           </span>
-          <input
-            type="checkbox"
-            checked={hideAmounts}
-            onChange={(e) => setHideAmounts(e.target.checked)}
-            className="w-4 h-4 accent-accent-600 shrink-0"
-          />
-        </label>
+          <span className={`m-switch ${hideAmounts ? 'is-on' : ''}`} aria-hidden="true" />
+        </button>
 
-        {/* Preview of the member card. */}
+        {/* Preview of the member card — set in a recessed well. */}
         <div>
           <p className="form-label">{t('soa_preview')}</p>
-          <div className="rounded-2xl bg-cream-soft border border-cream-hairline p-4 max-h-56 overflow-auto">
+          <div className="m-inset p-4 max-h-56 overflow-auto">
             <p className="text-[12px] text-ink-800 leading-relaxed whitespace-pre-line">{message}</p>
           </div>
-          <p className="text-[10px] text-ink-500 mt-2">{t('gsu_pick_hint')}</p>
+          <p className="text-[10.5px] text-ink-500 mt-2">{t('gsu_pick_hint')}</p>
         </div>
       </div>
     </Modal>

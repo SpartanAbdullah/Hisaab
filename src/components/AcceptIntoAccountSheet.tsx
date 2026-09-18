@@ -8,8 +8,8 @@
 // confirmDestructive path there (payables/receivables only, no accounts).
 
 import { useEffect, useMemo, useState } from 'react';
-import { NotebookPen } from 'lucide-react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
 import { useAccountStore } from '../stores/accountStore';
 import { formatMoney, formatSignedMoney } from '../lib/constants';
 import { approxOther } from '../lib/currencyValidation';
@@ -105,27 +105,32 @@ export function AcceptIntoAccountSheet({ open, request, onClose, onConfirm }: Pr
       }
     >
       <div className="space-y-4">
-        {/* The same irreversibility warning the old confirmDestructive showed. */}
-        <p className="text-[12px] text-ink-600 bg-warn-50 rounded-2xl p-3 leading-relaxed">
-          {request.flavor === 'settlement'
-            ? t('confirm_settle_body')
-            : t('confirm_accept_body').replace('{approx}', approx ? `${approx}. ` : '')}
-        </p>
+        {/* The same irreversibility warning the old confirmDestructive showed,
+            on a gold-tinted (heads-up) card. */}
+        <div className="m-card m-gold flex items-start gap-2.5 p-3.5">
+          <Glyph name="alert" size={15} tone="gold" className="mt-0.5" />
+          <p className="text-[12px] text-ink-800 leading-relaxed">
+            {request.flavor === 'settlement'
+              ? t('confirm_settle_body')
+              : t('confirm_accept_body').replace('{approx}', approx ? `${approx}. ` : '')}
+          </p>
+        </div>
 
         <div>
           <label className="form-label">{question}</label>
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {/* Record only — the ledger-only default. */}
             <button
               type="button"
               onClick={() => setSelectedId('')}
+              aria-pressed={selectedId === ''}
               className={selectedId === '' ? 'selector-base selector-selected' : 'selector-base'}
             >
-              <div className="flex items-center gap-2">
-                <NotebookPen size={15} className="text-ink-500" />
+              <div className="flex items-center gap-2.5">
+                <Glyph name="document" size={16} className="text-ink-600" />
                 <div className="text-left">
                   <p className="text-[13px] font-semibold text-ink-800">{t('acpt_record_only')}</p>
-                  <p className="text-[10px] text-ink-500">{t('acpt_record_only_hint')}</p>
+                  <p className="text-[10.5px] text-ink-600">{t('acpt_record_only_hint')}</p>
                 </div>
               </div>
             </button>
@@ -137,16 +142,17 @@ export function AcceptIntoAccountSheet({ open, request, onClose, onConfirm }: Pr
                   key={a.id}
                   type="button"
                   onClick={() => setSelectedId(a.id)}
+                  aria-pressed={isSelected}
                   className={isSelected ? 'selector-base selector-selected' : 'selector-base'}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     <span className="text-sm">{meta?.flag}</span>
                     <div className="text-left">
                       <p className="text-[13px] font-semibold text-ink-800">{a.name}</p>
-                      <p className="text-[10px] text-ink-500 capitalize">{a.type.replace('_', ' ')}</p>
+                      <p className="text-[10.5px] text-ink-600 capitalize">{a.type.replace('_', ' ')}</p>
                     </div>
                   </div>
-                  <p className="text-[13px] font-bold text-ink-800 tabular-nums">
+                  <p className="text-[13px] font-semibold text-ink-800 tabular-nums">
                     {formatSignedMoney(a.balance, a.currency)}
                   </p>
                 </button>
@@ -154,12 +160,12 @@ export function AcceptIntoAccountSheet({ open, request, onClose, onConfirm }: Pr
             })}
           </div>
           {eligible.length === 0 && (
-            <p className="text-[11px] text-ink-500 mt-2">
+            <p className="text-[11px] text-ink-600 mt-2">
               {t('acpt_no_eligible').replace('{currency}', request.currency)}
             </p>
           )}
           {selectedAccount && request.direction !== 'unknown' && (
-            <p className="text-[12px] text-warn-600 bg-warn-50 rounded-2xl p-3 mt-2 leading-relaxed tabular-nums">
+            <p className="m-card m-gold text-[12px] text-warn-700 p-3 mt-2.5 leading-relaxed tabular-nums">
               {t('acpt_balance_effect')
                 .replace('{account}', selectedAccount.name)
                 .replace('{delta}', formatSignedMoney(delta, request.currency))}

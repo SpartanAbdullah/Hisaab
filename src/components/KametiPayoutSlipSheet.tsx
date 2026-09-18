@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { FileText, Copy, MessageCircle } from 'lucide-react';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { Glyph } from './Glyph';
 import { Modal } from './Modal';
 import { useToast } from './Toast';
 import { useT } from '../lib/i18n';
@@ -39,6 +39,7 @@ export function KametiPayoutSlipSheet({ open, onClose, committee, recipient, rou
   // Privacy: hide every figure in the shared slip/text. The witness link (if
   // present) still opens the live ledger with real amounts — noted in the UI.
   const [hideAmounts, setHideAmounts] = useState(false);
+  const hideSwitchId = useId();
 
   useEffect(() => {
     if (open) setHideAmounts(false);
@@ -113,14 +114,17 @@ export function KametiPayoutSlipSheet({ open, onClose, committee, recipient, rou
       onClose={onClose}
       title={t('kslip_title')}
       footer={
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-3">
+          {/* The slip PDF is this sheet's primary action — the primary (violet) button.
+              (It used to be an inline navy fill, which vanished against the
+              dark sheet.) The generated slip's own colours live in
+              lib/kametiSlipPdf.ts and are untouched. */}
           <button
             onClick={handleSendPdf}
             disabled={preparing}
-            className="w-full rounded-2xl py-3.5 text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-40 press"
-            style={{ background: '#0B0E2A' }}
+            className="m-btn m-btn-primary w-full py-3.5 text-[14px]"
           >
-            <FileText size={16} strokeWidth={2.2} /> {preparing ? t('soa_preparing') : t('kslip_pdf')}
+            <Glyph name="document" size={16} /> {preparing ? t('soa_preparing') : t('kslip_pdf')}
           </button>
           <div className="flex gap-2.5">
             <a
@@ -128,17 +132,16 @@ export function KametiPayoutSlipSheet({ open, onClose, committee, recipient, rou
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => toast.show({ type: 'success', title: t('reminder_wa_opening') })}
-              className="flex-1 rounded-2xl py-3 text-[13px] font-bold flex items-center justify-center gap-2 press"
-              style={{ background: '#1FA855', color: '#fff' }}
+              className="m-btn m-btn-whatsapp flex-1 px-3 text-[13px]"
             >
-              <MessageCircle size={14} /> {t('soa_whatsapp_text')}
+              <Glyph name="whatsapp" size={15} /> {t('soa_whatsapp_text')}
             </a>
             <button
               onClick={handleCopy}
               disabled={copying}
-              className="px-4 rounded-2xl py-3 text-[13px] font-bold bg-cream-soft text-ink-700 flex items-center justify-center gap-2 active:bg-cream-border disabled:opacity-30"
+              className="m-btn m-btn-plain px-4 text-[13px]"
             >
-              <Copy size={14} /> {copying ? t('quick_processing') : t('soa_copy')}
+              <Glyph name="copy" size={15} /> {copying ? t('quick_processing') : t('soa_copy')}
             </button>
           </div>
         </div>
@@ -150,39 +153,41 @@ export function KametiPayoutSlipSheet({ open, onClose, committee, recipient, rou
           appearing all at once with the privacy toggle competing for
           attention. */}
       <div className="space-y-4 stagger-in">
-        <div className="rounded-2xl p-4 border bg-receive-50/60 border-receive-100/70">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-receive-text">{t('kslip_received')} · {committee.currency}</p>
+        <div className="m-card m-mint p-4">
+          <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-receive-text">{t('kslip_received')} · {committee.currency}</p>
           {/* A single 4% swell on the amount — enough to read as "here it is",
               far short of anything that would look like celebration confetti
               over someone else's money. This is the app's one use of
               pulse-once, which is why the token still exists. */}
-          <p className="text-[22px] font-extrabold text-ink-900 mt-1 tabular-nums animate-pulse-once">
+          <p className="text-[24px] font-semibold tracking-[-0.03em] text-ink-900 mt-1.5 tabular-nums animate-pulse-once">
             {formatMoney(pool, committee.currency)}
           </p>
-          <p className="text-[11px] text-ink-500 mt-1">
+          <p className="text-[11.5px] text-ink-600 mt-1">
             {t('kslip_intro').replace('{name}', recipient.name).replace('{r}', String(round))}
           </p>
         </div>
 
         {/* Privacy: hide the numbers — the witness link still shows live amounts. */}
-        <label className="flex items-center justify-between gap-3 rounded-2xl bg-cream-card border border-cream-border px-4 py-3 cursor-pointer">
-          <span className="text-[12.5px] font-semibold text-ink-800">
-            {t('soa_hide_amounts')}
-            <span className="block text-[10.5px] font-normal text-ink-500 mt-0.5">
+        <div className="m-card flex items-center justify-between gap-3 px-4 py-3.5">
+          <label htmlFor={hideSwitchId} className="min-w-0 cursor-pointer">
+            <span className="block text-[13px] font-semibold text-ink-900">{t('soa_hide_amounts')}</span>
+            <span className="block text-[11px] text-ink-600 mt-0.5 leading-relaxed">
               {witnessUrl ? `${t('soa_hide_amounts_sub')} ${t('kslip_hide_witness_note')}` : t('soa_hide_amounts_sub')}
             </span>
-          </span>
-          <input
-            type="checkbox"
-            checked={hideAmounts}
-            onChange={(e) => setHideAmounts(e.target.checked)}
-            className="w-4 h-4 accent-accent-600 shrink-0"
+          </label>
+          <button
+            id={hideSwitchId}
+            type="button"
+            role="switch"
+            aria-checked={hideAmounts}
+            onClick={() => setHideAmounts(!hideAmounts)}
+            className="m-switch"
           />
-        </label>
+        </div>
 
         <div>
           <p className="form-label">{t('soa_preview')}</p>
-          <div className="rounded-2xl bg-cream-soft border border-cream-hairline p-4 max-h-56 overflow-auto">
+          <div className="m-inset p-4 max-h-56 overflow-auto">
             <p className="text-[12px] text-ink-800 leading-relaxed whitespace-pre-line">{message}</p>
           </div>
         </div>

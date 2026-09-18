@@ -1,8 +1,13 @@
-import { ChevronRight } from 'lucide-react';
+import { Glyph } from './Glyph';
+import { UserAvatar } from './UserAvatar';
 import { VerifiedBadge } from './VerifiedBadge';
 import type { SplitGroup } from '../db';
 import { formatMoney } from '../lib/constants';
 import { useT } from '../lib/i18n';
+
+// Faces shown in the member stack before it stops — a trip group of twelve
+// shouldn't run the row; the "3 / 12 members" line carries the full count.
+const STACK_MAX = 4;
 
 interface Props {
   group: SplitGroup;
@@ -25,10 +30,13 @@ interface Props {
   onClick: () => void;
 }
 
-// One row in the Groups list (Sukoon screen 07). Balance chip colour encodes
-// direction so a user can skim "who I owe / who owes me" without reading.
-// The skeleton shimmer prevents a misleading "All settled" flash before the
-// batched balance query resolves.
+// One row in the Groups list, in the 1d material: a pressable tile (lit face,
+// one hard wall that collapses under the finger) holding the emoji in a raised
+// control, the member stack, and a hairline footer with the state label, the
+// settle chip and this user's balance. Direction lives in the amount colour
+// (receive green / pay coral) plus the state WORD, never in the tile tint —
+// a list of groups stays calm. The skeleton pulse on the amount prevents a
+// misleading "All settled" flash before the batched balance query resolves.
 export function GroupCard({
   group,
   balance,
@@ -48,6 +56,10 @@ export function GroupCard({
   // The tag has to be on the row itself, not only in the section header, so a
   // search result (which is flat) is never ambiguous.
   const isArchived = Boolean(group.archivedAt);
+  const currentUserId = localStorage.getItem('hisaab_supabase_uid');
+  // The faces still in the group — someone who left is history, not a member
+  // to show. The signed-in user wears the violet "self" avatar.
+  const stack = group.members.filter((m) => m.status !== 'left').slice(0, STACK_MAX);
 
   // Settle-status: prefer an explicit outstandingCount from the parent; fall
   // back to deriving it from this user's net balance (non-zero ⇒ one balance
@@ -56,104 +68,112 @@ export function GroupCard({
   const toSettle = outstandingCount ?? (owed || owes ? 1 : 0);
   const isSquare = toSettle === 0;
 
-  // State copy + colour token mapping. Sukoon's group cards label the state
-  // explicitly ("You're owed" / "You owe" / "All settled") rather than
-  // relying on the +/− sign alone. The two directional labels reuse the
-  // existing group_you_owed / group_you_owe keys — they were hardcoded
-  // English here while their roman-Urdu translations already existed unused
-  // in i18n.ts, which is exactly the leak the lint ratchet exists to stop.
+  // State copy. The group cards label the state explicitly ("You're owed" /
+  // "You owe" / "All settled") rather than relying on the +/− sign alone.
   const stateLabel = owed ? t('group_you_owed') : owes ? t('group_you_owe') : settledLabel;
-  const amountColor = owed
-    ? 'text-receive-text'
-    : owes
-    ? 'text-pay-text'
-    : 'text-ink-400';
 
   return (
     <button
+      type="button"
       onClick={onClick}
-      // 3D clay: sky is the splits domain's tint (CLAY_TINT_BY_DOMAIN). The
-      // row keeps its own 18px radius — between the tile's 16 and the card's
-      // 24 — because the list reads as one rhythm; the lip and press are what
-      // mark it pressable. Direction still comes from the amount colour and
-      // the settle pill, not from the tint, so a list of groups stays calm.
-      className={`clay-tile clay-sky w-full rounded-[18px] p-4 text-left ${
-        isArchived ? 'opacity-75' : ''
-      }`}
+      className={`m-tile rounded-[18px] p-3.5 text-left ${isArchived ? 'opacity-75' : ''}`}
     >
-      <div className="flex items-center gap-3">
-        <div className="relative w-11 h-11 rounded-2xl bg-cream-card border border-cream-hairline flex items-center justify-center text-lg shrink-0">
+      <span className="flex items-center gap-3">
+        <span className="m-ctl relative w-11 h-11 rounded-[15px] flex items-center justify-center text-[19px] leading-none shrink-0">
           {group.emoji}
           {/* Unread-activity dot — present ONLY when there's unread activity, so
-              its mere presence (not its colour) carries the meaning. */}
+              its mere presence (not its colour) carries the meaning. The ring
+              is the card face, so the dot reads as cut out of the corner. */}
           {hasUnreadActivity && (
             <span
-              className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-white bg-pay-600"
+              role="img"
+              className="absolute -top-[3px] -right-[3px] h-3 w-3 rounded-full ring-2 ring-cream-card bg-pay-600"
               aria-label={t('a11y_unread_group')}
             />
           )}
-        </div>
+        </span>
 
-        <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-medium text-ink-900 truncate tracking-tight flex items-center gap-1.5">
+        <span className="flex-1 min-w-0">
+          <span className="flex items-center gap-1.5 min-w-0 text-[14px] font-medium text-ink-900 tracking-[-0.01em]">
             <span className="truncate">{group.name}</span>
             {isArchived && (
-              <span className="shrink-0 rounded-full bg-cream-soft border border-cream-hairline px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-[0.06em] text-ink-500">
+              <span className="m-chip m-chip-neutral m-chip-caps shrink-0">
                 {t('grp_archived_tag')}
               </span>
             )}
             {/* Verified seal: this user is square in the group. */}
             {balanceLoaded && isSquare && <VerifiedBadge size={14} title={t('status_settled')} />}
-          </p>
-          <p className="text-[11px] text-ink-500 mt-0.5">
-            {connected} / {group.members.length} {membersLabel}
-          </p>
-        </div>
+          </span>
+          <span className="flex items-center gap-2 mt-1 min-w-0">
+            {stack.length > 0 && (
+              // Decorative: the members line beside it is the accessible
+              // count. Each face is ringed in the card colour so the overlap
+              // reads as a stack, not a smear.
+              <span className="flex items-center -space-x-1.5 shrink-0" aria-hidden="true">
+                {stack.map((member) => (
+                  <span key={member.id} className="inline-flex rounded-full ring-2 ring-cream-card">
+                    <UserAvatar
+                      name={member.name}
+                      size={20}
+                      self={Boolean(currentUserId) && member.profileId === currentUserId}
+                    />
+                  </span>
+                ))}
+              </span>
+            )}
+            <span className="text-[11px] text-ink-600 truncate">
+              {connected} / {group.members.length} {membersLabel}
+            </span>
+          </span>
+        </span>
 
-        <ChevronRight size={14} className="text-ink-300 shrink-0" />
-      </div>
+        <Glyph name="chevron-right" size={14} className="text-ink-400" />
+      </span>
 
-      <div className="mt-3 pt-3 border-t border-cream-hairline flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold text-ink-500 uppercase tracking-[0.08em] flex items-center gap-1.5 min-w-0">
-          <span className="truncate">{balanceLoaded ? stateLabel : t('loading')}</span>
+      <span className="mt-3 pt-3 border-t border-cream-hairline flex items-center justify-between gap-2">
+        <span className="flex items-center gap-[7px] min-w-0">
+          <span className="text-[11px] font-semibold text-ink-400 uppercase tracking-[0.08em] truncate">
+            {balanceLoaded ? stateLabel : t('loading')}
+          </span>
           {/* Unreconciled marker — a hollow amber ring with a '!' glyph, kept
               visually distinct from the filled unread-activity dot on the
-              avatar so the two signals never read as the same thing. */}
+              emoji so the two signals never read as the same thing. */}
           {hasUnreconciled && (
             <span
-              className="shrink-0 w-3.5 h-3.5 rounded-full border border-warn-600 text-warn-700 flex items-center justify-center text-[8px] font-bold leading-none"
+              role="img"
+              className="shrink-0 w-[15px] h-[15px] rounded-full border border-warn-600 text-warn-700 flex items-center justify-center text-[9px] font-bold leading-none"
               aria-label={t('a11y_unreconciled')}
               title={t('a11y_unreconciled')}
             >
               !
             </span>
           )}
-          {/* Settle-status pill — colour + dot + word, never colour alone. */}
+          {/* Settle-status chip — colour + dot + word, never colour alone:
+              gold while something is still to settle, green once square. */}
           {balanceLoaded && (
-            <span
-              className={`shrink-0 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold normal-case tracking-[0.02em] ${
-                isSquare ? 'bg-receive-50 text-receive-text' : 'bg-warn-50 text-warn-700'
-              }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${isSquare ? 'bg-receive-600' : 'bg-warn-600'}`} />
+            <span className={`m-chip shrink-0 ${isSquare ? 'm-chip-receive' : 'm-chip-gold'}`}>
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${isSquare ? 'bg-receive-600' : 'bg-warn-600'}`}
+                aria-hidden="true"
+              />
               {isSquare ? t('status_settled') : t('group_to_settle').replace('{n}', String(toSettle))}
             </span>
           )}
         </span>
         {!balanceLoaded ? (
-          <div className="h-3.5 w-16 rounded-full bg-cream-hairline animate-pulse" />
+          <span className="m-skel h-3.5 w-16 rounded-full shrink-0" aria-hidden="true" />
         ) : owed ? (
-          <p className={`text-[14px] font-semibold tabular-nums ${amountColor}`}>
+          <span className="text-[14px] font-semibold tabular-nums tracking-[-0.01em] text-receive-text shrink-0">
             +{formatMoney(balance, group.currency)}
-          </p>
+          </span>
         ) : owes ? (
-          <p className={`text-[14px] font-semibold tabular-nums ${amountColor}`}>
+          <span className="text-[14px] font-semibold tabular-nums tracking-[-0.01em] text-pay-text shrink-0">
             −{formatMoney(Math.abs(balance), group.currency)}
-          </p>
+          </span>
         ) : (
-          <p className="text-[12px] text-ink-400 font-medium">—</p>
+          <span className="text-[12px] font-medium text-ink-400 shrink-0">—</span>
         )}
-      </div>
+      </span>
     </button>
   );
 }

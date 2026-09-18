@@ -51,41 +51,8 @@ describe('meetsAA', () => {
   });
 });
 
-// Regression guard for the token fixes in src/index.css (audit
-// 09-ui-quality.md §4; math documented in docs/accessibility-contrast.md).
-// If these start failing, someone changed a token hex back toward the
-// pre-fix value without re-deriving new AA-passing values.
-describe('Sukoon token contrast — light theme (fixed values)', () => {
-  const CREAM_BG = '#F4F2EC';
-  const WARN_50 = '#FBF3DD';
-
-  it('ink-400 on cream-bg clears normal-text AA', () => {
-    expect(meetsAA(contrastRatio('#696C8B', CREAM_BG))).toBe(true);
-  });
-
-  it('ink-500 on cream-bg clears normal-text AA', () => {
-    expect(meetsAA(contrastRatio('#60627B', CREAM_BG))).toBe(true);
-  });
-
-  it('warn-600 on warn-50 clears normal-text AA', () => {
-    expect(meetsAA(contrastRatio('#8D6813', WARN_50))).toBe(true);
-  });
-});
-
-describe('Sukoon token contrast — dark theme (fixed values)', () => {
-  const DARK_CREAM_BG = '#131419';
-  const DARK_CREAM_CARD = '#1E1F27';
-  const DARK_PAY_50 = '#2A1611';
-
-  it('dark ink-400 on dark cream-bg clears normal-text AA', () => {
-    expect(meetsAA(contrastRatio('#848699', DARK_CREAM_BG))).toBe(true);
-  });
-
-  it('dark ink-400 on dark cream-card clears normal-text AA (the binding surface — cream-card is lighter than cream-bg in dark mode, so it gives LESS contrast for light text, unlike in light mode)', () => {
-    expect(meetsAA(contrastRatio('#848699', DARK_CREAM_CARD))).toBe(true);
-  });
-
-  it('dark pay-700 on dark pay-50 clears normal-text AA', () => {
-    expect(meetsAA(contrastRatio('#CA6752', DARK_PAY_50))).toBe(true);
-  });
-});
+// Token-pair contrast lives in designTokens.test.ts since the 1d redesign
+// (2026-09-18): it reads the palette from src/lib/designTokens.ts — which is
+// itself checked against src/index.css — and proves every text/surface, chip,
+// fill, icon and control pairing in BOTH themes. The hand-copied hex pairs
+// that used to sit here could drift from the stylesheet; those cannot.

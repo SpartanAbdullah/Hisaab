@@ -8,7 +8,9 @@ import { useToast } from '../components/Toast';
 import { AccountSelect } from '../components/AccountSelect';
 import { formatMoney } from '../lib/constants';
 import { useT } from '../lib/i18n';
-import { GraduationCap, HeartPulse, PartyPopper, Plane, Home, Zap, MoreHorizontal } from 'lucide-react';
+import { Glyph } from '../components/Glyph';
+import { Tile3D } from '../components/Tile3D';
+import type { Tint } from '../lib/material';
 import type { Currency } from '../db';
 import { localIso } from '../lib/localDate';
 
@@ -17,22 +19,19 @@ interface Props {
   onClose: () => void;
 }
 
-const CATEGORIES = [
-  { value: 'Education', icon: GraduationCap, gradient: 'from-blue-500 to-blue-600', soft: 'bg-blue-50 text-blue-600 border-blue-100' },
-  { value: 'Medical', icon: HeartPulse, gradient: 'from-rose-500 to-rose-600', soft: 'bg-pay-50 text-pay-text border-rose-100' },
-  { value: 'Event', icon: PartyPopper, gradient: 'from-purple-500 to-purple-600', soft: 'bg-purple-50 text-purple-600 border-purple-100' },
-  { value: 'Travel', icon: Plane, gradient: 'from-cyan-500 to-cyan-600', soft: 'bg-cyan-50 text-cyan-600 border-cyan-100' },
-  { value: 'Rent', icon: Home, gradient: 'from-amber-500 to-amber-600', soft: 'bg-warn-50 text-warn-600 border-amber-100' },
-  { value: 'Utilities', icon: Zap, gradient: 'from-yellow-500 to-yellow-600', soft: 'bg-yellow-50 text-yellow-600 border-yellow-100' },
-  { value: 'Other', icon: MoreHorizontal, gradient: 'from-slate-500 to-slate-600', soft: 'bg-cream-soft text-ink-700 border-cream-hairline' },
+// Bill categories as glyph tiles — the same glyph + accent the Goals page's
+// upcoming-bill rows use for each category.
+const CATEGORIES: { value: string; glyph: string; tint: Tint }[] = [
+  { value: 'Education', glyph: 'document', tint: 'sky' },
+  { value: 'Medical', glyph: 'shield', tint: 'coral' },
+  { value: 'Event', glyph: 'gift', tint: 'accent' },
+  { value: 'Travel', glyph: 'globe', tint: 'sky' },
+  { value: 'Rent', glyph: 'home', tint: 'gold' },
+  { value: 'Utilities', glyph: 'flame', tint: 'gold' },
+  { value: 'Other', glyph: 'more', tint: 'neutral' },
 ];
 
-const REMINDER_OPTIONS = [
-  { value: 3, label: '3 din pehle' },
-  { value: 7, label: '7 din pehle' },
-  { value: 14, label: '14 din pehle' },
-  { value: 30, label: '30 din pehle' },
-];
+const REMINDER_DAYS = [3, 7, 14, 30];
 
 export function AddUpcomingExpenseModal({ open, onClose }: Props) {
   const { accounts } = useAccountStore();
@@ -101,19 +100,19 @@ export function AddUpcomingExpenseModal({ open, onClose }: Props) {
     <button
       onClick={() => setStep(s => s + 1)}
       disabled={!canNext()}
-      className="w-full bg-accent-600 text-white rounded-2xl py-4 text-sm font-bold disabled:opacity-30 shadow-md shadow-accent-600/20 transition-all"
+      className="m-btn m-btn-primary w-full py-4 text-[14px]"
     >
-      {t('quick_next')} &rarr;
+      {t('quick_next')}<Glyph name="arrow-right" size={16} strokeWidth={2.8} />
     </button>
   ) : (
     <div className="flex gap-2.5">
-      <button onClick={() => setStep(s => s - 1)} className="px-4 py-3.5 rounded-2xl text-sm font-semibold border border-cream-border text-ink-500 active:bg-cream-soft transition-all">
-        &larr;
+      <button onClick={() => setStep(s => s - 1)} className="m-btn m-btn-plain px-4" aria-label={t('back')}>
+        <Glyph name="arrow-left" size={17} />
       </button>
       <button
         onClick={handleSubmit}
         disabled={saving || !canNext()}
-        className="flex-1 bg-accent-600 text-white rounded-2xl py-3.5 text-sm font-bold disabled:opacity-30 shadow-md shadow-accent-600/20"
+        className="m-btn m-btn-primary flex-1 py-3.5 text-[14px]"
       >
         {saving ? t('upcoming_creating') : t('upcoming_create')}
       </button>
@@ -123,9 +122,9 @@ export function AddUpcomingExpenseModal({ open, onClose }: Props) {
   return (
     <Modal open={open} onClose={handleClose} title={stepTitles[step]} footer={footer} confirmClose={() => guardClose(isDirty)}>
       {/* Step progress */}
-      <div className="flex gap-1.5 mb-5">
+      <div className="flex gap-1.5 mb-5" aria-hidden="true">
         {[0, 1, 2, 3].map(i => (
-          <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= step ? 'bg-accent-1000' : 'bg-cream-soft'}`} />
+          <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i <= step ? 'bg-gradient-to-r from-accent-500 to-accent-600' : 'bg-accent-100'}`} />
         ))}
       </div>
 
@@ -145,21 +144,19 @@ export function AddUpcomingExpenseModal({ open, onClose }: Props) {
             <label className="form-label">
               {t('category')}
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              {CATEGORIES.map(cat => {
-                const CatIcon = cat.icon;
-                const active = category === cat.value;
-                return (
-                  <button key={cat.value} type="button" onClick={() => setCategory(cat.value)}
-                    className={`p-3 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all active:scale-95 ${
-                      active ? `bg-gradient-to-br ${cat.gradient} text-white border-transparent shadow-md` : `bg-cream-card ${cat.soft}`
-                    }`}
-                  >
-                    <CatIcon size={20} strokeWidth={active ? 2.2 : 1.5} />
-                    <span className="text-[10px] font-bold">{cat.value}</span>
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-3 gap-2.5">
+              {CATEGORIES.map(cat => (
+                <Tile3D
+                  key={cat.value}
+                  tint={cat.tint}
+                  icon={cat.glyph}
+                  iconPlacement="top"
+                  iconSize="sm"
+                  title={cat.value}
+                  selected={category === cat.value}
+                  onClick={() => setCategory(cat.value)}
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -169,9 +166,9 @@ export function AddUpcomingExpenseModal({ open, onClose }: Props) {
       {step === 1 && (
         <div className="space-y-4 animate-fade-in">
           <div className="text-center py-2">
-            <div className="inline-flex items-center gap-2 bg-cream-soft rounded-xl px-3 py-1.5 mb-4">
-              <span className="text-[11px] font-bold text-ink-500">{title}</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-200/60 text-ink-500 font-semibold">{category}</span>
+            <div className="m-inset inline-flex items-center gap-2 rounded-xl px-3 py-1.5 mb-4">
+              <span className="text-[11.5px] font-semibold text-ink-700">{title}</span>
+              <span className="m-chip m-chip-neutral">{category}</span>
             </div>
           </div>
           <div>
@@ -191,8 +188,8 @@ export function AddUpcomingExpenseModal({ open, onClose }: Props) {
       {step === 2 && (
         <div className="space-y-4 animate-fade-in">
           <div className="text-center py-2">
-            <p className="text-3xl font-bold tabular-nums text-ink-900">{parseFloat(amount || '0').toLocaleString()}</p>
-            <p className="text-[11px] text-ink-500 mt-1">{title} · {category}</p>
+            <p className="m-num m-num-violet text-[34px]">{parseFloat(amount || '0').toLocaleString()}</p>
+            <p className="text-[11.5px] text-ink-600 mt-2.5">{title} · {category}</p>
           </div>
           <div>
             <label className="form-label">
@@ -211,12 +208,12 @@ export function AddUpcomingExpenseModal({ open, onClose }: Props) {
       {step === 3 && (
         <div className="space-y-4 animate-fade-in">
           {/* Summary bar */}
-          <div className="bg-cream-soft/80 rounded-2xl p-3.5 flex items-center justify-between border border-cream-hairline">
-            <div>
-              <p className="text-[13px] font-semibold text-ink-800">{title}</p>
-              <p className="text-[10px] text-ink-500">{category} · {dueDate}</p>
+          <div className="m-inset p-3.5 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[13.5px] font-semibold text-ink-900 truncate">{title}</p>
+              <p className="text-[11px] text-ink-500 mt-0.5">{category} · {dueDate}</p>
             </div>
-            <span className="font-bold text-[15px] tabular-nums text-ink-900">{parseFloat(amount || '0').toLocaleString()}</span>
+            <span className="font-semibold text-[16px] tabular-nums text-ink-900 shrink-0">{parseFloat(amount || '0').toLocaleString()}</span>
           </div>
 
           {/* Account selection */}
@@ -233,12 +230,11 @@ export function AddUpcomingExpenseModal({ open, onClose }: Props) {
               {t('auem_reminder_label')}
             </label>
             <div className="flex gap-2 flex-wrap">
-              {REMINDER_OPTIONS.map(opt => (
-                <button key={opt.value} type="button" onClick={() => setReminderDays(opt.value)}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold border transition-all active:scale-95 ${
-                    reminderDays === opt.value ? 'bg-ink-900 text-white border-ink-900 shadow-sm' : 'bg-cream-card text-ink-500 border-cream-border'
-                  }`}
-                >{opt.label}</button>
+              {REMINDER_DAYS.map(days => (
+                <button key={days} type="button" onClick={() => setReminderDays(days)}
+                  aria-pressed={reminderDays === days}
+                  className="m-pill"
+                >{t('mv_days_before').replace('{n}', String(days))}</button>
               ))}
             </div>
           </div>

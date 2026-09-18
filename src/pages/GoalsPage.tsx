@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Target, CalendarClock, CheckCircle, XCircle, GraduationCap, HeartPulse, PartyPopper, Plane, Home, Zap, MoreHorizontal, Plus } from 'lucide-react';
+import { Target } from 'lucide-react';
 import { useGoalStore } from '../stores/goalStore';
 import { useAccountStore } from '../stores/accountStore';
 import { useUpcomingExpenseStore } from '../stores/upcomingExpenseStore';
@@ -8,8 +8,10 @@ import { NavyHero, TopBar } from '../components/NavyHero';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { EmptyState } from '../components/EmptyState';
 import { Card3D } from '../components/Card3D';
-import { Icon3D } from '../components/Icon3D';
-import type { ClayTint } from '../lib/clay';
+import { Glyph } from '../components/Glyph';
+import { ProgressRing } from '../components/ProgressRing';
+import type { Tint } from '../lib/material';
+import type { GlyphName, GlyphTone } from '../lib/glyphs';
 import { PageErrorState } from '../components/PageErrorState';
 import { ListSkeleton } from '../components/ListSkeleton';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
@@ -26,25 +28,18 @@ import type { Goal } from '../db';
 
 const GOAL_MILESTONES = [25, 50, 75, 100];
 
-const categoryIconMap: Record<string, React.ElementType> = {
-  Education: GraduationCap,
-  Medical: HeartPulse,
-  Event: PartyPopper,
-  Travel: Plane,
-  Rent: Home,
-  Utilities: Zap,
-  Other: MoreHorizontal,
+// Upcoming-bill category → 3c glyph + accent (the same map the add-bill
+// sheet's category tiles use).
+const CATEGORY_GLYPH: Record<string, { glyph: GlyphName; tone: GlyphTone }> = {
+  Education: { glyph: 'document', tone: 'blue' },
+  Medical: { glyph: 'shield', tone: 'coral' },
+  Event: { glyph: 'gift', tone: 'violet' },
+  Travel: { glyph: 'globe', tone: 'blue' },
+  Rent: { glyph: 'home', tone: 'gold' },
+  Utilities: { glyph: 'flame', tone: 'gold' },
+  Other: { glyph: 'more', tone: 'neutral' },
 };
-
-const categoryColorMap: Record<string, { bg: string; text: string }> = {
-  Education: { bg: 'bg-info-50', text: 'text-info-600' },
-  Medical: { bg: 'bg-pay-100', text: 'text-pay-600' },
-  Event: { bg: 'bg-accent-100', text: 'text-accent-600' },
-  Travel: { bg: 'bg-info-50', text: 'text-info-600' },
-  Rent: { bg: 'bg-warn-50', text: 'text-warn-600' },
-  Utilities: { bg: 'bg-warn-50', text: 'text-warn-600' },
-  Other: { bg: 'bg-cream-soft', text: 'text-ink-600' },
-};
+const DEFAULT_CATEGORY_GLYPH = { glyph: 'calendar', tone: 'neutral' } as const;
 
 export function GoalsPage() {
   const { goals, loadGoals, addContribution, updateGoal, correctSavedAmount, deleteGoal } = useGoalStore();
@@ -229,7 +224,7 @@ export function GoalsPage() {
 
   return (
     <main className="min-h-dvh bg-cream-bg pb-28">
-      <NavyHero>
+      <NavyHero accent="green">
         <TopBar
           title={t('goals_title')}
           back
@@ -237,24 +232,24 @@ export function GoalsPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowAdd(true)}
-                className="h-9 px-3 rounded-xl bg-white/10 active:bg-white/15 flex items-center gap-1.5 text-[12px] font-semibold text-white transition-colors"
+                className="m-ctl h-9 px-3 flex items-center gap-1.5 text-[12px] font-semibold text-accent-text"
                 aria-label={t('goals_a11y_add')}
               >
-                <Plus size={12} strokeWidth={2.4} /> {t('goals_add_short')}
+                <Glyph name="plus" size={13} strokeWidth={3} /> {t('goals_add_short')}
               </button>
               <button
                 onClick={() => setShowAddExpense(true)}
-                className="h-9 px-3 rounded-xl bg-white/10 active:bg-white/15 flex items-center gap-1.5 text-[12px] font-semibold text-white transition-colors"
+                className="m-ctl h-9 px-3 flex items-center gap-1.5 text-[12px] font-semibold text-white/90"
                 aria-label={t('goals_a11y_add_bill')}
               >
-                <Plus size={12} strokeWidth={2.4} /> {t('goals_add_bill_short')}
+                <Glyph name="plus" size={13} strokeWidth={3} /> {t('goals_add_bill_short')}
               </button>
               <LanguageToggle />
             </div>
           }
         />
         <div className="px-5 pb-7">
-          <p className="text-[10.5px] font-semibold text-white/55 tracking-[0.12em] uppercase">
+          <p className="text-[10.5px] font-semibold text-white/70 tracking-[0.12em] uppercase">
             {goals.length === 1
               ? t('goals_count_one')
               : t('goals_count_many').replace('{n}', String(goals.length))}
@@ -279,22 +274,22 @@ export function GoalsPage() {
       {/* First-load skeleton — never flash "No goals yet" before the
           goals + upcoming-expenses queries finish. */}
       {loadStatus === 'loading' && goals.length === 0 && upcomingExpenses.length === 0 && (
-        <div className="px-5 pt-5"><ListSkeleton rows={3} /></div>
+        <ListSkeleton rows={3} />
       )}
 
       {/* Upcoming Expenses Section */}
       {upcomingExpenses.length > 0 && (
-        <div className="px-5 pt-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[11px] font-bold text-ink-500 uppercase tracking-widest flex items-center gap-1.5">
-              <CalendarClock size={12} /> {t('upcoming_title')}
+        <div>
+          <div className="flex items-center justify-between mb-2.5 px-1">
+            <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] flex items-center gap-1.5">
+              <Glyph name="calendar" size={12} tone="violet" /> {t('upcoming_title')}
             </h2>
             <button
               onClick={() => setShowAddExpense(true)}
-              className="text-[11px] font-semibold text-accent-600 flex items-center gap-1 active:opacity-70"
+              className="text-[11px] font-semibold text-accent-text flex items-center gap-1 min-h-[32px] active:opacity-70"
               aria-label={t('goals_a11y_add_bill')}
             >
-              <Plus size={11} strokeWidth={2.5} /> {t('goals_add_bill_short')}
+              <Glyph name="plus" size={12} strokeWidth={3} /> {t('goals_add_bill_short')}
             </button>
           </div>
           <div className="space-y-2.5">
@@ -307,13 +302,12 @@ export function GoalsPage() {
               const isSoon = daysLeft > 7 && daysLeft <= 30;
               const hasInsufficientBalance = account ? exp.amount > account.balance : false;
 
-              const CatIcon = categoryIconMap[exp.category] ?? CalendarClock;
-              const catColor = categoryColorMap[exp.category] ?? { bg: 'bg-cream-soft', text: 'text-ink-500' };
+              const cat = CATEGORY_GLYPH[exp.category] ?? DEFAULT_CATEGORY_GLYPH;
 
-              // 3D clay: the same urgency ladder the flat tint encoded —
-              // coral for overdue/urgent, gold for due-today/soon, mint for
-              // everything comfortably ahead.
-              const cardTint: ClayTint = isOverdue || isUrgent
+              // The same urgency ladder the flat tint encoded — coral for
+              // overdue/urgent, gold for due-today/soon, mint for everything
+              // comfortably ahead.
+              const cardTint: Tint = isOverdue || isUrgent
                 ? 'coral'
                 : isDueToday || isSoon
                   ? 'gold'
@@ -321,27 +315,27 @@ export function GoalsPage() {
 
               return (
                 <Card3D key={exp.id} tint={cardTint} padding="sm"
-                  className="animate-fade-in" style={{ animationDelay: `${i * 60}ms` }}>
+                  className="animate-fade-in" style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}>
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${catColor.bg} ${catColor.text}`}>
-                      <CatIcon size={18} strokeWidth={1.8} />
+                    <div className="m-ctl w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0">
+                      <Glyph name={cat.glyph} tone={cat.tone} size={19} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-[13px] text-ink-900 tracking-tight truncate">{exp.title}</p>
-                      <p className="text-[10px] text-ink-500 mt-0.5">
-                        {account?.name ?? 'Unknown'} — {format(new Date(exp.dueDate), 'dd MMM yyyy')}
+                      <p className="font-semibold text-[13.5px] text-ink-900 tracking-tight truncate">{exp.title}</p>
+                      <p className="text-[11px] text-ink-600 mt-0.5 truncate">
+                        {account?.name ?? t('mv_unknown_account')} — {format(new Date(exp.dueDate), 'dd MMM yyyy')}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-[14px] font-bold tabular-nums text-ink-900">
+                      <p className="text-[14px] font-semibold tabular-nums text-ink-900">
                         {formatMoney(exp.amount, exp.currency)}
                       </p>
-                      <p className={`text-[10px] font-bold mt-0.5 ${
-                        isOverdue ? 'text-pay-600' :
+                      <p className={`text-[10.5px] font-semibold mt-0.5 ${
+                        isOverdue ? 'text-pay-text' :
                         isDueToday ? 'text-warn-600' :
                         isUrgent ? 'text-pay-text' :
                         isSoon ? 'text-warn-600' :
-                        'text-receive-600'
+                        'text-receive-text'
                       }`}>
                         {isOverdue ? t('upcoming_overdue') :
                          isDueToday ? t('upcoming_due_today') :
@@ -352,20 +346,20 @@ export function GoalsPage() {
 
                   {/* Low balance warning */}
                   {hasInsufficientBalance && (
-                    <div className="mt-2.5 bg-pay-50 rounded-xl px-3 py-2 flex items-center gap-2">
-                      <span className="text-[10px]">&#x26a0;&#xfe0f;</span>
-                      <p className="text-[10px] text-pay-600 font-bold">
+                    <div className="m-inset mt-3 px-3 py-2 flex items-center gap-2">
+                      <Glyph name="alert" size={13} tone="coral" />
+                      <p className="text-[11px] text-pay-text font-semibold">
                         {t('upcoming_low_balance')} — {account?.name}: {formatMoney(account?.balance ?? 0, exp.currency)}
                       </p>
                     </div>
                   )}
 
                   {/* Actions */}
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex gap-2.5 mt-3.5">
                     <button onClick={() => handleBillDone(exp)}
-                      className="flex-1 min-h-[44px] py-2 rounded-xl border border-receive-100 text-receive-600 text-[11px] font-bold flex items-center justify-center gap-1.5 active:bg-receive-50 transition-all"
+                      className="m-btn m-btn-green flex-1 py-2 px-3 text-[12px]"
                     >
-                      <CheckCircle size={12} /> {t('upcoming_status_done')}
+                      <Glyph name="check" size={13} strokeWidth={3} /> {t('upcoming_status_done')}
                     </button>
                     <button onClick={() => {
                         // Instant cancel with an Undo — the Cancel button sits
@@ -378,9 +372,9 @@ export function GoalsPage() {
                           action: { label: t('undo'), onPress: () => void updateStatus(exp.id, prev) },
                         });
                       }}
-                      className="min-h-[44px] py-2 px-3 rounded-xl border border-pay-100 text-pay-text flex items-center gap-1.5 active:bg-pay-50 transition-all text-[11px] font-bold"
+                      className="m-btn m-btn-danger py-2 px-3.5 text-[12px]"
                     >
-                      <XCircle size={12} /> {t('upcoming_status_cancel')}
+                      <Glyph name="close" size={13} strokeWidth={3} /> {t('upcoming_status_cancel')}
                     </button>
                   </div>
                 </Card3D>
@@ -391,14 +385,14 @@ export function GoalsPage() {
       )}
 
       {/* Goals Section */}
-      <div className="px-5 pt-5 space-y-3">
+      <div className="space-y-3">
         {goals.length > 0 && (
-          <h2 className="text-[11px] font-bold text-ink-500 uppercase tracking-widest flex items-center gap-1.5">
-            <Target size={12} /> {t('goals_title')}
+          <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] flex items-center gap-1.5 px-1">
+            <Glyph name="savings" size={12} tone="green" /> {t('goals_title')}
           </h2>
         )}
         {loadStatus === 'ready' && goals.length === 0 && upcomingExpenses.length === 0 && (
-          <EmptyState icon={Target} clayIcon="piggybank" tone="receive" title={t('empty_goals_title')} description={t('empty_goals_desc')} subhint={t('empty_goals_subhint')} actionLabel={t('empty_goals_cta')} onAction={() => setShowAdd(true)} />
+          <EmptyState icon={Target} clayIcon="savings" tone="receive" title={t('empty_goals_title')} description={t('empty_goals_desc')} subhint={t('empty_goals_subhint')} actionLabel={t('empty_goals_cta')} onAction={() => setShowAdd(true)} />
         )}
         {goals.map((g, i) => {
           const progress = g.targetAmount > 0 ? (g.savedAmount / g.targetAmount) * 100 : 0;
@@ -428,39 +422,48 @@ export function GoalsPage() {
             return g.savedAmount >= expected - 0.01;
           })();
           return (
-            // 3D clay tier 2: mint is the savings tint, and a finished goal
-            // wears the trophy. `style` carries the staggered entrance delay,
-            // which cannot be a class because the value is an index.
+            // Mint is the savings tint; the ring around the glyph fills with
+            // the goal, and a finished goal wears the trophy. `style` carries
+            // the staggered entrance delay, which cannot be a class because
+            // the value is an index.
             <Card3D key={g.id} tint="mint" padding="lg"
-              className="animate-fade-in" style={{ animationDelay: `${i * 60}ms` }}>
+              className="animate-fade-in" style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}>
               <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 flex items-center justify-center shrink-0">
-                  <Icon3D name={isComplete ? 'trophy' : 'piggybank'} size="sm" />
-                </div>
+                <ProgressRing
+                  size={48}
+                  strokeWidth={4}
+                  progress={Math.min(progress, 100) / 100}
+                  color="var(--color-glyph-green)"
+                >
+                  <Glyph name={isComplete ? 'trophy' : 'savings'} tone="green" size={20} />
+                </ProgressRing>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-[14px] text-ink-900 tracking-tight">{g.title}</p>
-                  <p className="text-[11px] text-ink-500 mt-0.5">
+                  <p className="text-[11px] text-ink-600 mt-0.5">
                     {account ? `${account.name} · ${g.currency}` : g.currency}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className={`text-[14px] font-bold tabular-nums ${isComplete ? 'text-receive-600' : 'text-accent-600'}`}>
+                  <p className={`text-[15px] font-semibold tabular-nums ${isComplete ? 'text-receive-text' : 'text-ink-900'}`}>
                     {Math.round(progress)}%
                   </p>
-                  {isComplete && <p className="text-[10px] text-receive-600 font-bold">{t('goal_done')}</p>}
+                  {isComplete && <p className="text-[10px] text-receive-text font-semibold">{t('goal_done')}</p>}
                 </div>
                 <div className="relative">
                   <button
                     onClick={() => setMenuGoalId(menuGoalId === g.id ? null : g.id)}
-                    className="w-8 h-8 rounded-xl flex items-center justify-center text-ink-400 active:bg-cream-soft"
+                    className="m-ctl relative w-8 h-8 rounded-[10px] flex items-center justify-center before:absolute before:-inset-1.5 before:content-['']"
                     aria-label={t('goal_manage')}
+                    aria-expanded={menuGoalId === g.id}
                   >
-                    <MoreHorizontal size={16} />
+                    <Glyph name="more" size={16} strokeWidth={3} className="text-ink-600" />
                   </button>
                   {menuGoalId === g.id && (
                     <>
                       <div className="fixed inset-0 z-40" role="presentation" onClick={() => setMenuGoalId(null)} />
-                      <div className="absolute right-0 top-9 z-50 bg-cream-card rounded-2xl shadow-xl shadow-navy-900/15 border border-cream-border py-1.5 w-52 animate-fade-in">
+                      {/* bg-cream-card, not m-card: inside the mint card an
+                          m-card would inherit the mint tint and walls. */}
+                      <div className="absolute right-0 top-10 z-50 bg-cream-card rounded-2xl border border-cream-border shadow-[0_18px_40px_-12px_rgba(0,0,0,0.45)] py-1.5 w-52 animate-fade-in">
                         <button
                           onClick={() => {
                             setMenuGoalId(null);
@@ -469,8 +472,9 @@ export function GoalsPage() {
                             setEditDate(g.targetDate ?? '');
                             setEditGoal(g);
                           }}
-                          className="w-full px-4 py-2.5 text-left text-[13px] font-medium text-ink-800 active:bg-cream-soft"
+                          className="w-full px-4 py-2.5 min-h-[44px] flex items-center gap-2.5 text-left text-[13px] font-medium text-ink-800 active:bg-cream-soft"
                         >
+                          <Glyph name="edit" size={15} className="text-ink-500" />
                           {t('goal_menu_edit')}
                         </button>
                         <button
@@ -479,8 +483,9 @@ export function GoalsPage() {
                             setCorrectAmount(String(g.savedAmount));
                             setCorrectGoal(g);
                           }}
-                          className="w-full px-4 py-2.5 text-left text-[13px] font-medium text-ink-800 active:bg-cream-soft"
+                          className="w-full px-4 py-2.5 min-h-[44px] flex items-center gap-2.5 text-left text-[13px] font-medium text-ink-800 active:bg-cream-soft"
                         >
+                          <Glyph name="sliders" size={15} className="text-ink-500" />
                           {t('goal_menu_correct')}
                         </button>
                         <button
@@ -488,8 +493,9 @@ export function GoalsPage() {
                             setMenuGoalId(null);
                             void handleGoalDelete(g);
                           }}
-                          className="w-full px-4 py-2.5 text-left text-[13px] font-medium text-pay-text active:bg-pay-50"
+                          className="w-full px-4 py-2.5 min-h-[44px] flex items-center gap-2.5 text-left text-[13px] font-medium text-pay-text active:bg-pay-50"
                         >
+                          <Glyph name="trash" size={15} />
                           {t('goal_menu_delete')}
                         </button>
                       </div>
@@ -502,8 +508,8 @@ export function GoalsPage() {
                   claims is stored there (a balance correction desynced them).
                   One tap re-syncs savedAmount to the account's reality. */}
               {account && account.balance < g.savedAmount - 0.005 && (
-                <div className="mt-3 rounded-xl bg-warn-50 border border-warn-100 p-3 flex items-center justify-between gap-2">
-                  <p className="text-[11px] text-warn-700 leading-relaxed">
+                <div className="m-inset mt-3 p-3 flex items-center justify-between gap-2.5">
+                  <p className="text-[11.5px] text-warn-700 leading-relaxed">
                     {t('goal_drift_warn')
                       .replace('{account}', account.name)
                       .replace('{balance}', formatMoney(account.balance, account.currency))
@@ -511,14 +517,14 @@ export function GoalsPage() {
                   </p>
                   <button
                     onClick={() => void correctSavedAmount(g.id, account.balance).then(() => toast.show({ type: 'success', title: t('goal_correct_saved') }))}
-                    className="shrink-0 rounded-lg bg-warn-600 text-white text-[10.5px] font-semibold px-2.5 py-1.5 active:opacity-80"
+                    className="m-btn m-btn-primary shrink-0 min-h-[36px] px-3 py-1.5 text-[11px] rounded-xl"
                   >
                     {t('goal_drift_fix')}
                   </button>
                 </div>
               )}
 
-              <div className="mt-4 bg-cream-soft/60 rounded-full h-2.5 overflow-hidden">
+              <div className="m-inset mt-4 rounded-full h-2.5 overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-700 ${
                     isComplete ? 'bg-gradient-to-r from-receive-600 to-receive-700' : 'bg-gradient-to-r from-accent-500 to-accent-600'
@@ -526,7 +532,7 @@ export function GoalsPage() {
                   style={{ width: `${Math.min(100, progress)}%` }}
                 />
               </div>
-              <div className="flex justify-between mt-2 text-[11px] text-ink-500 tabular-nums">
+              <div className="flex justify-between mt-2 text-[11px] text-ink-600 tabular-nums">
                 <span>{t('goal_saved')}: {formatMoney(g.savedAmount, g.currency)}</span>
                 <span>{t('goal_target')}: {formatMoney(g.targetAmount, g.currency)}</span>
               </div>
@@ -534,28 +540,28 @@ export function GoalsPage() {
               {!isComplete && (
                 <div className="mt-2 space-y-1">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[11px] font-semibold text-ink-700 tabular-nums">
+                    <p className="text-[11.5px] font-semibold text-ink-800 tabular-nums">
                       {t('goal_to_go').replace('{amount}', formatMoney(remaining, g.currency))}
                     </p>
                     {targetDate ? (
                       daysToTarget != null && daysToTarget < 0 ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-pay-50 text-pay-text px-2 py-0.5 text-[10px] font-semibold">
+                        <span className="m-chip m-chip-pay">
                           {t('goal_date_passed')}
                         </span>
                       ) : (
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${onTrack ? 'bg-receive-50 text-receive-text' : 'bg-warn-50 text-warn-700'}`}>
+                        <span className={`m-chip ${onTrack ? 'm-chip-receive' : 'm-chip-gold'}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${onTrack ? 'bg-receive-600' : 'bg-warn-600'}`} />
                           {onTrack ? t('goal_on_track') : t('goal_behind')}
                         </span>
                       )
                     ) : pace > 0 ? (
-                      <p className="text-[11px] text-ink-400 tabular-nums">
+                      <p className="text-[11px] text-ink-500 tabular-nums">
                         {t('goal_pace').replace('{n}', String(monthsToGo))}
                       </p>
                     ) : null}
                   </div>
                   {targetDate && (
-                    <p className="text-[10.5px] text-ink-400 tabular-nums">
+                    <p className="text-[11px] text-ink-500 tabular-nums">
                       {t('goal_by_date').replace('{date}', format(targetDate, 'd MMM yyyy'))}
                       {daysToTarget != null && daysToTarget >= 0 && remaining > 0 && onTrack !== false && (
                         <> · {t('goal_save_monthly').replace('{amount}', formatMoney(Math.ceil(monthlyNeeded), g.currency))}</>
@@ -576,12 +582,11 @@ export function GoalsPage() {
               {/* Completed goals keep an affordance too — an over-typed add
                   used to strand the goal at >100% with no way back in. */}
               <button onClick={() => { setAddMode(isComplete ? 'out' : 'add'); setSelectedGoal(g); }}
-                className={`mt-4 w-full py-2.5 rounded-2xl border-2 border-dashed text-[12px] font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 ${
-                  isComplete
-                    ? 'border-cream-border text-ink-500 active:bg-cream-soft'
-                    : 'border-accent-100 text-accent-600 active:bg-accent-50'
-                }`}
-              >{isComplete ? t('goal_manage') : t('goal_add_money')}</button>
+                className={`m-btn m-btn-plain mt-4 w-full text-[12.5px] ${isComplete ? '' : 'text-accent-text'}`}
+              >
+                {!isComplete && <Glyph name="plus" size={14} strokeWidth={3} />}
+                {isComplete ? t('goal_manage') : t('goal_add_money')}
+              </button>
             </Card3D>
           );
         })}
@@ -625,7 +630,7 @@ export function GoalsPage() {
               <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="input-field" />
             </div>
             {editGoal.savedAmount > 0.005 && (
-              <p className="text-[11.5px] text-ink-500 bg-cream-soft/80 border border-cream-hairline rounded-2xl p-3 leading-relaxed">
+              <p className="m-inset text-[11.5px] text-ink-600 p-3 leading-relaxed">
                 {t('goal_currency_locked')}
               </p>
             )}
@@ -660,7 +665,7 @@ export function GoalsPage() {
                 className="input-field text-center text-xl font-bold tabular-nums"
               />
             </div>
-            <p className="text-[12px] text-ink-500 bg-cream-soft/80 border border-cream-hairline rounded-2xl p-3 leading-relaxed">
+            <p className="m-inset text-[12px] text-ink-600 p-3 leading-relaxed">
               {t('goal_track_note')}
             </p>
           </div>
@@ -683,7 +688,7 @@ export function GoalsPage() {
       >
         {selectedGoal && (
           <div className="space-y-4">
-            <div className="bg-cream-soft/80 rounded-2xl p-3.5 border border-cream-hairline flex items-center justify-between">
+            <div className="m-inset p-3.5 flex items-center justify-between">
               <span className="text-[12px] text-ink-600">{t('goal_saved')}</span>
               <span className="text-[14px] font-bold tabular-nums text-ink-900">
                 {formatMoney(selectedGoal.savedAmount, selectedGoal.currency)} / {formatMoney(selectedGoal.targetAmount, selectedGoal.currency)}
@@ -709,7 +714,7 @@ export function GoalsPage() {
                 className="input-field text-center text-xl font-bold tabular-nums"
               />
             </div>
-            <p className="text-[12px] text-ink-500 bg-cream-soft/80 border border-cream-hairline rounded-2xl p-3 leading-relaxed">
+            <p className="m-inset text-[12px] text-ink-600 p-3 leading-relaxed">
               {t('goal_track_note')}
             </p>
           </div>

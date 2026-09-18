@@ -79,7 +79,7 @@ export function CreateMarketModal({ open, onClose, onCreated }: Props) {
         <button
           onClick={handleCreate}
           disabled={!name.trim() || saving}
-          className="w-full bg-ink-900 text-white rounded-2xl py-3.5 text-sm font-semibold disabled:opacity-30 hover:enabled:opacity-90 hover:enabled:shadow-md active:scale-[0.98] transition-all"
+          className="m-btn m-btn-primary w-full py-3.5 text-[14px]"
         >
           {saving ? t('quick_processing') : t('inv_empty_cta')}
         </button>
@@ -87,7 +87,7 @@ export function CreateMarketModal({ open, onClose, onCreated }: Props) {
     >
       <div className="space-y-4">
         <div>
-          <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">
+          <label className="form-label">
             {t('inv_market_suggest')}
           </label>
           <div className="flex gap-2 flex-wrap">
@@ -96,11 +96,8 @@ export function CreateMarketModal({ open, onClose, onCreated }: Props) {
                 key={s.name}
                 type="button"
                 onClick={() => { setName(s.name); setCurrency(s.currency); }}
-                className={`min-h-[40px] px-3.5 py-2 rounded-xl text-[12px] font-semibold border transition-all hover:scale-[1.03] active:scale-95 ${
-                  name.trim().toUpperCase() === s.name
-                    ? 'border-accent-500 bg-accent-50 text-accent-600'
-                    : 'border-cream-border bg-cream-card text-ink-600 hover:bg-accent-50 hover:text-accent-600'
-                }`}
+                aria-pressed={name.trim().toUpperCase() === s.name}
+                className="m-pill min-h-[40px] text-[12px]"
               >
                 {currencyMeta[s.currency]?.flag} {s.name} · {s.currency}
               </button>
@@ -109,19 +106,19 @@ export function CreateMarketModal({ open, onClose, onCreated }: Props) {
         </div>
 
         <div>
-          <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">
+          <label className="form-label">
             {t('inv_market_name')}
           </label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={t('inv_market_name_ph')}
-            className="w-full border border-cream-border rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all"
+            className="input-field"
           />
         </div>
 
         <div>
-          <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">
+          <label className="form-label">
             {t('inv_market_currency')}
           </label>
           <CurrencyPicker
@@ -130,7 +127,7 @@ export function CreateMarketModal({ open, onClose, onCreated }: Props) {
             primary={getPrimaryCurrency()}
             used={usedCurrencies}
           />
-          <p className="text-[10.5px] text-ink-500 mt-1.5">{t('inv_market_currency_locked')}</p>
+          <p className="text-[10.5px] text-ink-600 mt-2">{t('inv_market_currency_locked')}</p>
         </div>
       </div>
     </Modal>

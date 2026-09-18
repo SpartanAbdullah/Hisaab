@@ -1,4 +1,5 @@
-import { ArrowLeft, ExternalLink, Mail } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
+import { Glyph } from '../components/Glyph';
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -45,33 +46,36 @@ function PublicInfoLayout({
 
   // These pages are English-only until a roman-Urdu variant ships; index.html
   // declares ur-Latn, so the <main> overrides it for screen readers and search.
+  // 1d page shell: the violet-glow hero band (dark in both themes) with the
+  // 36px raised back control, then the policy on a lifted card that pulls up
+  // 16px under the band — the same overlap the app's sheets use.
   return (
-    <main lang="en" className="min-h-dvh bg-cream-soft">
-      <header className="bg-navy-900 text-white">
-        <div className="max-w-3xl mx-auto px-5 pt-5 pb-8">
+    <main lang="en" className="min-h-dvh bg-cream-bg">
+      <header className="m-hero pt-safe">
+        <div className="max-w-3xl mx-auto px-5 pt-2 pb-10">
           <div className="flex items-center justify-between gap-4">
             <button
               type="button"
               onClick={() => navigate('/')}
               aria-label="Back to Hisaab"
-              className="nav-icon-button bg-white/10 text-white border-white/10"
+              className="m-ctl relative w-9 h-9 flex items-center justify-center shrink-0 before:absolute before:-inset-1 before:content-['']"
             >
-              <ArrowLeft size={17} />
+              <Glyph name="arrow-left" size={16} className="text-white" />
             </button>
-            <Link to="/" className="text-[14px] font-semibold text-white">
+            <Link to="/" className="text-[14px] font-semibold tracking-[-0.01em] text-white">
               Hisaab
             </Link>
           </div>
-          <h1 className="mt-8 text-[28px] font-semibold leading-tight">{title}</h1>
-          <p className="mt-2 max-w-xl text-[13px] leading-6 text-white/65">{intro}</p>
+          <h1 className="mt-8 text-[28px] font-semibold leading-tight tracking-[-0.02em]">{title}</h1>
+          <p className="mt-2 max-w-xl text-[13px] leading-6 text-white/70">{intro}</p>
           {title !== 'Contact & Support' && (
-            <p className="mt-4 text-[11px] text-white/60">Last updated: {LAST_UPDATED}</p>
+            <p className="m-label mt-4 text-white/60">Last updated: {LAST_UPDATED}</p>
           )}
         </div>
       </header>
 
-      <div className="max-w-3xl mx-auto px-5 pb-8">
-        <div className="bg-cream-card border-x border-b border-cream-border px-5 sm:px-7">
+      <div className="max-w-3xl mx-auto px-5 pb-10">
+        <div className="m-card m-card-feature relative z-[1] -mt-4 px-5 sm:px-7">
           {children}
         </div>
         <nav className="flex flex-wrap gap-x-4 gap-y-2 px-1 pt-5 text-[12px] font-semibold text-accent-600">
@@ -277,7 +281,7 @@ function ContactSupport() {
           className="inline-flex items-center gap-2 font-semibold text-accent-600"
           href={`mailto:${SUPPORT_EMAIL}?subject=Hisaab support request`}
         >
-          <Mail size={15} />
+          <Glyph name="mail" size={15} />
           Email Hisaab support
         </a>
       </Section>
@@ -331,9 +335,9 @@ function DeleteAccountInstructions() {
           className="inline-flex items-center gap-2 font-semibold text-accent-600"
           href={`mailto:${SUPPORT_EMAIL}?subject=Hisaab account deletion request`}
         >
-          <Mail size={15} />
+          <Glyph name="mail" size={15} />
           Request account deletion
-          <ExternalLink size={14} />
+          <ExternalLink size={14} strokeWidth={2.4} aria-hidden />
         </a>
       </Section>
     </PublicInfoLayout>

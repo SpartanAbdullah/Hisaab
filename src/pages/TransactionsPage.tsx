@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, ArrowLeftRight, Search, X, Users, ChevronDown, History } from 'lucide-react';
+import { ArrowLeftRight } from 'lucide-react';
 import {
   startOfDay,
   subDays,
@@ -23,6 +23,7 @@ import { useGoalStore } from '../stores/goalStore';
 import { TransactionItem } from '../components/TransactionItem';
 import { EditTransactionModal } from '../components/EditTransactionModal';
 import { NavyHero, TopBar } from '../components/NavyHero';
+import { Glyph } from '../components/Glyph';
 import { MoneyDisplay } from '../components/MoneyDisplay';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { EmptyState } from '../components/EmptyState';
@@ -107,26 +108,25 @@ function SplitEventRow({
         aria-expanded={expanded}
         className="w-full flex items-center gap-2.5 py-2.5 text-left active:opacity-80 transition-opacity"
       >
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-accent-100 text-accent-600 ml-[34px]">
-          <Users size={15} strokeWidth={1.8} />
+        <div className="m-card m-blue w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0 ml-[34px]">
+          <Glyph name="split" tone="blue" size={19} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-medium text-ink-900 tracking-tight truncate">
+          <p className="text-[13.5px] font-medium text-ink-900 tracking-tight truncate">
             {entry.label || t('tx_expense')}
           </p>
-          <p className="text-[10.5px] text-ink-500 mt-0.5 truncate">
+          <p className="text-[11px] text-ink-500 mt-0.5 truncate">
             {format(new Date(entry.items[0].createdAt), 'MMM d, h:mm a')}
             {' · '}
             {t('split_ways').replace('{n}', String(entry.partyCount))}
           </p>
         </div>
-        <p className="text-[14px] font-semibold tabular-nums tracking-tight text-pay-text">
+        <p className="text-[14px] font-semibold tabular-nums tracking-tight text-pay-text shrink-0">
           −{formatMoney(entry.total, entry.currency)}
         </p>
-        <ChevronDown
-          size={14}
-          className={`text-ink-400 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
-        />
+        <span className={`inline-flex shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}>
+          <Glyph name="chevron-down" size={14} className="text-ink-400" />
+        </span>
       </button>
       {expanded && (
         <div className="pl-[34px] border-l border-cream-hairline ml-[18px] divide-y divide-cream-hairline">
@@ -484,17 +484,18 @@ export function TransactionsPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowSearch((v) => !v)}
-                className="w-9 h-9 rounded-xl bg-white/10 active:bg-white/15 flex items-center justify-center transition-colors"
+                className="m-ctl relative w-9 h-9 flex items-center justify-center before:absolute before:-inset-1 before:content-['']"
                 aria-label={t('a11y_search')}
+                aria-pressed={searchExpanded}
               >
-                <Search size={15} className="text-white" />
+                <Glyph name="search" size={15} className="text-white/90" />
               </button>
               <button
                 onClick={() => setShowAdd(true)}
-                className="h-9 px-3 rounded-xl bg-white/10 active:bg-white/15 flex items-center gap-1.5 text-[12px] font-semibold text-white transition-colors"
+                className="m-ctl h-9 px-3 flex items-center gap-1.5 text-[12px] font-semibold text-accent-text"
                 aria-label={t('a11y_add')}
               >
-                <Plus size={13} strokeWidth={2.4} /> {t('naya')}
+                <Glyph name="plus" size={13} strokeWidth={3} /> {t('naya')}
               </button>
               <LanguageToggle />
             </div>
@@ -502,29 +503,24 @@ export function TransactionsPage() {
         />
 
         <div className="px-5 pb-7">
-          <p className="text-[10.5px] font-semibold text-white/50 tracking-[0.12em] uppercase">
+          <p className="text-[10.5px] font-semibold text-white/70 tracking-[0.12em] uppercase">
             {t('tx_this_month')} · {primaryCurrency}
           </p>
-          <div className="mt-1.5 flex items-end justify-between gap-3">
+          <div className="mt-2 flex items-end justify-between gap-3">
             <MoneyDisplay
               amount={monthFlow.net}
               currency={primaryCurrency}
               size={36}
               tone="on-navy"
+              extrude="violet"
             />
             {monthFlow.inflow > 0 && (
-              <span
-                className="text-[11px] font-semibold px-2.5 py-1 rounded-full tabular-nums shrink-0"
-                style={{
-                  background: 'rgba(15,157,123,0.18)',
-                  color: '#7CE3B6',
-                }}
-              >
+              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full tabular-nums shrink-0 bg-white/10 text-receive-text">
                 +{formatMoney(monthFlow.inflow, primaryCurrency)} {t('tx_flow_in')}
               </span>
             )}
           </div>
-          <p className="text-[11px] text-white/50 mt-2 tabular-nums">
+          <p className="text-[11.5px] text-white/70 mt-2.5 tabular-nums">
             {monthFlow.outflow > 0
               ? `−${formatMoney(monthFlow.outflow, primaryCurrency)} ${t('tx_flow_out')}`
               : t('tx_no_outflow_yet')}
@@ -536,21 +532,21 @@ export function TransactionsPage() {
         {searchExpanded && (
           <div>
             <div className="relative">
-              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" />
+              <Glyph name="search" size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t('tx_search_placeholder')}
-                className="w-full bg-cream-card border border-cream-border rounded-2xl pl-10 pr-10 py-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all"
+                className="input-field pl-10 pr-11"
                 autoFocus={showSearch}
               />
               {search && (
                 <button
                   onClick={() => setSearch('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400 w-9 h-9 flex items-center justify-center press-xs"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-ink-500 w-10 h-10 flex items-center justify-center press-xs"
                   aria-label={t('a11y_clear_search')}
                 >
-                  <X size={14} />
+                  <Glyph name="close" size={14} />
                 </button>
               )}
             </div>
@@ -564,44 +560,36 @@ export function TransactionsPage() {
           </div>
         )}
 
-        {/* Type filter pills — Sukoon's segmented look */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
-          {typeFilters.map((item) => {
-            const isActive = filter === item.value;
-            return (
-              <button
-                key={item.value}
-                onClick={() => setFilter(item.value)}
-                className={`shrink-0 px-3.5 py-1.5 rounded-full text-[11.5px] font-semibold whitespace-nowrap transition-colors ${
-                  isActive
-                    ? 'bg-ink-900 text-white'
-                    : 'bg-cream-card text-ink-500 border border-cream-border'
-                }`}
-              >
-                {item.label}
-              </button>
-            );
-          })}
+        {/* Type filter — raised pills; the light-faced one is active. */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
+          {typeFilters.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => setFilter(item.value)}
+              aria-pressed={filter === item.value}
+              className="m-pill shrink-0"
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
 
-        {/* Time filter sub-pills */}
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1">
-          {timeFilterOptions.map((item) => {
-            const isActive = timeFilter === item.value;
-            return (
+        {/* Time filter — the quieter, secondary control: one recessed track. */}
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <div className="m-seg">
+            {timeFilterOptions.map((item) => (
               <button
                 key={item.value}
+                type="button"
                 onClick={() => setTimeFilter(item.value)}
-                className={`shrink-0 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold whitespace-nowrap transition-colors ${
-                  isActive
-                    ? 'bg-ink-800 text-white'
-                    : 'bg-cream-soft text-ink-500 border border-cream-hairline'
-                }`}
+                aria-pressed={timeFilter === item.value}
+                className="shrink-0 whitespace-nowrap"
               >
                 {item.label}
               </button>
-            );
-          })}
+            ))}
+          </div>
         </div>
 
         {loadStatus === 'ready' && transactions.length > 0 && (
@@ -654,8 +642,8 @@ export function TransactionsPage() {
         ) : windowed.length === 0 && filtered.length > 0 ? (
           // Everything the filters matched is older than the recent window —
           // never show "no transactions" when there ARE transactions.
-          <div className="rounded-2xl bg-cream-card border border-cream-border p-4 text-center space-y-2">
-            <p className="text-[12px] text-ink-600">
+          <div className="m-card p-4 text-center space-y-3">
+            <p className="text-[12px] text-ink-600 leading-relaxed">
               {t('tx_window_recent').replace('{d}', String(RECENT_WINDOW_DAYS))}
               {' · '}
               {t('tx_window_older').replace('{n}', String(hiddenByWindow))}
@@ -663,9 +651,9 @@ export function TransactionsPage() {
             <button
               onClick={revealFullHistory}
               disabled={historyLoading}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-ink-900 text-white px-3.5 py-2 text-[11.5px] font-semibold min-h-[44px] disabled:opacity-60"
+              className="m-btn m-btn-plain px-4 py-2.5 text-[12px]"
             >
-              <History size={13} strokeWidth={2.2} />
+              <Glyph name="clock" size={14} />
               {historyLoading ? t('tx_history_loading') : t('tx_load_older')}
             </button>
           </div>
@@ -673,7 +661,8 @@ export function TransactionsPage() {
           loadStatus === 'ready' ? (
             <EmptyState
               icon={ArrowLeftRight}
-              tone="accent"
+              clayIcon="swap"
+              tone="violet"
               title={t('empty_tx_title')}
               description={t('empty_tx_desc')}
               subhint={t('empty_tx_subhint')}
@@ -706,7 +695,7 @@ export function TransactionsPage() {
                 key={group.date.toISOString()}
                 style={deferredBlockStyle(estimateGroupHeight(entries.length))}
               >
-                <div className="flex items-baseline justify-between px-1 mb-1.5">
+                <div className="flex items-baseline justify-between px-1 mb-2">
                   <p className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
                     {formatDayLabel(group.date)}
                   </p>
@@ -721,7 +710,7 @@ export function TransactionsPage() {
                     </p>
                   )}
                 </div>
-                <div className="rounded-[18px] bg-cream-card border border-cream-border px-4 divide-y divide-cream-hairline">
+                <div className="m-card px-4 divide-y divide-cream-hairline">
                   {entries.map((entry) =>
                     entry.kind === 'txn' ? (
                       <TransactionItem
@@ -757,7 +746,7 @@ export function TransactionsPage() {
                 <button
                   type="button"
                   onClick={loadMoreEntries}
-                  className="w-full min-h-[44px] rounded-2xl bg-cream-card border border-cream-border text-[12px] font-semibold text-ink-700"
+                  className="m-btn m-btn-plain w-full text-[12.5px]"
                 >
                   {t('list_load_more')}
                 </button>
@@ -778,12 +767,12 @@ export function TransactionsPage() {
             Incomplete coverage keeps the button on screen, with copy that says
             which of the two truths applies. */}
         {windowActive && (hiddenByWindow > 0 || !historyCoverage.complete) && (
-          <div className="rounded-2xl bg-cream-soft border border-cream-hairline px-4 py-3 flex items-center justify-between gap-3">
+          <div className="m-inset px-4 py-3 flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-ink-600">
+              <p className="text-[11.5px] font-semibold text-ink-600">
                 {t('tx_window_recent').replace('{d}', String(RECENT_WINDOW_DAYS))}
               </p>
-              <p className="text-[10.5px] text-ink-500 mt-0.5">
+              <p className="text-[11px] text-ink-500 mt-0.5">
                 {hiddenByWindow > 0
                   ? t('tx_window_older').replace('{n}', String(hiddenByWindow))
                   : t('tx_window_server')}
@@ -792,9 +781,9 @@ export function TransactionsPage() {
             <button
               onClick={revealFullHistory}
               disabled={historyLoading}
-              className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-cream-card border border-cream-border px-3 py-2 text-[11px] font-semibold text-ink-700 min-h-[44px] disabled:opacity-60"
+              className="m-btn m-btn-plain shrink-0 px-3 py-2 text-[11.5px] gap-1.5"
             >
-              <History size={12} strokeWidth={2.2} />
+              <Glyph name="clock" size={13} />
               {historyLoading ? t('tx_history_loading') : t('tx_load_older')}
             </button>
           </div>

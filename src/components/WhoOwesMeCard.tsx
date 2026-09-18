@@ -28,9 +28,10 @@
 //     no route of its own in App.tsx, so its chip is a plain label.
 
 import { useMemo, useState } from 'react';
-import { ChevronDown, HandCoins, Split, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { Glyph } from './Glyph';
 import { UserAvatar } from './UserAvatar';
+import type { GlyphName } from '../lib/glyphs';
 import { formatMoney } from '../lib/constants';
 import { useT } from '../lib/i18n';
 import { useSplitStore } from '../stores/splitStore';
@@ -108,21 +109,21 @@ export function WhoOwesMeCard({ rows, duplicateHints = [], defaultExpanded = tru
   if (shownRows.length === 0) return null;
 
   return (
-    <section className="rounded-[18px] bg-cream-card border border-cream-border overflow-hidden">
+    <section className="m-card overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
-        className="w-full flex items-center gap-2.5 px-4 py-3 text-left active:bg-cream-soft transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-cream-soft transition-colors"
       >
-        <span className="w-7 h-7 rounded-lg bg-accent-50 flex items-center justify-center shrink-0">
-          <HandCoins size={14} className="text-accent-600" strokeWidth={2.2} />
+        <span className="m-ctl w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0" aria-hidden>
+          <Glyph name="banknote" size={16} tone="violet" />
         </span>
         <span className="flex-1 min-w-0">
-          <span className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
+          <span className="m-label block">
             {t('wom_title')}
           </span>
-          <span className="block text-[11px] text-ink-400 mt-0.5 truncate">
+          <span className="block text-[11px] text-ink-600 mt-0.5 truncate">
             {shownRows.length === 1
               ? t('loans_people_one')
               : t('loans_people_many').replace('{n}', String(shownRows.length))}
@@ -130,9 +131,10 @@ export function WhoOwesMeCard({ rows, duplicateHints = [], defaultExpanded = tru
             {t('wom_subtitle')}
           </span>
         </span>
-        <ChevronDown
+        <Glyph
+          name="chevron-down"
           size={16}
-          className={`text-ink-400 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          className={`text-ink-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
         />
       </button>
 
@@ -170,21 +172,22 @@ function WhoOwesRowItem({ row, duplicateOf }: { row: WhoOwesRow; duplicateOf: st
   const hiddenCount = row.sources.length - shownSources.length;
 
   return (
-    <div className="px-4 py-3">
+    <div className="px-4 py-3.5">
       <div className="flex items-center gap-3">
         {isGroupRow ? (
-          <span className="w-11 h-11 rounded-full bg-info-50 flex items-center justify-center shrink-0">
-            <Users size={17} className="text-info-600" strokeWidth={2.1} />
+          // A group standing in for a person: a blue (Groups) disc.
+          <span className="m-card m-blue w-11 h-11 rounded-full flex items-center justify-center shrink-0" aria-hidden>
+            <Glyph name="groups" size={19} tone="blue" />
           </span>
         ) : (
           <UserAvatar name={row.personName} size={44} />
         )}
 
         <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-medium text-ink-900 truncate tracking-tight">
+          <p className="text-[14px] font-medium text-ink-900 truncate tracking-[-0.01em]">
             {row.personName}
           </p>
-          <p className="text-[10.5px] text-ink-400 mt-0.5">
+          <p className="text-[10.5px] text-ink-500 mt-0.5">
             {isSquare
               ? t('wom_net_square')
               : theyOweMe
@@ -231,7 +234,7 @@ function WhoOwesRowItem({ row, duplicateOf }: { row: WhoOwesRow; duplicateOf: st
           />
         ))}
         {hiddenCount > 0 && (
-          <span className="inline-flex items-center rounded-full bg-cream-soft px-2 py-0.5 text-[10px] font-semibold text-ink-500">
+          <span className="m-chip m-chip-neutral">
             {t('wom_more_sources').replace('{n}', String(hiddenCount))}
           </span>
         )}
@@ -249,7 +252,7 @@ function WhoOwesRowItem({ row, duplicateOf }: { row: WhoOwesRow; duplicateOf: st
 function SourceChip({ source, personName }: { source: WhoOwesSource; personName: string | null }) {
   const t = useT();
   const href = sourceHref(source);
-  const Icon = source.kind === 'group' ? Users : source.kind === 'adhoc' ? Split : HandCoins;
+  const glyph: GlyphName = source.kind === 'group' ? 'groups' : source.kind === 'adhoc' ? 'split' : 'banknote';
   const fallback =
     source.kind === 'group'
       ? t('wom_src_group')
@@ -265,20 +268,17 @@ function SourceChip({ source, personName }: { source: WhoOwesSource; personName:
     source.kind === 'group' && personName && !isGroupCounterpartyId(source.memberId)
       ? t('wom_src_group_person').replace('{group}', base).replace('{name}', personName)
       : base;
-  const tone =
-    source.direction === 'owed_to_me'
-      ? 'bg-receive-50 text-receive-text'
-      : 'bg-pay-50 text-pay-text';
+  const tone = source.direction === 'owed_to_me' ? 'm-chip-receive' : 'm-chip-pay';
   const body = (
     <>
-      <Icon size={10} strokeWidth={2.4} className="shrink-0" />
-      <span className="truncate max-w-[160px]">{label}</span>
-      <span className="tabular-nums font-semibold opacity-80">
+      <Glyph name={glyph} size={11} strokeWidth={2.6} />
+      <span className="truncate max-w-[160px] font-medium">{label}</span>
+      <span className="tabular-nums">
         {formatMoney(source.amount, source.currency)}
       </span>
     </>
   );
-  const className = `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${tone}`;
+  const className = `m-chip ${tone} max-w-full`;
 
   if (!href) return <span className={className}>{body}</span>;
   return (

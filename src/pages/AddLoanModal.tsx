@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
-import { Users, Lock } from 'lucide-react';
 import { Modal } from '../components/Modal';
+import { Glyph } from '../components/Glyph';
 import { useDiscardGuard } from '../lib/useDiscardGuard';
 import { useSubmitGuard, useSubmitIntentId } from '../lib/useSubmitGuard';
 import { useAccountStore } from '../stores/accountStore';
@@ -287,14 +287,14 @@ export function AddLoanModal({ open, onClose }: Props) {
       }
     >
       <form id="loan-form" onSubmit={handleSubmit} className="space-y-4">
+        {/* Direction: toned pills like the Loans tabs — "I gave" is money
+            owed to you (green), "I took" is money you owe (coral). Tinted at
+            rest, solid when chosen. */}
         <div className="flex gap-2.5">
           {(['given', 'taken'] as const).map(tp => (
             <button key={tp} type="button" onClick={() => setLoanType(tp)}
-              className={`flex-1 py-3 rounded-2xl text-[13px] font-bold border-2 transition-all active:scale-[0.97] ${
-                loanType === tp
-                  ? tp === 'given' ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white border-transparent shadow-md' : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-transparent shadow-md'
-                  : 'bg-cream-card text-ink-500 border-cream-border'
-              }`}
+              aria-pressed={loanType === tp}
+              className={`m-pill ${tp === 'given' ? 'm-pill-receive' : 'm-pill-pay'} flex-1 min-h-[44px] text-[13px]`}
             >{tp === 'given' ? t('loan_i_gave') : t('loan_i_took')}</button>
           ))}
         </div>
@@ -303,15 +303,20 @@ export function AddLoanModal({ open, onClose }: Props) {
           <label className="form-label">{t('loan_to_whom')}</label>
           <ContactPicker value={contact} onChange={setContact} placeholder={t('quick_who_placeholder')} required className="input-field" />
           {wouldBranchToLinked ? (
-            <p className="text-[11px] text-accent-600 mt-1.5">{t('ltr_branch_helper')}</p>
+            <p className="text-[11px] text-iris-text mt-1.5">{t('ltr_branch_helper')}</p>
           ) : (
-            <p className="text-[11px] text-ink-500 mt-1.5">{t('ltr_linked_only_helper')}</p>
+            <p className="text-[11px] text-ink-600 mt-1.5">{t('ltr_linked_only_helper')}</p>
           )}
         </div>
 
         <div>
           <label className="form-label">{t('amount_label')}</label>
-          <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className="input-field text-center text-lg font-bold tabular-nums" required />
+          <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00"
+            className="input-field text-center font-semibold tabular-nums tracking-[-0.02em]"
+            // Inline on purpose: index.css pins every <input> to 16px (iOS
+            // focus-zoom guard), which beats any font-size utility.
+            style={{ fontSize: 22 }}
+            required />
         </div>
 
         {isLedgerOnlyMode ? (
@@ -334,24 +339,27 @@ export function AddLoanModal({ open, onClose }: Props) {
         {!isLedgerOnlyMode && loanType === 'taken' && availableCashAdvanceCards.length > 0 && (
           <div>
             <label className="form-label">{t('cash_advance_source')}</label>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <button
                 type="button"
                 onClick={() => setCashAdvanceSourceId('')}
-                className={`w-full p-3 rounded-2xl border text-left text-[12px] font-semibold transition-all ${
-                  !cashAdvanceSourceId ? 'border-accent-500 bg-accent-50 text-accent-600' : 'border-cream-border bg-cream-card text-ink-500'
+                aria-pressed={!cashAdvanceSourceId}
+                className={`selector-base text-[12px] font-semibold ${
+                  !cashAdvanceSourceId ? 'selector-selected text-accent-text' : 'text-ink-600'
                 }`}
               >
                 {t('cash_advance_none')}
               </button>
               {availableCashAdvanceCards.map(a => (
                 <button key={a.id} type="button" onClick={() => setCashAdvanceSourceId(a.id)}
-                  className={`w-full p-3.5 rounded-2xl border-2 flex items-center justify-between text-left transition-all active:scale-[0.98] ${
-                    cashAdvanceSourceId === a.id ? 'border-accent-500 bg-accent-50 shadow-sm shadow-accent-500/5' : 'border-cream-border bg-cream-card'
-                  }`}
+                  aria-pressed={cashAdvanceSourceId === a.id}
+                  className={`selector-base ${cashAdvanceSourceId === a.id ? 'selector-selected' : ''}`}
                 >
-                  <span className="text-[13px] font-semibold text-ink-800">{a.name}</span>
-                  <span className="text-[12px] text-ink-500 tabular-nums">{a.currency}</span>
+                  <span className="text-[13px] font-semibold text-ink-800 flex items-center gap-2">
+                    <Glyph name="card" size={15} tone="blue" />
+                    {a.name}
+                  </span>
+                  <span className="text-[12px] text-ink-600 tabular-nums">{a.currency}</span>
                 </button>
               ))}
             </div>
@@ -363,7 +371,7 @@ export function AddLoanModal({ open, onClose }: Props) {
           <input value={notes} onChange={e => setNotes(e.target.value)} placeholder={t('quick_note_placeholder')} className="input-field" />
         </div>
 
-        <p className="text-[12px] text-ink-500 bg-cream-soft/80 border border-cream-hairline rounded-2xl p-3 leading-relaxed">
+        <p className="m-inset text-[12px] text-ink-600 p-3 leading-relaxed">
           {t('money_not_moved_notice')}
         </p>
 
@@ -372,10 +380,18 @@ export function AddLoanModal({ open, onClose }: Props) {
             explanation — never rendered-then-ignored. */}
         {emiAvailable ? (
           <>
-            <label className="flex items-center gap-2.5 cursor-pointer p-3 rounded-2xl bg-cream-soft/80 border border-cream-hairline">
-              <input type="checkbox" checked={hasEmi} onChange={e => setHasEmi(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-accent-600 accent-indigo-600" />
-              <span className="text-[13px] text-ink-700 font-medium">{t('loan_set_emi')}</span>
-            </label>
+            {/* The whole row is the switch (role="switch"): the label is its
+                accessible name and the full row is the tap target. */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={hasEmi}
+              onClick={() => setHasEmi((v) => !v)}
+              className="m-card w-full flex items-center gap-3 px-4 py-3 text-left"
+            >
+              <span className="text-[13px] text-ink-800 font-medium flex-1">{t('loan_set_emi')}</span>
+              <span aria-hidden className={`m-switch block ${hasEmi ? 'is-on' : ''}`} />
+            </button>
 
             {hasEmi && (
               <div className="grid grid-cols-2 gap-3 animate-fade-in">
@@ -394,9 +410,9 @@ export function AddLoanModal({ open, onClose }: Props) {
             )}
           </>
         ) : (
-          <div className="rounded-2xl bg-cream-soft/80 border border-cream-hairline p-3">
-            <p className="text-[12px] font-semibold text-ink-700 leading-snug">{t('ltr_emi_unavailable_title')}</p>
-            <p className="text-[11px] text-ink-500 mt-1 leading-relaxed">{t('ltr_emi_unavailable_body')}</p>
+          <div className="m-inset p-3">
+            <p className="text-[12px] font-semibold text-ink-800 leading-snug">{t('ltr_emi_unavailable_title')}</p>
+            <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">{t('ltr_emi_unavailable_body')}</p>
             {hasEmi && (
               // The user HAD configured a plan before the contact turned out to
               // be linked. Say so — the values are kept, not thrown away.
@@ -408,18 +424,19 @@ export function AddLoanModal({ open, onClose }: Props) {
         )}
 
         {/* Glanceable confirm/private chip near the Save CTA — mirrors
-            QuickEntry's loan helper. Linked contacts get a confirm request;
-            everyone else stays a private local-only record. */}
+            QuickEntry's loan helper. Linked contacts get a confirm request
+            (violet, the linked colour); everyone else stays a private
+            local-only record (a quiet recessed note). */}
         {wouldBranchToLinked ? (
-          <div className="flex items-center gap-2 rounded-2xl bg-accent-50 border border-accent-100 px-3 py-2.5">
-            <Users size={13} className="text-accent-600 shrink-0" />
-            <p className="text-[11px] font-semibold text-accent-600 leading-snug">
+          <div className="m-card m-violet flex items-center gap-2 px-3 py-2.5">
+            <Glyph name="link" size={14} tone="violet" />
+            <p className="text-[11px] font-semibold text-iris-text leading-snug">
               {t('loan_will_confirm').replace('{name}', contact.name.trim() || t('loan_they'))}
             </p>
           </div>
         ) : (
-          <div className="flex items-center gap-2 rounded-2xl bg-cream-soft border border-cream-border px-3 py-2.5">
-            <Lock size={13} className="text-ink-500 shrink-0" />
+          <div className="m-inset flex items-center gap-2 px-3 py-2.5">
+            <Glyph name="lock" size={14} className="text-ink-500" />
             <p className="text-[11px] font-semibold text-ink-600 leading-snug">
               {t('loan_private')}
             </p>

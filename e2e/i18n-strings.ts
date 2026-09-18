@@ -56,6 +56,8 @@ export const I18N = {
   nav_activity: { ur: 'Activity', en: 'Activity' }, // line 38
   nav_loans: { ur: 'Qarz', en: 'Loans' }, // line 36
   a11y_quick_entry: { ur: 'Jaldi entry', en: 'Quick entry' }, // line 4024
+  a11y_create_group: { ur: 'Group banayein', en: 'Create group' }, // line 4541
+  cts_a11y_add: { ur: 'Contact add karein', en: 'Add contact' }, // line 4348
 
   // Settings — PIN — src/lib/i18n.ts
   settings_set_pin: { ur: 'PIN Set Karo', en: 'Set PIN' }, // line 1460

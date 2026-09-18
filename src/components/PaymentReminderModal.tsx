@@ -1,6 +1,6 @@
 ﻿import { useMemo, useState } from 'react';
-import { Copy, Share2, MessageCircle } from 'lucide-react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
 import { useToast } from './Toast';
 import { formatMoney } from '../lib/constants';
 import { useT } from '../lib/i18n';
@@ -156,31 +156,31 @@ export function PaymentReminderModal({ open, onClose, personName, amount, curren
               chases payments, and it works whether or not the contact uses
               Hisaab. Rendered as an anchor so Android hands it to the
               WhatsApp intent (chat when we know the number, picker when not). */}
+          {/* Green solid (the 1d accept/send green) with the WhatsApp mark. */}
           <a
             href={whatsappUrl}
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => toast.show({ type: 'success', title: t('reminder_wa_opening') })}
-            className="w-full rounded-2xl py-3.5 text-sm font-bold text-white flex items-center justify-center gap-2 press"
-            style={{ background: '#1FA855' }}
+            className="m-btn m-btn-green w-full py-3.5 text-[14px]"
           >
-            <MessageCircle size={16} strokeWidth={2.4} /> {t('reminder_whatsapp')}
+            <Glyph name="whatsapp" size={17} strokeWidth={2.6} /> {t('reminder_whatsapp')}
           </a>
           <div className="flex gap-2.5">
             <button
               onClick={handleCopy}
               disabled={copying}
-              className="flex-1 bg-cream-soft text-ink-700 rounded-2xl py-3 text-[13px] font-bold flex items-center justify-center gap-2 active:bg-cream-border disabled:opacity-30"
+              className="m-btn m-btn-plain flex-1 py-3 text-[13px]"
             >
-              <Copy size={14} /> {copying ? t('quick_processing') : t('reminder_copy')}
+              <Glyph name="copy" size={15} /> {copying ? t('quick_processing') : t('reminder_copy')}
             </button>
             {shareAvailable ? (
               <button
                 onClick={handleShare}
                 disabled={sharing}
-                className="px-4 rounded-2xl py-3 text-[13px] font-bold bg-cream-soft text-ink-700 flex items-center justify-center gap-2 active:bg-cream-border disabled:opacity-40"
+                className="m-btn m-btn-plain px-4 py-3 text-[13px]"
               >
-                <Share2 size={14} /> {t('reminder_share')}
+                <Glyph name="share" size={15} /> {t('reminder_share')}
               </button>
             ) : null}
           </div>
@@ -188,25 +188,26 @@ export function PaymentReminderModal({ open, onClose, personName, amount, curren
       }
     >
       <div className="space-y-4">
-        <div className={`rounded-2xl p-4 border ${direction === 'receivable' ? 'bg-receive-50/60 border-receive-100/70' : 'bg-pay-50/60 border-pay-100/70'}`}>
-          <p className={`text-[10px] font-bold uppercase tracking-widest ${direction === 'receivable' ? 'text-receive-text' : 'text-pay-text'}`}>
+        {/* Tinted stat card in the direction's own tone. */}
+        <div className={`m-card ${direction === 'receivable' ? 'm-mint' : 'm-coral'} p-4`}>
+          <p className={`text-[10.5px] font-semibold uppercase tracking-[0.12em] ${direction === 'receivable' ? 'text-receive-text' : 'text-pay-text'}`}>
             {direction === 'receivable' ? t('reminder_they_owe_me') : t('reminder_i_owe_them')}
           </p>
-          <p className="text-2xl font-extrabold text-ink-900 tabular-nums tracking-tight mt-1">{amountText}</p>
-          <p className="text-[12px] text-ink-500 mt-1">{personName} - {formatMeta(age, t, hasDueDate)}</p>
+          <p className="text-[26px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em] mt-1.5 leading-tight">{amountText}</p>
+          <p className="text-[12px] text-ink-600 mt-1">{personName} - {formatMeta(age, t, hasDueDate)}</p>
         </div>
 
         <div>
           <p className="form-label">{t('reminder_tone')}</p>
-          <div className="grid grid-cols-3 gap-2">
+          {/* Segmented track — the chosen tone is light-faced. */}
+          <div className="m-seg flex w-full">
             {(['friendly', 'neutral', 'formal'] as PaymentReminderTone[]).map((nextTone) => (
               <button
                 key={nextTone}
                 type="button"
                 onClick={() => setTone(nextTone)}
-                className={`py-2.5 rounded-xl text-[11px] font-bold border transition-all active:scale-95 ${
-                  tone === nextTone ? 'bg-ink-900 text-white border-ink-900' : 'bg-cream-card text-ink-500 border-cream-border'
-                }`}
+                aria-pressed={tone === nextTone}
+                className="flex-1 min-h-[36px] text-[11.5px]"
               >
                 {nextTone === 'friendly' ? t('reminder_tone_friendly') : nextTone === 'neutral' ? t('reminder_tone_neutral') : t('reminder_tone_formal')}
               </button>
@@ -216,10 +217,10 @@ export function PaymentReminderModal({ open, onClose, personName, amount, curren
 
         <div>
           <p className="form-label">{t('reminder_preview')}</p>
-          <div className="rounded-2xl bg-cream-soft border border-cream-hairline p-4">
+          <div className="m-inset p-4">
             <p className="text-[13px] text-ink-800 leading-relaxed whitespace-pre-line">{message}</p>
           </div>
-          <p className="text-[10px] text-ink-500 mt-2">
+          <p className="text-[10.5px] text-ink-500 mt-2">
             {(knownNumber ? t('reminder_wa_to_name') : t('reminder_wa_pick')).replace('{name}', personName)}
           </p>
         </div>

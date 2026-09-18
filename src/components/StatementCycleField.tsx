@@ -1,5 +1,5 @@
-import { FileText, BellRing, Sparkles } from 'lucide-react';
 import { useT } from '../lib/i18n';
+import { Glyph } from './Glyph';
 
 interface Props {
   /** Day-of-month strings (1..31), controlled by the parent form. */
@@ -40,49 +40,49 @@ export function StatementCycleField({ statementDay, dueDay, onStatementDay, onDu
     return String(n);
   };
 
+  // Two labelled field cards (caption + bare 22px day input) under a short
+  // explainer; when both days are set, a violet→coral timeline shows the gap.
+  // The inputs carry an inline font-size: index.css pins every <input> to
+  // 16px (iOS zoom guard), which beats any text-* utility.
   return (
-    <div className="rounded-[20px] bg-cream-card border border-cream-border p-4">
-      <div className="flex items-center gap-1.5 mb-0.5">
-        <p className="text-[11px] font-bold text-ink-500 uppercase tracking-widest">{t('cc_cycle_title')}</p>
-      </div>
-      <p className="text-[11.5px] text-ink-500 leading-relaxed mb-3">{t('cc_cycle_sub')}</p>
+    <div className="m-card p-4">
+      <p className="form-label mb-1">{t('cc_cycle_title')}</p>
+      <p className="text-[11.5px] text-ink-600 leading-relaxed mb-3">{t('cc_cycle_sub')}</p>
 
       <div className="grid grid-cols-2 gap-2.5">
         {/* Statement closes */}
-        <div className="rounded-2xl bg-cream-soft border border-cream-hairline p-3">
-          <div className="flex items-center gap-1.5 mb-2">
-            <div className="w-6 h-6 rounded-lg bg-accent-100 flex items-center justify-center shrink-0">
-              <FileText size={13} className="text-accent-600" />
-            </div>
+        <label className="m-field px-3 py-2.5 cursor-text">
+          <span className="flex items-center gap-1.5 mb-1">
+            <Glyph name="document" size={14} tone="violet" />
             <span className="text-[11px] font-semibold text-ink-700 leading-tight">{t('cc_cycle_close')}</span>
-          </div>
+          </span>
           <input
             type="number" inputMode="numeric" min="1" max="31"
             value={statementDay}
             onChange={(e) => onStatementDay(clampDay(e.target.value))}
             placeholder="—"
             aria-label={t('cc_cycle_close')}
-            className="w-full text-center text-[22px] font-bold text-ink-900 tabular-nums bg-transparent outline-none"
+            className="w-full text-center font-semibold text-ink-900 tabular-nums bg-transparent outline-none"
+            style={{ fontSize: 22 }}
           />
-        </div>
+        </label>
 
         {/* Payment due */}
-        <div className="rounded-2xl bg-cream-soft border border-cream-hairline p-3">
-          <div className="flex items-center gap-1.5 mb-2">
-            <div className="w-6 h-6 rounded-lg bg-warn-50 flex items-center justify-center shrink-0">
-              <BellRing size={13} className="text-warn-600" />
-            </div>
+        <label className="m-field px-3 py-2.5 cursor-text">
+          <span className="flex items-center gap-1.5 mb-1">
+            <Glyph name="bell" size={14} tone="coral" />
             <span className="text-[11px] font-semibold text-ink-700 leading-tight">{t('cc_cycle_due')}</span>
-          </div>
+          </span>
           <input
             type="number" inputMode="numeric" min="1" max="31"
             value={dueDay}
             onChange={(e) => onDueDay(clampDay(e.target.value))}
             placeholder="—"
             aria-label={t('cc_cycle_due')}
-            className="w-full text-center text-[22px] font-bold text-ink-900 tabular-nums bg-transparent outline-none"
+            className="w-full text-center font-semibold text-ink-900 tabular-nums bg-transparent outline-none"
+            style={{ fontSize: 22 }}
           />
-        </div>
+        </label>
       </div>
 
       {/* Live timeline — closes ●━━ ~N days ━━● due */}
@@ -90,20 +90,20 @@ export function StatementCycleField({ statementDay, dueDay, onStatementDay, onDu
         <div className="mt-3.5 animate-fade-in">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-accent-500 shrink-0 ring-2 ring-accent-100" />
-            <span className="flex-1 h-[2px] bg-gradient-to-r from-accent-400 to-warn-400 rounded-full" />
-            <span className="shrink-0 text-[10px] font-bold text-ink-600 bg-cream-soft border border-cream-hairline rounded-full px-2 py-0.5 tabular-nums">
+            <span className="flex-1 h-[2px] bg-gradient-to-r from-accent-500 to-pay-600 rounded-full" />
+            <span className="m-chip m-chip-neutral shrink-0 tabular-nums">
               {(daysToPay === 1 ? t('cc_cycle_gap_one') : t('cc_cycle_gap')).replace('{n}', String(daysToPay))}
             </span>
-            <span className="flex-1 h-[2px] bg-gradient-to-r from-warn-400 to-warn-500 rounded-full" />
-            <span className="w-2.5 h-2.5 rounded-full bg-warn-500 shrink-0 ring-2 ring-warn-100" />
+            <span className="flex-1 h-[2px] bg-pay-600 rounded-full" />
+            <span className="w-2.5 h-2.5 rounded-full bg-pay-600 shrink-0 ring-2 ring-pay-100" />
           </div>
-          <div className="flex justify-between mt-1.5 text-[10px] font-medium text-ink-400 tabular-nums">
+          <div className="flex justify-between mt-1.5 text-[10.5px] font-medium text-ink-500 tabular-nums">
             <span>{t('cc_cycle_closes_on').replace('{d}', `${sd}${ordinal(sd)}`)}</span>
             <span>{t('cc_cycle_due_on').replace('{d}', `${dd}${ordinal(dd)}`)}</span>
           </div>
-          <div className="mt-3 flex items-start gap-1.5 rounded-xl bg-receive-50 px-2.5 py-2">
-            <Sparkles size={12} className="text-receive-text shrink-0 mt-0.5" />
-            <p className="text-[10.5px] text-receive-text leading-relaxed">
+          <div className="m-card m-mint mt-3 flex items-start gap-2 px-3 py-2.5">
+            <Glyph name="sparkle" size={13} tone="green" className="mt-0.5" />
+            <p className="text-[11px] text-receive-text leading-relaxed">
               {t('cc_cycle_reassure').replace('{d}', `${dd}${ordinal(dd)}`)}
             </p>
           </div>

@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
-import { Trash2 } from 'lucide-react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
 import { useDiscardGuard } from '../lib/useDiscardGuard';
 import { useSubmitGuard } from '../lib/useSubmitGuard';
 import { ContactPicker, type ContactValue } from './ContactPicker';
@@ -419,51 +419,53 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
             <button
               onClick={handleDeleteSplit}
               disabled={saving || !!splitSettledRow}
-              className="w-full rounded-2xl bg-pay-50 text-pay-text py-3.5 text-sm font-bold disabled:opacity-40"
+              className="cta-destructive py-3.5 text-[14px]"
             >
+              <Glyph name="trash" size={15} />
               {saving ? t('quick_processing') : t('split_delete_event')}
             </button>
           ) : (
             <button
               onClick={handleDelete}
               disabled={saving || groupLive === true}
-              className="w-full rounded-2xl bg-pay-50 text-pay-text py-3.5 text-sm font-bold disabled:opacity-40"
+              className="cta-destructive py-3.5 text-[14px]"
             >
+              <Glyph name="trash" size={15} />
               {saving ? t('quick_processing') : t('tx_delete_entry')}
             </button>
           )
         )}
       >
         <div className="space-y-4">
-          <div className="rounded-2xl bg-cream-soft border border-cream-hairline p-4">
-            <p className="text-[11px] font-bold text-ink-500 uppercase tracking-widest">
+          <div className="m-inset p-4">
+            <p className="m-label">
               {getActionLabel(transaction, t, {
                 personName: transaction.relatedPerson,
                 loan: transaction.relatedLoanId ? loans.find((l) => l.id === transaction.relatedLoanId) ?? null : null,
               })}
             </p>
-            <p className="text-lg font-bold text-ink-900 tabular-nums mt-1">
+            <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em] mt-1.5">
               {formatMoney(transaction.amount, transaction.currency)}
             </p>
           </div>
-          {source && <p className="text-[13px] text-ink-700">{t('label_from')} <span className="font-semibold">{source.name}</span></p>}
-          {destination && <p className="text-[13px] text-ink-700">{t('label_to')} <span className="font-semibold">{destination.name}</span></p>}
-          {transaction.relatedPerson && <p className="text-[13px] text-ink-700">{t('label_person')} <span className="font-semibold">{transaction.relatedPerson}</span></p>}
-          {transaction.notes && <p className="text-[12px] text-ink-500">{parseInternalNote(transaction.notes).visibleNote}</p>}
-          <p className="text-[12px] text-ink-500 bg-cream-soft rounded-xl p-3 leading-relaxed">
+          {source && <p className="text-[13px] text-ink-700">{t('label_from')} <span className="font-semibold text-ink-900">{source.name}</span></p>}
+          {destination && <p className="text-[13px] text-ink-700">{t('label_to')} <span className="font-semibold text-ink-900">{destination.name}</span></p>}
+          {transaction.relatedPerson && <p className="text-[13px] text-ink-700">{t('label_person')} <span className="font-semibold text-ink-900">{transaction.relatedPerson}</span></p>}
+          {transaction.notes && <p className="text-[12px] text-ink-600">{parseInternalNote(transaction.notes).visibleNote}</p>}
+          <p className="m-inset text-[12px] text-ink-600 p-3 leading-relaxed">
             {noteMeta.splitEventId ? t('split_locked_edit') : t('tx_readonly_note')}
           </p>
           {noteMeta.splitEventId && (
-            <div className="rounded-2xl border border-cream-border bg-cream-card p-3.5 space-y-2">
-              <p className="text-[10.5px] font-bold text-ink-500 uppercase tracking-widest">
+            <div className="m-card p-3.5 space-y-2">
+              <p className="m-label">
                 {t('split_ways').replace('{n}', noteMeta.splitPartyCount ?? String(splitRows.length))}
               </p>
               {splitRows.map((row) => (
                 <div key={row.id} className="flex items-center justify-between gap-3">
-                  <span className="text-[12px] text-ink-700 truncate">
+                  <span className="text-[12.5px] text-ink-700 truncate">
                     {row.type === 'expense' ? t('split_you') : row.relatedPerson ?? ''}
                   </span>
-                  <span className={`text-[12px] font-semibold tabular-nums ${row.id === transaction.id ? 'text-accent-600' : 'text-ink-900'}`}>
+                  <span className={`text-[12.5px] font-semibold tabular-nums ${row.id === transaction.id ? 'text-accent-text' : 'text-ink-900'}`}>
                     {formatMoney(row.amount, row.currency)}
                   </span>
                 </div>
@@ -471,17 +473,19 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
             </div>
           )}
           {splitSettledRow && (
-            <p className="text-[12px] text-warn-600 bg-warn-50 rounded-xl p-3 leading-relaxed">
-              {t('split_delete_blocked')}
-            </p>
+            <div className="m-card m-gold p-3 flex items-start gap-2">
+              <Glyph name="alert" size={15} tone="gold" className="mt-px" />
+              <p className="text-[12px] text-warn-700 leading-relaxed">{t('split_delete_blocked')}</p>
+            </div>
           )}
           {noteMeta.groupExpenseId && groupLive !== false && (
-            <p className="text-[12px] text-warn-600 bg-warn-50 rounded-xl p-3 leading-relaxed">
-              {t('tx_group_expense_warn')}
-            </p>
+            <div className="m-card m-gold p-3 flex items-start gap-2">
+              <Glyph name="alert" size={15} tone="gold" className="mt-px" />
+              <p className="text-[12px] text-warn-700 leading-relaxed">{t('tx_group_expense_warn')}</p>
+            </div>
           )}
           {noteMeta.groupExpenseId && groupLive === false && (
-            <p className="text-[12px] text-ink-600 bg-cream-soft rounded-xl p-3 leading-relaxed">
+            <p className="m-inset text-[12px] text-ink-600 p-3 leading-relaxed">
               {t('tx_group_orphan_note')}
             </p>
           )}
@@ -497,19 +501,19 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
       title={t('edit_entry_title')}
       confirmClose={() => guardClose(isDirty)}
       footer={(
-        <div className="flex gap-2">
+        <div className="flex gap-2.5">
           <button
             onClick={handleDelete}
             disabled={saving}
             aria-label={t('tx_delete_entry')}
-            className="min-h-[44px] min-w-[44px] px-4 rounded-2xl bg-pay-50 text-pay-text active:bg-pay-100 transition-all disabled:opacity-50 flex items-center justify-center"
+            className="m-btn m-btn-danger min-w-[52px] px-4"
           >
-            <Trash2 size={16} />
+            <Glyph name="trash" size={17} />
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !canSave}
-            className="flex-1 bg-accent-600 text-white rounded-2xl py-3.5 text-sm font-bold disabled:opacity-30 shadow-md shadow-accent-600/20"
+            className="m-btn m-btn-primary flex-1 py-3.5 text-[14px]"
           >
             {saving ? t('quick_processing') : t('save')}
           </button>
@@ -517,14 +521,14 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
       )}
     >
       <div className="space-y-4">
-        <div className="bg-cream-soft/80 rounded-2xl p-3.5 border border-cream-hairline">
-          <p className="text-[11px] font-bold text-ink-500 uppercase tracking-widest">
+        <div className="m-inset p-3.5">
+          <p className="m-label">
             {getActionLabel(transaction, t, {
               personName: contact.name || transaction.relatedPerson,
               loan: transaction.relatedLoanId ? loans.find((l) => l.id === transaction.relatedLoanId) ?? null : null,
             })}
           </p>
-          <p className="text-lg font-bold text-ink-900 tabular-nums mt-1">
+          <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em] mt-1.5">
             {formatMoney(transaction.amount, transaction.currency)}
           </p>
         </div>
@@ -611,12 +615,13 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
         {isLoanTaken && availableCashAdvanceCards.length > 0 && (
           <div>
             <label className="form-label">{t('cash_advance_source')}</label>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <button
                 type="button"
                 onClick={() => setCashAdvanceCardId('')}
-                className={`w-full p-3 rounded-2xl border text-left text-[12px] font-semibold transition-all ${
-                  !selectedCashAdvanceCard ? 'border-accent-500 bg-accent-50 text-accent-600' : 'border-cream-border bg-cream-card text-ink-500'
+                aria-pressed={!selectedCashAdvanceCard}
+                className={`selector-base text-[12.5px] font-semibold ${
+                  !selectedCashAdvanceCard ? 'selector-selected text-accent-text' : 'text-ink-600'
                 }`}
               >
                 {t('cash_advance_none')}
@@ -626,15 +631,17 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
                   key={account.id}
                   type="button"
                   onClick={() => setCashAdvanceCardId(account.id)}
-                  className={`w-full p-3.5 rounded-2xl border-2 flex items-center justify-between text-left transition-all active:scale-[0.98] ${
-                    selectedCashAdvanceCard?.id === account.id ? 'border-accent-500 bg-accent-50 shadow-sm shadow-accent-500/5' : 'border-cream-border bg-cream-card'
-                  }`}
+                  aria-pressed={selectedCashAdvanceCard?.id === account.id}
+                  className={`selector-base ${selectedCashAdvanceCard?.id === account.id ? 'selector-selected' : ''}`}
                 >
-                  <div>
-                    <p className="text-[13px] font-semibold text-ink-800">{account.name}</p>
-                    <p className="text-[10px] text-ink-500">{t('etm_credit_card')}</p>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Glyph name="card" size={17} tone="coral" />
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-ink-900 truncate">{account.name}</p>
+                      <p className="text-[10.5px] text-ink-500">{t('etm_credit_card')}</p>
+                    </div>
                   </div>
-                  <p className="text-[13px] font-bold text-ink-800 tabular-nums">{formatSignedMoney(account.balance, account.currency)}</p>
+                  <p className="text-[13px] font-semibold text-ink-900 tabular-nums shrink-0 ml-2">{formatSignedMoney(account.balance, account.currency)}</p>
                 </button>
               ))}
             </div>

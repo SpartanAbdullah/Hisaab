@@ -16,36 +16,17 @@ import { LanguageToggle } from '../components/LanguageToggle';
 import { TransactionItem } from '../components/TransactionItem';
 import { EditTransactionModal } from '../components/EditTransactionModal';
 import { EmptyState } from '../components/EmptyState';
+import { ListSkeleton } from '../components/ListSkeleton';
 import { Modal } from '../components/Modal';
+import { Glyph } from '../components/Glyph';
 import { confirmDestructive } from '../components/ConfirmDestructiveSheet';
 import { formatMoney } from '../lib/constants';
 import { currencyMeta } from '../lib/design-tokens';
 import { daysUntilDayOfMonth } from '../lib/inboxInfo';
 import { useT, type I18nKey } from '../lib/i18n';
+import type { GlyphName, GlyphTone } from '../lib/glyphs';
 import { useSubmitGuard } from '../lib/useSubmitGuard';
-import {
-  Wallet,
-  Landmark,
-  Smartphone,
-  PiggyBank,
-  CreditCard,
-  Plus,
-  ArrowDownLeft,
-  ArrowUpRight,
-  ArrowLeftRight,
-  HandCoins,
-  Users,
-  AlertTriangle,
-  MoreVertical,
-  Pencil,
-  Trash2,
-  Calculator,
-  Info,
-  CalendarClock,
-  Banknote,
-  SlidersHorizontal,
-  Settings2,
-} from 'lucide-react';
+import { ArrowLeftRight } from 'lucide-react';
 import type { Account } from '../db';
 import { QuickEntry, type QuickEntryPreset } from './QuickEntry';
 import { useToast } from '../components/Toast';
@@ -97,12 +78,14 @@ function filterByTime(txns: Transaction[], timeFilter: TimeFilter): Transaction[
   return txns.filter((tx) => isWithinInterval(new Date(tx.createdAt), { start, end }));
 }
 
-const iconMap: Record<string, React.ElementType> = {
-  cash: Wallet,
-  bank: Landmark,
-  digital_wallet: Smartphone,
-  savings: PiggyBank,
-  credit_card: CreditCard,
+// Account-type glyph + accent (shared mapping: cash green, bank blue, wallet
+// violet, savings gold, card coral).
+const TYPE_GLYPH: Record<string, { glyph: GlyphName; tone: GlyphTone }> = {
+  cash: { glyph: 'banknote', tone: 'green' },
+  bank: { glyph: 'bank', tone: 'blue' },
+  digital_wallet: { glyph: 'wallet', tone: 'violet' },
+  savings: { glyph: 'savings', tone: 'gold' },
+  credit_card: { glyph: 'card', tone: 'coral' },
 };
 const typeLabelKeys: Record<string, I18nKey> = {
   cash: 'type_cash',
@@ -217,11 +200,28 @@ export function AccountDetailPage() {
       );
     }
     if (loadStatus === 'loading') {
+      // Skeleton in the page's own geometry — hero figure, action tiles,
+      // then the statement list — so nothing jumps when the account lands.
       return (
-        <main className="min-h-dvh bg-cream-bg flex items-center justify-center">
-          <div className="flex items-center gap-2 text-ink-500 text-[13px]">
-            <div className="w-3 h-3 rounded-full bg-cream-hairline animate-pulse" />
-            {t('loading')}
+        <main className="min-h-dvh bg-cream-bg pb-28">
+          <NavyHero>
+            <TopBar title="" back />
+            <div className="px-5 pb-7" aria-hidden="true">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="m-skel w-11 h-11 rounded-[14px]" />
+                <div className="m-skel h-[11px] w-28" />
+              </div>
+              <div className="m-skel h-10 w-52 rounded-xl" />
+            </div>
+          </NavyHero>
+          <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-4">
+            <p className="sr-only">{t('loading')}</p>
+            <div className="grid grid-cols-3 gap-2.5" aria-hidden="true">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="m-skel rounded-[15px] h-[70px]" />
+              ))}
+            </div>
+            <ListSkeleton rows={4} />
           </div>
         </main>
       );
@@ -234,7 +234,7 @@ export function AccountDetailPage() {
   }
 
   const accountTxns = getByAccount(account.id);
-  const Icon = iconMap[account.type] ?? Wallet;
+  const typeGlyph = TYPE_GLYPH[account.type] ?? TYPE_GLYPH.cash;
   const meta = currencyMeta[account.currency];
   const creditLimit = isCreditCard ? parseFloat(account.metadata.creditLimit || '0') : 0;
   const used = isCreditCard ? creditLimit - account.balance : 0;
@@ -344,18 +344,19 @@ export function AccountDetailPage() {
                   setQuickPreset({ accountId: account.id, lockAccount: true });
                   setShowAdd(true);
                 }}
-                className="h-9 px-3 rounded-xl bg-white/10 active:bg-white/15 flex items-center gap-1.5 text-[11.5px] font-semibold text-white transition-colors"
+                className="m-ctl h-9 px-3 flex items-center gap-1.5 text-[11.5px] font-semibold text-accent-text"
                 aria-label={t('add_entry')}
               >
-                <Plus size={12} strokeWidth={2.4} /> {t('add_entry')}
+                <Glyph name="plus" size={13} strokeWidth={3} /> {t('add_entry')}
               </button>
               <div className="relative">
                 <button
                   onClick={() => setShowMenu(!showMenu)}
-                  className="w-9 h-9 rounded-xl bg-white/10 active:bg-white/15 flex items-center justify-center transition-colors"
+                  className="m-ctl relative w-9 h-9 flex items-center justify-center before:absolute before:-inset-1 before:content-['']"
                   aria-label={t('a11y_more')}
+                  aria-expanded={showMenu}
                 >
-                  <MoreVertical size={15} className="text-white" />
+                  <Glyph name="more" size={17} strokeWidth={3} className="text-white/90" />
                 </button>
                 {showMenu && (
                   <>
@@ -364,16 +365,21 @@ export function AccountDetailPage() {
                       role="presentation"
                       onClick={() => setShowMenu(false)}
                     />
-                    <div className="absolute right-0 top-11 z-50 bg-cream-card rounded-2xl shadow-xl shadow-navy-900/15 border border-cream-border py-1.5 w-44 animate-fade-in">
+                    {/* This menu renders INSIDE the hero, which re-scopes the
+                        material and accent tokens to their dark values — so
+                        it deliberately uses only un-scoped tokens (cream-soft
+                        surface, ink text, pay-700) to stay a light sheet in
+                        the light theme and a dark one in dark. */}
+                    <div className="absolute right-0 top-11 z-50 bg-cream-soft rounded-2xl border border-cream-border shadow-[0_18px_40px_-12px_rgba(0,0,0,0.45)] py-1.5 w-48 animate-fade-in">
                       <button
                         onClick={() => {
                           setShowMenu(false);
                           setNewName(account.name);
                           setShowRename(true);
                         }}
-                        className="w-full px-4 py-2.5 flex items-center gap-2.5 text-[13px] font-medium text-ink-800 active:bg-cream-soft"
+                        className="w-full px-4 py-2.5 min-h-[44px] flex items-center gap-2.5 text-[13px] font-medium text-ink-800 active:bg-cream-bg"
                       >
-                        <Pencil size={14} className="text-ink-500" /> {t('rename')}
+                        <Glyph name="edit" size={15} className="text-ink-500" /> {t('rename')}
                       </button>
                       <button
                         onClick={() => {
@@ -381,9 +387,9 @@ export function AccountDetailPage() {
                           setCorrectInput(String(account.balance));
                           setShowCorrect(true);
                         }}
-                        className="w-full px-4 py-2.5 flex items-center gap-2.5 text-[13px] font-medium text-ink-800 active:bg-cream-soft"
+                        className="w-full px-4 py-2.5 min-h-[44px] flex items-center gap-2.5 text-[13px] font-medium text-ink-800 active:bg-cream-bg"
                       >
-                        <SlidersHorizontal size={14} className="text-ink-500" /> {t('acct_correct_balance')}
+                        <Glyph name="sliders" size={15} className="text-ink-500" /> {t('acct_correct_balance')}
                       </button>
                       <button
                         onClick={async () => {
@@ -414,9 +420,9 @@ export function AccountDetailPage() {
                             }
                           }
                         }}
-                        className="w-full px-4 py-2.5 flex items-center gap-2.5 text-[13px] font-medium text-pay-text active:bg-pay-50"
+                        className="w-full px-4 py-2.5 min-h-[44px] flex items-center gap-2.5 text-[13px] font-medium text-pay-700 active:bg-cream-bg"
                       >
-                        <Trash2 size={14} /> {t('common_delete')}
+                        <Glyph name="trash" size={15} /> {t('common_delete')}
                       </button>
                     </div>
                   </>
@@ -429,56 +435,61 @@ export function AccountDetailPage() {
 
         <div className="px-5 pb-7">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center shrink-0">
-              <Icon size={20} className="text-white" strokeWidth={1.7} />
+            <div className="m-ctl w-11 h-11 rounded-[14px] flex items-center justify-center shrink-0">
+              <Glyph name={typeGlyph.glyph} tone={typeGlyph.tone} size={21} extrude />
             </div>
             <div className="min-w-0">
-              <p className="text-[10.5px] font-semibold text-white/55 tracking-[0.12em] uppercase">
+              <p className="text-[10.5px] font-semibold text-white/70 tracking-[0.12em] uppercase">
                 {typeLabelKeys[account.type] ? t(typeLabelKeys[account.type]) : account.type.replace('_', ' ')}
               </p>
-              <p className="text-[11px] text-white/70 flex items-center gap-1 mt-0.5">
+              <p className="text-[11.5px] text-white/70 flex items-center gap-1 mt-0.5">
                 <span>{meta?.flag}</span> {account.currency}
                 {account.metadata.bankName && (
-                  <span className="text-white/45"> · {account.metadata.bankName}</span>
+                  <span className="text-white/60"> · {account.metadata.bankName}</span>
                 )}
               </p>
             </div>
           </div>
 
-          <p className="text-[10.5px] font-semibold text-white/50 tracking-[0.12em] uppercase">
+          <p className="text-[10.5px] font-semibold text-white/70 tracking-[0.12em] uppercase">
             {isCreditCard ? t('cc_available') : t('label_balance')}
           </p>
-          <div className="mt-1.5">
+          <div className="mt-2">
             <MoneyDisplay
               amount={account.balance}
               currency={account.currency}
               size={38}
               tone="on-navy"
+              extrude="violet"
             />
           </div>
 
           {isCreditCard && creditLimit > 0 && (() => {
             const utilPct = Math.max(0, Math.min(100, (used / creditLimit) * 100));
-            // Coral when nearly maxed, amber mid-range, white when healthy.
-            const barColor = utilPct >= 80 ? 'bg-pay-600' : utilPct >= 50 ? 'bg-warn-600' : 'bg-white';
+            // Coral when nearly maxed, gold mid-range, white when healthy.
+            const barColor = utilPct >= 80
+              ? 'bg-gradient-to-r from-pay-600 to-pay-700'
+              : utilPct >= 50
+                ? 'bg-gradient-to-r from-gold-300 to-gold-700'
+                : 'bg-white/85';
             const dueDay = account.metadata.dueDay ? parseInt(account.metadata.dueDay, 10) : NaN;
             const dueIn = daysUntilDayOfMonth(dueDay, new Date());
             const dueUrgent = dueIn !== null && dueIn <= 3;
             return (
               <>
-                <div className="mt-4 h-1.5 rounded-full bg-white/15 overflow-hidden">
+                <div className="mt-4 h-[7px] rounded-full bg-white/10 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] overflow-hidden">
                   <div
                     className={`h-full rounded-full ${barColor} transition-all duration-500`}
                     style={{ width: `${utilPct}%` }}
                   />
                 </div>
-                <div className="flex justify-between mt-2 text-[11px]">
-                  <span className="text-white/65 tabular-nums">
+                <div className="flex justify-between gap-3 mt-2 text-[11px]">
+                  <span className="text-white/70 tabular-nums">
                     {used < -0.005
                       ? t('acct_overpaid').replace('{amount}', formatMoney(Math.abs(used), account.currency))
                       : <>{t('cc_used')}: {formatMoney(used, account.currency)} · {Math.round(utilPct)}%</>}
                   </span>
-                  <span className="text-white/85 font-medium tabular-nums">
+                  <span className="text-white/85 font-medium tabular-nums text-right">
                     {t('cc_limit')}: {formatMoney(creditLimit, account.currency)}
                   </span>
                 </div>
@@ -489,20 +500,21 @@ export function AccountDetailPage() {
                   <button
                     type="button"
                     onClick={() => { setCorrectInput(String(creditLimit)); setShowCorrect(true); }}
-                    className="mt-3 w-full text-left rounded-2xl bg-warn-600/25 p-3 active:bg-warn-600/35 transition-colors"
+                    className="mt-3 w-full text-left rounded-2xl bg-white/10 p-3 flex items-start gap-2.5 active:bg-white/15 transition-colors"
                   >
-                    <p className="text-[11px] text-white/90 leading-relaxed font-medium">
+                    <Glyph name="alert" size={15} className="text-warn-700 mt-0.5" />
+                    <p className="text-[11.5px] text-white/90 leading-relaxed font-medium">
                       {t('acct_over_limit_hint')}
                     </p>
                   </button>
                 )}
                 {account.metadata.dueDay && (
-                  <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold text-white ${dueUrgent ? 'bg-pay-600/30' : 'bg-warn-600/25'}`}>
-                    <CalendarClock size={11} />
+                  <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold ${dueUrgent ? 'text-pay-text' : 'text-warn-700'}`}>
+                    <Glyph name="calendar" size={12} />
                     {t('cc_next_due')}: {account.metadata.dueDay}
                     {getOrdinal(parseInt(account.metadata.dueDay))}
                     {dueIn !== null && (
-                      <span className="text-white/85">
+                      <span className="text-white/85 font-medium">
                         {' · '}
                         {dueIn === 0 ? t('cc_due_today') : t('cc_due_in').replace('{n}', String(dueIn))}
                       </span>
@@ -519,10 +531,10 @@ export function AccountDetailPage() {
         {/* Per-card re-anchor migration (user-approved, date-only): shift this
             card's cash-advance instalments onto its statement day. */}
         {isCreditCard && cardAdvances.misaligned.length > 0 && account.metadata.dueDay && (
-          <div className="rounded-2xl bg-accent-50 border border-accent-100 p-4">
+          <div className="m-card m-violet p-4">
             <div className="flex items-center gap-2 mb-1">
-              <Settings2 size={15} className="text-accent-600" />
-              <p className="text-[13px] font-bold text-ink-900">{t('reanchor_title')}</p>
+              <Glyph name="calendar" size={16} tone="violet" />
+              <p className="text-[13.5px] font-semibold text-ink-900 tracking-tight">{t('reanchor_title')}</p>
             </div>
             <p className="text-[12px] text-ink-600 leading-relaxed">
               {t('reanchor_body').replace('{day}', `${account.metadata.dueDay}${getOrdinal(parseInt(account.metadata.dueDay))}`)}
@@ -543,16 +555,16 @@ export function AccountDetailPage() {
             plan (otherwise the hero's "used" already IS the statement). The
             honest monthly bill: purchases/carried + this cycle's instalment. */}
         {isCreditCard && cardAdvances.statement && cardAdvances.advanceLoans.length > 0 && cardAdvances.statement.statementDue > 0.005 && (
-          <div className="rounded-2xl bg-cream-card border border-cream-border p-4">
+          <div className="m-card p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">{t('cc_statement_title')}</p>
               {cardAdvances.statement.daysUntilDue !== null && (
-                <span className="text-[10.5px] font-semibold text-ink-500 tabular-nums">
+                <span className="m-chip m-chip-gold tabular-nums">
                   {cardAdvances.statement.daysUntilDue === 0 ? t('cc_due_today') : t('cc_due_in').replace('{n}', String(cardAdvances.statement.daysUntilDue))}
                 </span>
               )}
             </div>
-            <p className="text-[24px] font-bold text-ink-900 tabular-nums tracking-tight">
+            <p className="text-[24px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em]">
               {formatMoney(cardAdvances.statement.statementDue, account.currency)}
             </p>
             {/* Two-date cycle, when a distinct statement day is set. */}
@@ -615,22 +627,22 @@ export function AccountDetailPage() {
                   <button
                     key={adv.id}
                     onClick={() => navigate(`/loan/${adv.id}`)}
-                    className="w-full text-left rounded-2xl bg-cream-card border border-cream-border p-4 press-lg"
+                    className="m-tile p-4"
                   >
                     <div className="flex items-baseline justify-between gap-2">
-                      <p className="text-[15px] font-bold text-ink-900 tabular-nums tracking-tight">
+                      <p className="text-[15px] font-semibold text-ink-900 tabular-nums tracking-tight">
                         {formatMoney(adv.totalAmount, adv.currency)}
                       </p>
-                      <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-[0.08em] rounded-full bg-warn-50 border border-warn-100 text-warn-600 px-2 py-0.5">
+                      <span className="m-chip m-chip-gold m-chip-caps shrink-0">
                         {t('ca_pill')}
                       </span>
                     </div>
-                    <p className="text-[10.5px] text-ink-500 mt-0.5 tabular-nums">
+                    <p className="text-[11px] text-ink-500 mt-0.5 tabular-nums">
                       {t('ca_taken_on').replace('{date}', new Date(adv.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }))}
                       {plan.length > 0 && <> · {t('ca_plan_count').replace('{n}', String(plan.length))}</>}
                     </p>
-                    <div className="relative mt-2.5 h-2 rounded-full bg-cream-soft overflow-hidden">
-                      <div className="h-full bg-receive-600 transition-all" style={{ width: `${pct}%` }} />
+                    <div className="m-inset relative mt-3 h-2 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-gradient-to-r from-receive-600 to-receive-700 transition-all" style={{ width: `${pct}%` }} />
                     </div>
                     <div className="flex items-baseline justify-between mt-2 text-[11px] tabular-nums">
                       <span className="text-receive-text font-semibold">
@@ -670,9 +682,9 @@ export function AccountDetailPage() {
                 setQuickPreset({ type: 'expense', accountId: account.id, lockAccount: true });
                 setShowAdd(true);
               }}
-              className="rounded-2xl bg-cream-card border border-cream-border px-2 py-3 text-[12px] font-semibold text-ink-800 flex items-center justify-center gap-2 press"
+              className="m-tile px-3 py-3.5 flex items-center justify-center gap-2 text-[12.5px] font-semibold text-ink-800"
             >
-              <ArrowUpRight size={15} className="text-accent-600" />
+              <Glyph name="arrow-up" tone="coral" size={17} />
               {t('acct_action_card_spend')}
             </button>
             <button
@@ -681,9 +693,9 @@ export function AccountDetailPage() {
                 setQuickPreset({ type: 'transfer', destinationAccountId: account.id });
                 setShowAdd(true);
               }}
-              className="rounded-2xl bg-accent-50 border border-accent-100 px-2 py-3 text-[12px] font-semibold text-accent-600 flex items-center justify-center gap-2 press"
+              className="m-tile m-violet px-3 py-3.5 flex items-center justify-center gap-2 text-[12.5px] font-semibold text-accent-text"
             >
-              <CreditCard size={15} className="text-accent-600" />
+              <Glyph name="card" tone="violet" size={17} />
               {t('acct_action_pay_card')}
             </button>
             <button
@@ -692,9 +704,9 @@ export function AccountDetailPage() {
                 setQuickPreset({ type: 'loan_taken', cashAdvanceCardId: account.id });
                 setShowAdd(true);
               }}
-              className="rounded-2xl bg-warn-50 border border-warn-100 px-2 py-3 text-[12px] font-semibold text-warn-600 flex items-center justify-center gap-2 press"
+              className="m-tile px-3 py-3.5 flex items-center justify-center gap-2 text-[12.5px] font-semibold text-ink-800"
             >
-              <Banknote size={15} className="text-warn-600" />
+              <Glyph name="banknote" tone="violet" size={17} />
               {t('acct_action_cash_advance')}
             </button>
             <button
@@ -705,19 +717,19 @@ export function AccountDetailPage() {
                 setStatementDayInput(account.metadata.statementDay ?? '');
                 setShowCardSettings(true);
               }}
-              className="rounded-2xl bg-cream-card border border-cream-border px-2 py-3 text-[12px] font-semibold text-ink-800 flex items-center justify-center gap-2 press"
+              className="m-tile px-3 py-3.5 flex items-center justify-center gap-2 text-[12.5px] font-semibold text-ink-800"
             >
-              <SlidersHorizontal size={15} className="text-accent-600" />
+              <Glyph name="sliders" tone="neutral" size={17} />
               {t('acct_action_card_settings')}
             </button>
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2.5">
               {[
-                { type: 'expense' as const, label: t('intent_spend'), icon: ArrowUpRight },
-                { type: 'income' as const, label: t('intent_receive'), icon: ArrowDownLeft },
-                { type: 'transfer' as const, label: t('intent_move'), icon: ArrowLeftRight },
+                { type: 'expense' as const, label: t('intent_spend'), glyph: 'arrow-up' as const, tone: 'coral' as const },
+                { type: 'income' as const, label: t('intent_receive'), glyph: 'arrow-down' as const, tone: 'green' as const },
+                { type: 'transfer' as const, label: t('intent_move'), glyph: 'swap' as const, tone: 'blue' as const },
               ].map((action) => (
                 <button
                   key={action.type}
@@ -726,23 +738,23 @@ export function AccountDetailPage() {
                     setQuickPreset({ type: action.type, accountId: account.id, lockAccount: true });
                     setShowAdd(true);
                   }}
-                  className="rounded-2xl bg-cream-card border border-cream-border px-2 py-3 text-[12px] font-semibold text-ink-800 flex flex-col items-center gap-1.5 press"
+                  className="m-tile px-2 pt-3.5 pb-3 flex flex-col items-center gap-2 text-center text-[12px] font-semibold text-ink-800"
                 >
-                  <action.icon size={15} className="text-accent-600" />
+                  <Glyph name={action.glyph} tone={action.tone} size={22} extrude />
                   {action.label}
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => {
                   setQuickPreset({ intent: 'person_money', accountId: account.id, lockAccount: true });
                   setShowAdd(true);
                 }}
-                className="rounded-2xl bg-cream-card border border-cream-border px-2 py-3 text-[12px] font-semibold text-ink-800 flex flex-col items-center gap-1.5 press"
+                className="m-tile px-3 py-3.5 flex items-center justify-center gap-2 text-[12px] font-semibold text-ink-800"
               >
-                <HandCoins size={15} className="text-accent-600" />
+                <Glyph name="person" tone="pink" size={18} />
                 {t('acct_action_person')}
               </button>
               <button
@@ -753,9 +765,9 @@ export function AccountDetailPage() {
                   setQuickPreset({ intent: 'group_expense' });
                   setShowAdd(true);
                 }}
-                className="rounded-2xl bg-cream-card border border-cream-border px-2 py-3 text-[12px] font-semibold text-ink-800 flex flex-col items-center gap-1.5 press"
+                className="m-tile px-3 py-3.5 flex items-center justify-center gap-2 text-[12px] font-semibold text-ink-800"
               >
-                <Users size={15} className="text-accent-600" />
+                <Glyph name="groups" tone="blue" size={18} />
                 {t('acct_action_group')}
               </button>
             </div>
@@ -765,26 +777,26 @@ export function AccountDetailPage() {
             optimised for the bottom-sheet pattern, not centred dialogs) */}
         {showRename && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-navy-900/50 backdrop-blur-sm animate-fade-in"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--m-scrim)] backdrop-blur-sm animate-fade-in"
             role="presentation"
             onClick={() => setShowRename(false)}
           >
             <div
-              className="bg-cream-card rounded-2xl p-5 w-[90%] max-w-sm shadow-xl border border-cream-border"
+              className="m-card m-card-feature p-5 w-[90%] max-w-sm"
               role="presentation"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-[15px] font-semibold text-ink-900 mb-3">{t('adp_rename_title')}</h3>
+              <h3 className="text-[15px] font-semibold text-ink-900 tracking-tight mb-3">{t('adp_rename_title')}</h3>
               <input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 autoFocus
-                className="w-full border border-cream-border rounded-xl px-4 py-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all mb-3 bg-cream-bg"
+                className="input-field mb-4"
               />
-              <div className="flex gap-2">
+              <div className="flex gap-2.5">
                 <button
                   onClick={() => setShowRename(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-cream-soft border border-cream-border text-ink-600 text-[12px] font-semibold"
+                  className="m-btn m-btn-plain flex-1 text-[13px]"
                 >
                   {t('cancel')}
                 </button>
@@ -797,7 +809,7 @@ export function AccountDetailPage() {
                     }
                     setShowRename(false);
                   }}
-                  className="flex-1 py-2.5 rounded-xl bg-ink-900 text-white text-[12px] font-semibold disabled:opacity-30 transition-opacity"
+                  className="m-btn m-btn-primary flex-1 text-[13px]"
                 >
                   {t('common_save')}
                 </button>
@@ -811,17 +823,17 @@ export function AccountDetailPage() {
             centred-dialog pattern as Rename. */}
         {showCardSettings && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-navy-900/50 backdrop-blur-sm animate-fade-in"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--m-scrim)] backdrop-blur-sm animate-fade-in"
             role="presentation"
             onClick={() => setShowCardSettings(false)}
           >
             <div
-              className="bg-cream-card rounded-2xl p-5 w-[90%] max-w-sm shadow-xl border border-cream-border"
+              className="m-card m-card-feature p-5 w-[90%] max-w-sm max-h-[90dvh] overflow-y-auto"
               role="presentation"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-[15px] font-semibold text-ink-900 mb-3">{t('cc_settings_title')}</h3>
-              <label className="block text-[11px] font-semibold text-ink-500 uppercase tracking-[0.1em] mb-1.5">
+              <h3 className="text-[15px] font-semibold text-ink-900 tracking-tight mb-3">{t('cc_settings_title')}</h3>
+              <label className="form-label">
                 {t('cc_settings_limit')} ({account.currency})
               </label>
               <input
@@ -831,9 +843,9 @@ export function AccountDetailPage() {
                 value={limitInput}
                 onChange={(e) => setLimitInput(e.target.value)}
                 autoFocus
-                className="w-full border border-cream-border rounded-xl px-4 py-3 text-[13px] tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all mb-3 bg-cream-bg"
+                className="input-field tabular-nums mb-3"
               />
-              <div className="mb-3">
+              <div className="mb-4">
                 <StatementCycleField
                   statementDay={statementDayInput}
                   dueDay={dueDayInput}
@@ -841,10 +853,10 @@ export function AccountDetailPage() {
                   onDueDay={setDueDayInput}
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2.5">
                 <button
                   onClick={() => setShowCardSettings(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-cream-soft border border-cream-border text-ink-600 text-[12px] font-semibold"
+                  className="m-btn m-btn-plain flex-1 text-[13px]"
                 >
                   {t('cancel')}
                 </button>
@@ -873,7 +885,7 @@ export function AccountDetailPage() {
                       toast.show({ type: 'error', title: err instanceof Error ? err.message : 'Failed' });
                     }
                   }}
-                  className="flex-1 py-2.5 rounded-xl bg-ink-900 text-white text-[12px] font-semibold disabled:opacity-30 transition-opacity"
+                  className="m-btn m-btn-primary flex-1 text-[13px]"
                 >
                   {t('save')}
                 </button>
@@ -887,18 +899,18 @@ export function AccountDetailPage() {
             drifted accounts (no more fake income/expense entries). */}
         {showCorrect && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-navy-900/50 backdrop-blur-sm animate-fade-in"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--m-scrim)] backdrop-blur-sm animate-fade-in"
             role="presentation"
             onClick={() => setShowCorrect(false)}
           >
             <div
-              className="bg-cream-card rounded-2xl p-5 w-[90%] max-w-sm shadow-xl border border-cream-border"
+              className="m-card m-card-feature p-5 w-[90%] max-w-sm"
               role="presentation"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-[15px] font-semibold text-ink-900 mb-1.5">{t('acct_correct_title')}</h3>
-              <p className="text-[11.5px] text-ink-500 leading-relaxed mb-3">{t('acct_correct_hint')}</p>
-              <label className="block text-[11px] font-semibold text-ink-500 uppercase tracking-[0.1em] mb-1.5">
+              <h3 className="text-[15px] font-semibold text-ink-900 tracking-tight mb-1.5">{t('acct_correct_title')}</h3>
+              <p className="text-[12px] text-ink-600 leading-relaxed mb-3">{t('acct_correct_hint')}</p>
+              <label className="form-label">
                 {isCreditCard ? t('cc_available') : t('label_balance')} ({account.currency})
               </label>
               <input
@@ -907,12 +919,12 @@ export function AccountDetailPage() {
                 value={correctInput}
                 onChange={(e) => setCorrectInput(e.target.value)}
                 autoFocus
-                className="w-full border border-cream-border rounded-xl px-4 py-3 text-[13px] tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all mb-3 bg-cream-bg"
+                className="input-field tabular-nums mb-4"
               />
-              <div className="flex gap-2">
+              <div className="flex gap-2.5">
                 <button
                   onClick={() => setShowCorrect(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-cream-soft border border-cream-border text-ink-600 text-[12px] font-semibold"
+                  className="m-btn m-btn-plain flex-1 text-[13px]"
                 >
                   {t('cancel')}
                 </button>
@@ -937,7 +949,7 @@ export function AccountDetailPage() {
                       setSavingCorrect(false);
                     }
                   })}
-                  className="flex-1 py-2.5 rounded-xl bg-ink-900 text-white text-[12px] font-semibold disabled:opacity-30 transition-opacity"
+                  className="m-btn m-btn-primary flex-1 text-[13px]"
                 >
                   {t('acct_correct_cta')}
                 </button>
@@ -964,16 +976,16 @@ export function AccountDetailPage() {
 
         {/* Opening balance prompt — only when no txns + zero balance */}
         {showOpeningBalancePrompt && (
-          <div className="rounded-[18px] bg-accent-50 border border-cream-border p-5 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-accent-100 flex items-center justify-center mx-auto mb-3">
-              <Wallet size={20} className="text-accent-600" />
+          <div className="m-card m-card-feature p-5 flex flex-col items-center text-center">
+            <div className="m-plate m-violet mb-3" aria-hidden>
+              <Glyph name="wallet" tone="violet" size={26} extrude />
             </div>
-            <p className="text-[13px] font-semibold text-ink-900 mb-3">
+            <p className="text-[13.5px] font-semibold text-ink-900 tracking-tight mb-4 max-w-[260px]">
               {t('acct_opening_bal_prompt')}
             </p>
             <button
               onClick={() => setShowOpeningBalance(true)}
-              className="bg-ink-900 text-white rounded-xl px-5 py-2.5 text-[12px] font-semibold press"
+              className="m-btn m-btn-primary px-5 text-[13px]"
             >
               {t('acct_add_opening_bal')}
             </button>
@@ -982,45 +994,38 @@ export function AccountDetailPage() {
 
         {/* Upcoming expense warning */}
         {accountUpcoming.length > 0 && (
-          <div
-            className={`rounded-[18px] p-4 border border-cream-border ${
-              hasWarning ? 'bg-pay-50' : 'bg-warn-50'
-            }`}
-          >
+          <div className={`m-card ${hasWarning ? 'm-coral' : 'm-gold'} p-4`}>
             <div className="flex items-center gap-2.5">
-              <AlertTriangle
-                size={16}
-                className={hasWarning ? 'text-pay-text' : 'text-warn-600'}
-              />
+              <Glyph name="alert" size={17} tone={hasWarning ? 'coral' : 'gold'} />
               <div className="flex-1">
                 <p
                   className={`text-[11px] font-semibold uppercase tracking-[0.1em] ${
-                    hasWarning ? 'text-pay-text' : 'text-warn-600'
+                    hasWarning ? 'text-pay-text' : 'text-warn-700'
                   }`}
                 >
                   {accountUpcoming.length} {t('upcoming_title')}
                 </p>
-                <p className="text-[11px] text-ink-500">
+                <p className="text-[11.5px] text-ink-600">
                   {t('adp_total_label').replace('{amount}', formatMoney(totalUpcoming, account.currency))}
                   {hasWarning && ` — ${t('upcoming_low_balance')}!`}
                 </p>
               </div>
             </div>
-            <div className="mt-2.5 space-y-1.5">
+            <div className="mt-3 space-y-2">
               {accountUpcoming.slice(0, 3).map((e) => {
                 const daysLeft = differenceInDays(new Date(e.dueDate), new Date());
                 return (
                   <div
                     key={e.id}
-                    className="flex items-center justify-between text-[11px]"
+                    className="flex items-center justify-between gap-3 text-[11.5px]"
                   >
-                    <span className="text-ink-800 font-medium">{e.title}</span>
-                    <div className="flex items-center gap-2">
+                    <span className="text-ink-800 font-medium truncate">{e.title}</span>
+                    <div className="flex items-center gap-2 shrink-0">
                       <span className="text-ink-900 font-semibold tabular-nums">
                         {formatMoney(e.amount, e.currency)}
                       </span>
                       <span
-                        className={`text-[9.5px] font-semibold ${
+                        className={`text-[10px] font-semibold ${
                           daysLeft < 0
                             ? 'text-pay-text'
                             : daysLeft <= 3
@@ -1042,28 +1047,25 @@ export function AccountDetailPage() {
           </div>
         )}
 
-        {/* Time filter pills */}
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1">
-          {TIME_FILTERS.map((f) => {
-            const isActive = timeFilter === f.value;
-            return (
+        {/* Time filter — one recessed segmented track. */}
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <div className="m-seg">
+            {TIME_FILTERS.map((f) => (
               <button
                 key={f.value}
+                type="button"
                 onClick={() => setTimeFilter(f.value)}
-                className={`shrink-0 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold whitespace-nowrap transition-colors ${
-                  isActive
-                    ? 'bg-ink-800 text-white'
-                    : 'bg-cream-soft text-ink-500 border border-cream-hairline'
-                }`}
+                aria-pressed={timeFilter === f.value}
+                className="shrink-0 whitespace-nowrap"
               >
                 {f.label}
               </button>
-            );
-          })}
+            ))}
+          </div>
         </div>
 
         {timeFilter !== 'all' && (
-          <p className="text-[10.5px] text-ink-500 font-semibold">
+          <p className="text-[11px] text-ink-500 font-semibold px-1">
             {filteredTxns.length} {t('time_results')}
           </p>
         )}
@@ -1076,15 +1078,16 @@ export function AccountDetailPage() {
           {filteredTxns.length === 0 ? (
             <EmptyState
               icon={ArrowLeftRight}
-              tone="accent"
+              clayIcon="swap"
+              tone="violet"
               size="compact"
               title={t('no_tx')}
-              description={`No entries in ${account.name} yet. Add your first spend or receive entry.`}
+              description={t('no_tx_desc')}
               actionLabel={t('txpage_add')}
               onAction={() => setShowAdd(true)}
             />
           ) : (
-            <div className="rounded-[18px] bg-cream-card border border-cream-border px-4 divide-y divide-cream-hairline">
+            <div className="m-card px-4 divide-y divide-cream-hairline">
               {filteredTxns.map((txn) => (
                 <TransactionItem
                   key={txn.id}
@@ -1114,16 +1117,16 @@ export function AccountDetailPage() {
           <button
             onClick={saveOpeningBalance}
             disabled={savingOpeningBalance || !parseFloat(openingAmount) || !openingDate}
-            className="w-full bg-ink-900 text-white rounded-2xl py-4 text-sm font-semibold disabled:opacity-30 press"
+            className="cta-primary"
           >
             {savingOpeningBalance ? t('quick_processing') : t('acct_opening_save')}
           </button>
         }
       >
         <div className="space-y-4">
-          <p className="text-[12px] text-ink-500 leading-relaxed">{t('acct_opening_help')}</p>
+          <p className="text-[12px] text-ink-600 leading-relaxed">{t('acct_opening_help')}</p>
           <div>
-            <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">
+            <label className="form-label">
               {t('acct_opening_amount')}
             </label>
             <input
@@ -1134,29 +1137,29 @@ export function AccountDetailPage() {
               onChange={(e) => setOpeningAmount(e.target.value)}
               placeholder="0.00"
               autoFocus
-              className="w-full border border-cream-border rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all"
+              className="input-field text-center text-lg font-semibold tabular-nums"
             />
           </div>
           <div>
-            <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">
+            <label className="form-label">
               {t('acct_opening_date')}
             </label>
             <input
               type="date"
               value={openingDate}
               onChange={(e) => setOpeningDate(e.target.value)}
-              className="w-full border border-cream-border rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all"
+              className="input-field"
             />
           </div>
           <div>
-            <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">
+            <label className="form-label">
               {t('quick_note')}
             </label>
             <input
               value={openingNote}
               onChange={(e) => setOpeningNote(e.target.value)}
               placeholder={t('acct_opening_note_placeholder')}
-              className="w-full border border-cream-border rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all"
+              className="input-field"
             />
           </div>
         </div>
@@ -1199,10 +1202,10 @@ function MoneyMathCard({
 
   if (!isCreditCard) {
     return (
-      <div className="rounded-[18px] bg-cream-card border border-cream-border p-4">
+      <div className="m-card p-4">
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-7 h-7 rounded-lg bg-accent-100 flex items-center justify-center shrink-0">
-            <Calculator size={13} className="text-accent-600" />
+          <div className="m-ctl w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0">
+            <Glyph name="calculator" size={15} tone="violet" />
           </div>
           <p className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
             {t('mm_title')}
@@ -1234,10 +1237,10 @@ function MoneyMathCard({
   const available = account.balance;
 
   return (
-    <div className="rounded-[18px] bg-cream-card border border-cream-border p-4">
+    <div className="m-card p-4">
       <div className="flex items-center gap-2 mb-3">
-        <div className="w-7 h-7 rounded-lg bg-pay-50 flex items-center justify-center shrink-0">
-          <Calculator size={13} className="text-pay-text" />
+        <div className="m-ctl w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0">
+          <Glyph name="calculator" size={15} tone="coral" />
         </div>
         <p className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
           {t('mm_title')}
@@ -1245,9 +1248,9 @@ function MoneyMathCard({
       </div>
 
       {limitMissing ? (
-        <div className="rounded-xl bg-warn-50 border border-cream-border px-3 py-2.5 flex items-start gap-2">
-          <Info size={12} className="text-warn-600 mt-0.5 shrink-0" />
-          <p className="text-[11px] text-ink-700 leading-relaxed">
+        <div className="m-inset px-3 py-2.5 flex items-start gap-2">
+          <Glyph name="info" size={14} tone="violet" className="mt-0.5" />
+          <p className="text-[11.5px] text-ink-700 leading-relaxed">
             {t('mm_no_limit_warn')}
           </p>
         </div>

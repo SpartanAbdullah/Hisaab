@@ -2,14 +2,19 @@
 // cross-summed — LoansPage discipline), market chips, holdings grouped by
 // market, closed positions collapsed at the bottom. Record-keeping framing
 // throughout — Hisaab never advises or holds investments.
+//
+// 1d (redesign 2026-09-18): violet hero with the value figure itself
+// extruded, material pills for the market scope (a coloured dot keys each
+// market), holdings as pressable tiles with a violet ticker plate.
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, TrendingUp, NotebookPen, ChevronDown, ChevronRight, Settings2 } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import { NavyHero, TopBar } from '../components/NavyHero';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { EmptyState } from '../components/EmptyState';
-import { ListSkeleton } from '../components/ListSkeleton';
+import { Glyph } from '../components/Glyph';
+import { MoneyDisplay } from '../components/MoneyDisplay';
 import { PageErrorState } from '../components/PageErrorState';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
 import { useInvestmentStore, holdingsFor, portfolioTotals, type HoldingView } from '../stores/investmentStore';
@@ -21,6 +26,7 @@ import { UpdatePricesSheet } from './UpdatePricesSheet';
 import { formatMoney } from '../lib/constants';
 import { unrealizedPnl, marketValue } from '../lib/investmentMath';
 import { marketColorFor } from '../lib/marketColors';
+import { skeletonDelay } from '../lib/material';
 import { currencyMeta } from '../lib/design-tokens';
 import { useT } from '../lib/i18n';
 import { getPrimaryCurrency } from '../lib/primaryCurrency';
@@ -31,6 +37,24 @@ function priceAgeDays(asOf: string | null): number | null {
   if (!asOf) return null;
   return Math.floor((Date.now() - new Date(asOf).getTime()) / DAY_MS);
 }
+
+// formatMoney() prints the magnitude only, so the sign is written here — a
+// loss must never rest on colour alone (WCAG 1.4.1). U+2212, like Home. A
+// value that rounds to zero carries no sign.
+function signedMoney(amount: number, currency: string): string {
+  const text = formatMoney(amount, currency);
+  if (text === formatMoney(0, currency)) return text;
+  return `${amount < 0 ? '−' : '+'}${text}`;
+}
+
+// Sign from the ROUNDED value: −0.04% reads 0.0%, never −0.0% (Home's rule).
+function signedPct(pct: number): string {
+  const rounded = Math.round(pct * 10) / 10;
+  if (rounded === 0) return '0.0%';
+  return `${rounded < 0 ? '−' : '+'}${Math.abs(rounded).toFixed(1)}%`;
+}
+
+const skelDelay = (i: number) => ({ '--m-skel-delay': skeletonDelay(i) }) as CSSProperties;
 
 export function InvestmentsPage() {
   const navigate = useNavigate();
@@ -56,6 +80,7 @@ export function InvestmentsPage() {
     await Promise.all([loadInvestments(), loadAccounts()]);
   }, [loadInvestments, loadAccounts]);
   const { status, error, retry } = useAsyncLoad(load);
+  const loadingFirst = status === 'loading' && markets.length === 0;
 
   const scopedMarket = scopedMarketId ? markets.find((m) => m.id === scopedMarketId) ?? null : null;
   const primaryCurrency = getPrimaryCurrency();
@@ -76,6 +101,7 @@ export function InvestmentsPage() {
   );
   const open = holdings.filter((h) => h.position.quantity > 0);
   const closed = holdings.filter((h) => h.position.quantity === 0);
+  const unpricedOpen = open.filter((h) => h.lastPrice === null).length;
   const marketById = useMemo(() => new Map(markets.map((m) => [m.id, m])), [markets]);
 
   const openRecord = (preset: RecordTradePreset | null = null) => {
@@ -86,7 +112,6 @@ export function InvestmentsPage() {
   const renderHolding = (h: HoldingView) => {
     const market = marketById.get(h.marketId);
     if (!market) return null;
-    const color = marketColorFor(market.id);
     const isOpen = h.position.quantity > 0;
     const value = h.lastPrice !== null ? marketValue(h.position, h.lastPrice) : null;
     const pnl = h.lastPrice !== null && isOpen ? unrealizedPnl(h.position, h.lastPrice) : null;
@@ -97,55 +122,61 @@ export function InvestmentsPage() {
         key={`${h.marketId}:${h.symbol}`}
         type="button"
         onClick={() => navigate(`/investment/${h.marketId}/${encodeURIComponent(h.symbol)}`)}
-        // 3D clay tier 1. The hover lift and scale squeeze go: the lip's
-        // 3px→1px press is the only motion this system allows (§10.8).
-        className="clay-tile clay-neutral w-full rounded-[18px] p-4 flex items-center gap-3 text-left"
+        // Pressable tile: one hard wall that collapses under the finger.
+        className="m-tile rounded-[18px] p-3.5 flex items-center gap-3 text-left"
       >
-        <div className={`w-11 h-11 rounded-2xl ${color.tint} border ${color.border} flex items-center justify-center shrink-0`}>
-          <span className={`text-[12px] font-bold ${color.text} tracking-tight`}>{h.symbol.slice(0, 3)}</span>
-        </div>
+        {/* Ticker plate — violet (the investments accent) while the position
+            is open, a plain face once it's closed. */}
+        <span
+          aria-hidden="true"
+          className={`m-card w-11 h-11 rounded-[14px] flex items-center justify-center shrink-0 text-[12px] font-bold tracking-tight ${
+            isOpen ? 'm-violet text-iris-text' : 'text-ink-600'
+          }`}
+        >
+          {h.symbol.slice(0, 3)}
+        </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[13.5px] font-semibold text-ink-900 truncate tracking-tight">
+          <p className="text-[13.5px] font-semibold text-ink-900 truncate tracking-[-0.01em]">
             {h.symbol}
             {!scopedMarket && (
-              <span className={`text-[9.5px] font-semibold ml-1.5 rounded-full px-2 py-0.5 ${color.tint} ${color.text}`}>
-                {market.name}
-              </span>
+              <span className="text-[11px] font-normal text-ink-400"> · {market.name}</span>
             )}
           </p>
           {isOpen ? (
             <>
-              <p className="text-[11px] text-ink-500 mt-0.5 tabular-nums">
+              <p className="text-[11px] text-ink-600 mt-[3px] tabular-nums truncate">
                 {h.position.quantity.toLocaleString()} @ {formatMoney(h.position.avgCost, market.currency)}
               </p>
+              {/* Price age in the app's age vocabulary (Loans age chips):
+                  missing / a week+ is gold, a month+ is coral. */}
               {h.lastPrice === null ? (
-                <p className="text-[10px] text-warn-600 mt-0.5">{t('inv_price_never')}</p>
+                <p className="text-[10.5px] text-warn-700 mt-[3px]">{t('inv_price_never')}</p>
               ) : age !== null && age >= 7 ? (
-                <p className={`text-[10px] mt-0.5 ${age > 30 ? 'text-warn-600' : 'text-ink-400'}`}>
+                <p className={`text-[10.5px] mt-[3px] ${age > 30 ? 'text-pay-text' : 'text-warn-700'}`}>
                   {t('inv_price_asof_days').replace('{days}', String(age))}
                 </p>
               ) : null}
             </>
           ) : (
-            <p className="text-[11px] text-ink-500 mt-0.5">{t('inv_position_closed')}</p>
+            <p className="text-[11px] text-ink-600 mt-[3px]">{t('inv_position_closed')}</p>
           )}
         </div>
         <div className="text-right shrink-0">
           {isOpen ? (
             <>
-              <p className="text-[13.5px] font-semibold text-ink-900 tabular-nums">
+              <p className={`text-[13.5px] font-semibold tabular-nums ${value !== null ? 'text-ink-900' : 'text-ink-400'}`}>
                 {value !== null ? formatMoney(value, market.currency) : `— ${market.currency}`}
               </p>
               {pnl !== null && (
-                <p className={`text-[11px] font-semibold tabular-nums mt-0.5 ${pnl >= 0 ? 'text-receive-text' : 'text-pay-text'}`}>
-                  {pnl >= 0 ? '+' : ''}{formatMoney(pnl, market.currency)}
-                  {pnlPct !== null ? ` · ${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%` : ''}
+                <p className={`text-[11px] font-semibold tabular-nums mt-[3px] ${pnl >= 0 ? 'text-receive-text' : 'text-pay-text'}`}>
+                  {signedMoney(pnl, market.currency)}
+                  {pnlPct !== null ? ` · ${signedPct(pnlPct)}` : ''}
                 </p>
               )}
             </>
           ) : (
             <p className={`text-[12px] font-semibold tabular-nums ${h.position.realizedPnl >= 0 ? 'text-receive-text' : 'text-pay-text'}`}>
-              {h.position.realizedPnl >= 0 ? '+' : ''}{formatMoney(h.position.realizedPnl, market.currency)}
+              {signedMoney(h.position.realizedPnl, market.currency)}
             </p>
           )}
         </div>
@@ -155,205 +186,252 @@ export function InvestmentsPage() {
 
   return (
     <main className="min-h-dvh bg-cream-bg pb-28">
-      <NavyHero>
+      <NavyHero accent="violet">
         <TopBar
           title={t('inv_title')}
           back
           action={
             <div className="flex items-center gap-2">
               {markets.length > 0 && (
-                <button
-                  onClick={() => openRecord(scopedMarket ? { marketId: scopedMarket.id } : null)}
-                  className="glow-attention min-h-[32px] px-3.5 py-1.5 rounded-full bg-gradient-to-b from-accent-500 to-accent-600 text-white text-[11px] font-semibold flex items-center gap-1.5 hover:brightness-110 active:scale-95 transition-all"
-                >
-                  <Plus size={12} strokeWidth={2.4} /> {t('inv_record_trade')}
-                </button>
+                // The attention halo (.glow-attention, violet via .glow-violet)
+                // pulses on the wrapper's ::after, so the violet button keeps
+                // its extruded walls throughout.
+                <span className="glow-attention glow-violet inline-flex rounded-full">
+                  <button
+                    onClick={() => openRecord(scopedMarket ? { marketId: scopedMarket.id } : null)}
+                    className="m-btn m-btn-violet relative h-8 min-h-8 px-3.5 py-0 gap-1.5 rounded-full text-[11px] before:absolute before:-inset-1.5 before:content-['']"
+                  >
+                    <Glyph name="plus" size={12} strokeWidth={3} />
+                    {t('inv_record_trade')}
+                  </button>
+                </span>
               )}
               <LanguageToggle />
             </div>
           }
         />
-        <div className="px-5 pb-7 space-y-3">
+        <div className="px-5 pb-7">
           {/* Compliance posture, stated once, calmly. */}
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5">
-            <NotebookPen size={11} className="text-white/70" />
-            <p className="text-[10.5px] text-white/80 font-medium">{t('inv_record_only')}</p>
-          </div>
-          {headline && (
-            <div>
-              <p className="text-[11px] text-white/60 font-semibold uppercase tracking-[0.12em]">
+          <span className="inline-flex items-center gap-[7px] rounded-full bg-white/10 ring-1 ring-inset ring-white/10 px-[11px] py-1.5">
+            <Glyph name="document" size={12} className="text-white/70" />
+            <span className="text-[10.5px] font-medium text-white/90">{t('inv_record_only')}</span>
+          </span>
+
+          {loadingFirst ? (
+            <div aria-hidden="true">
+              <div className="m-skel mt-[18px] h-[11px] w-32" />
+              <div className="m-skel mt-2.5 h-[34px] w-52 rounded-xl" style={skelDelay(1)} />
+              <div className="m-skel mt-3 h-[22px] w-44 rounded-full" style={skelDelay(2)} />
+            </div>
+          ) : headline && (
+            <>
+              <p className="mt-[18px] text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">
                 {t('inv_current_value')} · {headline.currency}
               </p>
-              <p className="text-[32px] font-semibold text-white tabular-nums tracking-tight mt-0.5">
-                {formatMoney(headline.currentValue, headline.currency)}
-              </p>
-              <div className="flex items-center gap-3 mt-1 flex-wrap">
+              <div className="mt-[7px]">
+                <MoneyDisplay
+                  amount={headline.currentValue}
+                  currency={headline.currency}
+                  size={34}
+                  tone="on-navy"
+                  extrude="violet"
+                />
+              </div>
+              <div className="flex items-center gap-2.5 flex-wrap mt-[11px]">
                 <span className="text-[12px] text-white/70 tabular-nums">
                   {t('inv_invested')} {formatMoney(headline.invested, headline.currency)}
                 </span>
-                <span className={`text-[12px] font-semibold tabular-nums rounded-full px-2 py-0.5 ${
-                  headline.unrealized >= 0 ? 'bg-receive-50 text-receive-text' : 'bg-pay-50 text-pay-text'
-                }`}>
-                  {headline.unrealized >= 0 ? '+' : ''}{formatMoney(headline.unrealized, headline.currency)}
-                  {headline.invested > 0 ? ` · ${headline.unrealized >= 0 ? '+' : ''}${((headline.unrealized / headline.invested) * 100).toFixed(1)}%` : ''}
+                {/* The m-chip tint is re-drawn from the hero-scoped -text token
+                    so the pill reads the same in both themes (the -100 tints
+                    are not hero-scoped). */}
+                <span
+                  className={`m-chip px-[9px] py-[3px] text-[12px] tabular-nums ${
+                    headline.unrealized >= 0 ? 'm-chip-receive' : 'm-chip-pay'
+                  }`}
+                >
+                  {signedMoney(headline.unrealized, headline.currency)}
+                  {headline.invested > 0 ? ` · ${signedPct((headline.unrealized / headline.invested) * 100)}` : ''}
                 </span>
               </div>
               {(headline.realized !== 0 || headline.dividends !== 0) && (
-                <p className="text-[11px] text-white/60 tabular-nums mt-1">
-                  {t('inv_realized')} {headline.realized >= 0 ? '+' : ''}{formatMoney(headline.realized, headline.currency)}
+                <p className="text-[11px] text-white/60 tabular-nums mt-[9px]">
+                  {t('inv_realized')} {signedMoney(headline.realized, headline.currency)}
                   {headline.dividends !== 0 ? ` · ${t('inv_dividends')} ${formatMoney(headline.dividends, headline.currency)}` : ''}
                 </p>
               )}
               {headline.unpricedCount > 0 && (
-                <p className="text-[10.5px] text-white/50 mt-1">
+                <p className="text-[10.5px] text-warn-700 mt-1.5">
                   {t('inv_unpriced_chip').replace('{n}', String(headline.unpricedCount))} — {t('inv_price_never')}
                 </p>
               )}
+            </>
+          )}
+
+          {/* Per-currency pockets — never summed into the headline. */}
+          {pockets.length > 0 && (
+            <div className="flex flex-col gap-[7px] mt-3.5">
+              {pockets.map((b) => {
+                // An entirely unpriced bucket sits at cost — it has no change
+                // to show, so say so instead of printing a fake 0.0% (Home).
+                const allUnpriced = b.unpricedCount > 0 && Math.abs(b.unrealized) < 0.005;
+                return (
+                  <div
+                    key={b.currency}
+                    className="flex items-baseline justify-between gap-3 rounded-xl bg-white/5 px-3 py-[9px]"
+                  >
+                    <span className="text-[11px] font-semibold text-white/70 shrink-0">
+                      {currencyMeta[b.currency]?.flag} {b.currency}
+                    </span>
+                    <span className="text-[12px] font-semibold text-white tabular-nums text-right">
+                      {formatMoney(b.currentValue, b.currency)}
+                      <span
+                        className={`ml-2 ${
+                          allUnpriced ? 'font-medium text-white/60' : b.unrealized >= 0 ? 'text-receive-text' : 'text-pay-text'
+                        }`}
+                      >
+                        {allUnpriced
+                          ? t('inv_unpriced_chip').replace('{n}', String(b.unpricedCount))
+                          : b.invested > 0
+                            ? signedPct((b.unrealized / b.invested) * 100)
+                            : signedMoney(b.unrealized, b.currency)}
+                      </span>
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
-          {pockets.map((b) => (
-            <div key={b.currency} className="flex items-baseline justify-between rounded-xl bg-white/5 px-3 py-2">
-              <span className="text-[11px] text-white/70 font-semibold">
-                {currencyMeta[b.currency]?.flag} {b.currency}
-              </span>
-              <span className="text-[12px] text-white tabular-nums font-semibold">
-                {formatMoney(b.currentValue, b.currency)}
-                <span className={`ml-2 ${b.unrealized >= 0 ? 'text-receive-400' : 'text-red-300'}`}>
-                  {b.unrealized >= 0 ? '+' : ''}{formatMoney(b.unrealized, b.currency)}
-                </span>
-              </span>
-            </div>
-          ))}
         </div>
       </NavyHero>
 
-      <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-3">
+      <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-3.5">
         {status === 'error' && (
           <PageErrorState variant="inline" title={t('error')} message={error ?? ''} onRetry={retry} />
         )}
 
         {/* A failed load must not fall through to the "create your first
             market" empty state — the user may well have markets. */}
-        {status === 'error' && markets.length === 0 ? null : status === 'loading' && markets.length === 0 ? (
-          <ListSkeleton rows={3} />
+        {status === 'error' && markets.length === 0 ? null : loadingFirst ? (
+          // Skeleton in the loaded geometry: the chip row, then holding
+          // tiles with a plate, two lines and a trailing figure.
+          <div className="space-y-3.5" aria-hidden="true">
+            <div className="flex gap-2">
+              {[52, 96, 96].map((w, i) => (
+                <div key={i} className="m-skel h-[34px] rounded-full" style={{ width: w }} />
+              ))}
+            </div>
+            <div className="space-y-2.5">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="m-card rounded-[18px] p-3.5 flex items-center gap-3">
+                  <div className="m-skel w-11 h-11 rounded-[14px] shrink-0" style={skelDelay(i + 1)} />
+                  <div className="flex-1 min-w-0">
+                    <div className="m-skel h-[11px] w-[42%]" style={skelDelay(i + 1)} />
+                    <div className="m-skel h-[9px] w-[30%] mt-2" style={skelDelay(i + 1)} />
+                  </div>
+                  <div className="flex flex-col items-end shrink-0">
+                    <div className="m-skel h-[12px] w-[68px]" style={skelDelay(i + 1)} />
+                    <div className="m-skel h-[9px] w-[40px] mt-2" style={skelDelay(i + 1)} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : markets.length === 0 ? (
-          <EmptyState
-            icon={TrendingUp}
-            clayIcon="chart"
-            tone="accent"
-            title={t('inv_empty_title')}
-            description={t('inv_empty_desc')}
-            actionLabel={t('inv_empty_cta')}
-            onAction={() => setShowCreateMarket(true)}
-          />
+          <InvestEmpty actionLabel={t('inv_empty_cta')} onAction={() => setShowCreateMarket(true)} />
         ) : (
           <>
             {/* Market scope chips — hidden while there's only one market. */}
             {markets.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              <div className="flex gap-2 items-center overflow-x-auto pb-1.5 -mx-1 px-1">
                 <button
                   type="button"
                   onClick={() => setScopedMarketId(null)}
-                  className={`shrink-0 min-h-[36px] px-3.5 py-1.5 rounded-full text-[12px] font-semibold border transition-all hover:scale-[1.03] ${
-                    !scopedMarketId ? 'border-ink-900 bg-ink-900 text-white' : 'border-cream-border bg-cream-card text-ink-600 hover:bg-cream-soft'
-                  }`}
+                  aria-pressed={!scopedMarketId}
+                  className="m-pill shrink-0 min-h-[34px]"
                 >
                   {t('inv_all_markets')}
                 </button>
-                {markets.map((m) => {
-                  const color = marketColorFor(m.id);
-                  const selected = scopedMarketId === m.id;
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setScopedMarketId(m.id === scopedMarketId ? null : m.id)}
-                      className={`shrink-0 min-h-[36px] px-3.5 py-1.5 rounded-full text-[12px] font-semibold border transition-all active:scale-95 flex items-center gap-1.5 ${
-                        selected
-                          ? `${color.solid} text-white border-transparent shadow-sm`
-                          : `${color.tint} ${color.text} ${color.border} hover:shadow-sm`
-                      }`}
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full ${selected ? 'bg-white/80' : color.dot}`} />
-                      {m.name} · {m.currency}
-                    </button>
-                  );
-                })}
+                {markets.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setScopedMarketId(m.id === scopedMarketId ? null : m.id)}
+                    aria-pressed={scopedMarketId === m.id}
+                    className="m-pill shrink-0 min-h-[34px]"
+                  >
+                    <span aria-hidden="true" className={`w-1.5 h-1.5 rounded-full shrink-0 ${marketColorFor(m.id).dot}`} />
+                    {m.name} · {m.currency}
+                  </button>
+                ))}
                 <button
                   type="button"
                   onClick={() => setShowManage(true)}
                   aria-label={t('inv_manage_markets')}
-                  className="shrink-0 min-h-[36px] w-9 rounded-full border border-cream-border bg-cream-card text-ink-600 flex items-center justify-center hover:bg-info-50 hover:text-info-600 hover:border-info-600/25 active:bg-cream-soft transition-colors"
+                  className="m-pill shrink-0 w-[34px] h-[34px] min-h-[34px] p-0"
                 >
-                  <Settings2 size={14} />
+                  <Glyph name="sliders" size={15} />
                 </button>
               </div>
             )}
             {markets.length === 1 && (
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
-                  {markets[0].name} · {markets[0].currency}
+              <div className="flex items-center justify-between gap-3">
+                <p className="m-label flex items-center gap-1.5 min-w-0">
+                  <span aria-hidden="true" className={`w-1.5 h-1.5 rounded-full shrink-0 ${marketColorFor(markets[0].id).dot}`} />
+                  <span className="truncate">{markets[0].name} · {markets[0].currency}</span>
                 </p>
                 <button
                   type="button"
                   onClick={() => setShowManage(true)}
-                  className="text-[11px] font-semibold text-ink-500 flex items-center gap-1 active:opacity-70"
+                  className="m-pill shrink-0 min-h-[34px] px-3 text-[11px]"
                 >
-                  <Settings2 size={12} /> {t('inv_manage_markets')}
+                  <Glyph name="sliders" size={13} /> {t('inv_manage_markets')}
                 </button>
               </div>
             )}
 
             {/* Bulk price update + unpriced hint, shown when useful. */}
             {open.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2.5 flex-wrap">
                 <button
                   type="button"
                   onClick={() => setShowBulkPrices(true)}
-                  className="min-h-[34px] px-3 py-1.5 rounded-full bg-info-50 border border-cream-border text-info-600 text-[11px] font-semibold hover:bg-info-600 hover:text-white active:scale-95 transition-all"
+                  className="m-key m-blue inline-flex items-center min-h-[34px] px-3.5 py-1.5 rounded-full text-[11px] font-semibold"
                 >
                   {t('inv_update_prices')}
                 </button>
-                {(() => {
-                  const unpriced = open.filter((h) => h.lastPrice === null).length;
-                  return unpriced > 0 ? (
-                    <span className="text-[11px] text-warn-600 font-semibold">
-                      {t('inv_unpriced_chip').replace('{n}', String(unpriced))}
-                    </span>
-                  ) : null;
-                })()}
+                {unpricedOpen > 0 && (
+                  <span className="m-chip m-chip-gold px-2.5 py-1 text-[11px]">
+                    {t('inv_unpriced_chip').replace('{n}', String(unpricedOpen))}
+                  </span>
+                )}
               </div>
             )}
 
             {trades.length === 0 ? (
-              <EmptyState
-                icon={TrendingUp}
-                clayIcon="chart"
-                tone="accent"
-                title={t('inv_empty_title')}
-                description={t('inv_empty_desc')}
+              <InvestEmpty
                 actionLabel={t('inv_first_trade_cta')}
                 onAction={() => openRecord(scopedMarket ? { marketId: scopedMarket.id } : null)}
               />
             ) : (
               <>
-                <div className="space-y-2.5">{open.map(renderHolding)}</div>
+                {open.length > 0 && <div className="space-y-2.5">{open.map(renderHolding)}</div>}
                 {open.length === 0 && closed.length > 0 && (
-                  <p className="text-[12px] text-ink-500 text-center py-2">{t('inv_position_closed')}</p>
+                  <p className="text-[12px] text-ink-600 text-center py-2">{t('inv_position_closed')}</p>
                 )}
                 {closed.length > 0 && (
-                  <div>
+                  <div className="pt-1.5">
                     <button
                       type="button"
                       onClick={() => setShowClosed(!showClosed)}
-                      className="w-full flex items-center justify-between py-2 px-1"
+                      aria-expanded={showClosed}
+                      className="w-full min-h-[44px] flex items-center justify-between px-1"
                     >
-                      <span className="text-[11px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
+                      <span className="m-label">
                         {t('inv_closed_positions')} · {closed.length}
                       </span>
-                      {showClosed ? <ChevronDown size={14} className="text-ink-400" /> : <ChevronRight size={14} className="text-ink-400" />}
+                      <Glyph name={showClosed ? 'chevron-down' : 'chevron-right'} size={14} className="text-ink-400" />
                     </button>
-                    {showClosed && <div className="space-y-2.5">{closed.map(renderHolding)}</div>}
+                    {showClosed && <div className="space-y-2.5 mt-1.5">{closed.map(renderHolding)}</div>}
                   </div>
                 )}
               </>
@@ -371,5 +449,23 @@ export function InvestmentsPage() {
         marketId={scopedMarketId}
       />
     </main>
+  );
+}
+
+// Investments empty state. The CTA is the VIOLET one (the handoff's invest
+// empty state; this is the record-a-trade flow).
+function InvestEmpty({ actionLabel, onAction }: { actionLabel: string; onAction: () => void }) {
+  const t = useT();
+  return (
+    <EmptyState
+      icon={TrendingUp}
+      clayIcon="analytics"
+      tone="violet"
+      title={t('inv_empty_title')}
+      description={t('inv_empty_desc')}
+      actionLabel={actionLabel}
+      onAction={onAction}
+      actionVariant="hero"
+    />
   );
 }

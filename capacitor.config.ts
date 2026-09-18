@@ -10,6 +10,10 @@ const config: CapacitorConfig = {
   appId: 'com.usehisaab.app',
   appName: 'Hisaab',
   webDir: 'dist',
+  // WebView ground before the first paint — the 1d hero base, so a cold
+  // start never flashes white between the splash and the app (either theme
+  // opens on the dark hero).
+  backgroundColor: '#0A0A14',
   server: {
     // Required so the app loads at https://localhost rather than http://,
     // which keeps SW + cross-origin cookies working consistently with PWA.
@@ -24,15 +28,16 @@ const config: CapacitorConfig = {
   },
   plugins: {
     StatusBar: {
-      // Sukoon navy. Keep style 'DARK' so the status bar icons render white.
-      backgroundColor: '#0B0E2A',
+      // The 1d hero base (dark in both themes — every screen opens on the
+      // hero), so light status-bar icons are right in either theme.
+      backgroundColor: '#0A0A14',
       style: 'DARK',
       overlaysWebView: false,
     },
     SplashScreen: {
       launchShowDuration: 600,
       launchAutoHide: true,
-      backgroundColor: '#0B0E2A',
+      backgroundColor: '#0A0A14',
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,
       splashFullScreen: true,

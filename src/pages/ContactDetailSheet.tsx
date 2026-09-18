@@ -1,6 +1,9 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, Ban, Flag, HandCoins, Handshake, RefreshCw, History, ShieldCheck, Trash2, MessageCircle, Check, X, FileText, Merge, QrCode, Clock, Phone, Link2 } from 'lucide-react';
+import { Ban, Flag, Merge } from 'lucide-react';
 import { Modal } from '../components/Modal';
+import { Glyph } from '../components/Glyph';
+import { UserAvatar } from '../components/UserAvatar';
+import type { GlyphName, GlyphTone } from '../lib/glyphs';
 import { QRScanner } from '../components/QRScanner';
 import { formatConnectCode } from '../lib/connectQr';
 import { usePersonStore, ContactLinkError, DuplicateLinkedContactError } from '../stores/personStore';
@@ -488,14 +491,21 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
     }
   };
 
+  const moneyActions: Array<
+    Pick<QuickEntryPreset, 'type' | 'repaymentDirection'> & { label: string; glyph: GlyphName; tone: GlyphTone }
+  > = [
+    { label: t('person_gave'), type: 'loan_given', glyph: 'banknote', tone: 'coral' },
+    { label: t('person_borrowed'), type: 'loan_taken', glyph: 'coins', tone: 'green' },
+    { label: t('person_paid_me_back'), type: 'repayment', repaymentDirection: 'received', glyph: 'arrow-down', tone: 'green' },
+    { label: t('person_i_paid_back'), type: 'repayment', repaymentDirection: 'paid', glyph: 'arrow-up', tone: 'coral' },
+  ];
+
   return (
     <>
     <Modal open={open} onClose={onClose} title={person.name}>
-      <div className="space-y-4">
+      <div className="space-y-3.5">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-accent-100 text-accent-600 flex items-center justify-center text-sm font-bold">
-            {(person.name[0] ?? '?').toUpperCase()}
-          </div>
+          <UserAvatar name={person.name} size={44} />
           <div className="flex-1 min-w-0">
             {/* Inner span carries `truncate` — ellipsis doesn't work on flex
                 containers, and a bare text node can't shrink (min-content),
@@ -509,30 +519,32 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
               // user can verify before syncing or unlinking. The display name
               // is the contact's own name; the short account ref (font-mono)
               // is the stable, comparable identifier for that account.
-              <p className="text-[11px] text-ink-500 truncate">
-                {t('contact_linked_to')} <span className="font-semibold text-ink-700">{person.name}</span>
+              <p className="text-[11px] text-ink-600 truncate mt-0.5">
+                {t('contact_linked_to')} <span className="font-semibold text-ink-800">{person.name}</span>
                 {' · '}
                 <span className="font-mono text-ink-600">{person.linkedProfileId.slice(0, 8)}</span>
               </p>
             ) : (
-              <p className="text-[11px] text-ink-500">
+              <p className="text-[11px] text-ink-600 mt-0.5">
                 {t('contact_not_linked')}
               </p>
             )}
           </div>
           {isLinked && (
-            <span className="text-[10px] font-bold uppercase tracking-widest text-receive-text bg-receive-50 rounded-full px-2.5 py-1">
+            <span className="m-chip m-chip-violet m-chip-caps shrink-0">
               {t('contact_linked_pill')}
             </span>
           )}
         </div>
 
-        <div className="rounded-2xl bg-accent-50 border border-accent-100 p-4">
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-accent-600">{t('current_balance')}</p>
+        {/* Where we stand with this person — the pink (contacts / khata)
+            tinted card. */}
+        <div className="m-card m-pink p-4">
+          <p className="m-label text-blush-text">{t('current_balance')}</p>
           {relationshipBalances.length === 0 ? (
-            <p className="text-[14px] font-semibold text-ink-900 mt-1">{t('cds_settled_with').replace('{name}', person.name)}</p>
+            <p className="text-[14px] font-semibold text-ink-900 mt-1.5">{t('cds_settled_with').replace('{name}', person.name)}</p>
           ) : (
-            <div className="space-y-1 mt-1">
+            <div className="space-y-1 mt-1.5">
               {relationshipBalances.map(([currency, balance]) => (
                 <p key={currency} className="text-[14px] font-semibold text-ink-900">
                   {balance > 0
@@ -555,9 +567,9 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
           <button
             type="button"
             onClick={() => setShowStatement(true)}
-            className="w-full py-3 rounded-2xl bg-accent-100 text-accent-600 text-[13px] font-bold flex items-center justify-center gap-2 press"
+            className="m-btn m-btn-plain w-full py-3 text-[13px]"
           >
-            <FileText size={14} strokeWidth={2.2} /> {t('soa_cta')}
+            <Glyph name="document" tone="violet" size={15} /> {t('soa_cta')}
           </button>
         )}
 
@@ -570,18 +582,23 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
           <button
             type="button"
             onClick={() => setShowKhataLink(true)}
-            className="w-full py-3 rounded-2xl bg-cream-soft border border-cream-border text-ink-700 text-[13px] font-bold flex items-center justify-center gap-2 press"
+            className="m-btn m-btn-plain w-full py-3 text-[13px]"
           >
-            <Link2 size={14} strokeWidth={2.2} /> {t('khata_share_open_cta')}
+            <Glyph name="link" tone="pink" size={15} /> {t('khata_share_open_cta')}
           </button>
         )}
 
         {/* WhatsApp number — add it once so payment reminders go straight to
             their chat, and so the contact list shows the WhatsApp badge. */}
-        <div className="rounded-2xl bg-cream-card border border-cream-border p-3.5">
+        <div className="m-card p-3.5">
           <div className="flex items-center gap-2.5">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${hasWhatsAppNumber(person.phone) ? 'bg-receive-50' : 'bg-cream-soft'}`}>
-              <MessageCircle size={16} strokeWidth={2} style={{ color: hasWhatsAppNumber(person.phone) ? '#1FA855' : 'var(--color-ink-400)' }} />
+            <div className="m-ctl w-9 h-9 flex items-center justify-center shrink-0" aria-hidden>
+              <Glyph
+                name="whatsapp"
+                tone={hasWhatsAppNumber(person.phone) ? 'green' : 'current'}
+                size={17}
+                className={hasWhatsAppNumber(person.phone) ? undefined : 'text-ink-400'}
+              />
             </div>
             {editingPhone ? (
               <div className="flex-1 flex items-center gap-2">
@@ -592,23 +609,23 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void savePhone(); } if (e.key === 'Escape') setEditingPhone(false); }}
                   placeholder="+971 50 123 4567"
                   inputMode="tel"
-                  className="flex-1 min-w-0 bg-cream-soft border border-cream-border rounded-lg px-3 py-2 text-[13px] text-ink-900 outline-none focus:border-accent-500"
+                  className="input-field flex-1 min-w-0 py-2"
                 />
-                <button type="button" disabled={savingPhone} onClick={() => void savePhone()} className="text-receive-600 disabled:opacity-40 press-xs" aria-label={t('cat_save')}><Check size={16} strokeWidth={2.8} /></button>
-                <button type="button" onClick={() => setEditingPhone(false)} className="text-ink-400 press-xs" aria-label={t('cancel')}><X size={16} /></button>
+                <button type="button" disabled={savingPhone} onClick={() => void savePhone()} className="m-ctl w-9 h-9 shrink-0 flex items-center justify-center disabled:opacity-40" aria-label={t('cat_save')}><Glyph name="check" tone="green" size={16} strokeWidth={2.8} /></button>
+                <button type="button" onClick={() => setEditingPhone(false)} className="m-ctl w-9 h-9 shrink-0 flex items-center justify-center" aria-label={t('cancel')}><Glyph name="close" size={15} className="text-ink-500" /></button>
               </div>
             ) : (
               <>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[12px] font-semibold text-ink-900">{t('contact_whatsapp')}</p>
-                  <p className="text-[11px] text-ink-500 truncate">{person.phone || t('contact_whatsapp_none')}</p>
+                  <p className="text-[12.5px] font-semibold text-ink-900">{t('contact_whatsapp')}</p>
+                  <p className="text-[11px] text-ink-600 truncate tabular-nums">{person.phone || t('contact_whatsapp_none')}</p>
                 </div>
                 {hasWhatsAppNumber(person.phone) && (
-                  <a href={buildWhatsAppUrl(person.phone, '')} target="_blank" rel="noopener noreferrer" className="shrink-0 press-xs" style={{ color: '#1FA855' }} aria-label={t('a11y_whatsapp')}>
-                    <MessageCircle size={17} />
+                  <a href={buildWhatsAppUrl(person.phone, '')} target="_blank" rel="noopener noreferrer" className="relative shrink-0 w-8 h-8 flex items-center justify-center" aria-label={t('a11y_whatsapp')}>
+                    <Glyph name="whatsapp" tone="green" size={18} />
                   </a>
                 )}
-                <button type="button" onClick={() => { setPhoneDraft(person.phone ?? ''); setEditingPhone(true); }} className="text-accent-600 text-[11px] font-semibold shrink-0">
+                <button type="button" onClick={() => { setPhoneDraft(person.phone ?? ''); setEditingPhone(true); }} className="text-accent-600 text-[11.5px] font-semibold shrink-0 min-h-[32px]">
                   {person.phone ? t('contact_whatsapp_edit') : t('contact_whatsapp_add')}
                 </button>
               </>
@@ -617,30 +634,27 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
         </div>
 
         <div>
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink-500 mb-2">{t('add_money_entry')}</p>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: t('person_gave'), type: 'loan_given' as const, icon: HandCoins },
-              { label: t('person_borrowed'), type: 'loan_taken' as const, icon: Handshake },
-              { label: t('person_paid_me_back'), type: 'repayment' as const, repaymentDirection: 'received' as const, icon: ArrowDownLeft },
-              { label: t('person_i_paid_back'), type: 'repayment' as const, repaymentDirection: 'paid' as const, icon: ArrowUpRight },
-            ].map((action) => (
+          <p className="m-label px-1 mb-2">{t('add_money_entry')}</p>
+          {/* Four pressable tiles; the glyph tone says which way money
+              moves (coral = out of your pocket, green = into it). */}
+          <div className="grid grid-cols-2 gap-2.5">
+            {moneyActions.map((action) => (
               <button
                 key={action.label}
                 type="button"
                 onClick={() => openMoneyEntry({ type: action.type, repaymentDirection: action.repaymentDirection })}
-                className="rounded-xl bg-cream-card border border-cream-border px-3 py-3 text-left press"
+                className="m-tile px-3 py-3 text-left"
               >
-                <action.icon size={14} className="text-accent-600 mb-1.5" />
-                <span className="text-[12px] font-semibold text-ink-900">{action.label}</span>
+                <Glyph name={action.glyph} tone={action.tone} size={18} className="mb-2" />
+                <span className="block text-[12.5px] font-semibold text-ink-900 leading-snug">{action.label}</span>
               </button>
             ))}
           </div>
         </div>
 
         {recentEntries.length > 0 && (
-          <div className="rounded-2xl bg-cream-card border border-cream-border p-3.5">
-            <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink-500 mb-2">{t('recent_money_history')}</p>
+          <div className="m-card p-3.5">
+            <p className="m-label mb-2">{t('recent_money_history')}</p>
             <div className="space-y-2">
               {recentEntries.map((entry) => {
                 const linkedLoan = entry.relatedLoanId ? loans.find((l) => l.id === entry.relatedLoanId) ?? null : null;
@@ -650,10 +664,10 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
                     key={entry.id}
                     type="button"
                     onClick={() => setEditingTransaction(entry)}
-                    className="w-full flex justify-between gap-3 text-[12px] text-left rounded-lg py-1 active:bg-cream-soft transition-colors"
+                    className="w-full flex justify-between gap-3 text-[12.5px] text-left rounded-lg py-1 min-h-[32px] items-center active:bg-cream-soft transition-colors"
                   >
-                    <span className="text-ink-700 truncate">{label}</span>
-                    <span className="font-semibold text-ink-900 shrink-0">{formatMoney(entry.amount, entry.currency)}</span>
+                    <span className="text-ink-800 truncate">{label}</span>
+                    <span className="font-semibold text-ink-900 shrink-0 tabular-nums">{formatMoney(entry.amount, entry.currency)}</span>
                   </button>
                 );
               })}
@@ -661,7 +675,7 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
           </div>
         )}
         {recentEntries.length === 0 && (
-          <p className="text-[12px] text-ink-500 bg-cream-soft border border-cream-hairline rounded-xl p-3 leading-relaxed">
+          <p className="m-inset text-[12px] text-ink-600 px-3.5 py-3 leading-relaxed">
             {t('cds_no_history').replace('{name}', person.name)}
           </p>
         )}
@@ -670,10 +684,10 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
             prior loan with this person — for fresh contacts the score is
             empty and hiding the card keeps the sheet clean. */}
         {trustScore && trustStyle && trustScore.totalLoans > 0 && (
-          <div className="rounded-2xl bg-cream-card border border-cream-border p-3.5">
+          <div className="m-card p-3.5">
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-2xl bg-cream-soft border border-cream-hairline flex items-center justify-center shrink-0">
-                <ShieldCheck size={16} className="text-ink-600" strokeWidth={1.8} />
+              <div className="m-ctl w-9 h-9 flex items-center justify-center shrink-0" aria-hidden>
+                <Glyph name="shield-check" tone="neutral" size={17} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -687,36 +701,36 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
                     {trustStyle.label}
                   </span>
                 </div>
-                <p className="text-[11px] text-ink-500 mt-1 leading-relaxed">
+                <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">
                   {trustScore.summary}
                 </p>
                 <div className="grid grid-cols-3 gap-2 mt-2.5">
-                  <div className="rounded-xl bg-cream-soft px-2 py-1.5">
-                    <p className="text-[9.5px] text-ink-500 uppercase tracking-widest font-bold">
+                  <div className="m-inset px-2.5 py-2">
+                    <p className="m-label text-[9.5px]">
                       {t('cds_stat_total')}
                     </p>
-                    <p className="text-[13px] text-ink-900 font-bold tabular-nums">
+                    <p className="text-[14px] text-ink-900 font-semibold tabular-nums mt-0.5">
                       {trustScore.totalLoans}
                     </p>
                   </div>
-                  <div className="rounded-xl bg-cream-soft px-2 py-1.5">
-                    <p className="text-[9.5px] text-ink-500 uppercase tracking-widest font-bold">
+                  <div className="m-inset px-2.5 py-2">
+                    <p className="m-label text-[9.5px]">
                       {t('cds_stat_settled')}
                     </p>
-                    <p className="text-[13px] text-receive-text font-bold tabular-nums">
+                    <p className="text-[14px] text-receive-text font-semibold tabular-nums mt-0.5">
                       {trustScore.settledLoans}
                     </p>
                   </div>
-                  <div className="rounded-xl bg-cream-soft px-2 py-1.5">
-                    <p className="text-[9.5px] text-ink-500 uppercase tracking-widest font-bold">
+                  <div className="m-inset px-2.5 py-2">
+                    <p className="m-label text-[9.5px]">
                       {t('cds_stat_open')}
                     </p>
-                    <p className="text-[13px] text-ink-900 font-bold tabular-nums">
+                    <p className="text-[14px] text-ink-900 font-semibold tabular-nums mt-0.5">
                       {trustScore.activeLoans}
                     </p>
                   </div>
                 </div>
-                <p className="text-[10.5px] text-ink-400 mt-2 italic leading-relaxed">
+                <p className="text-[10.5px] text-ink-500 mt-2 italic leading-relaxed">
                   {t('cds_private_note')}
                 </p>
               </div>
@@ -732,10 +746,10 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
                 existing loan history (repayments, EMI, notes) stays
                 intact — the RPC reuses it on accept. */}
             {syncable.length > 0 && (
-              <div className="rounded-2xl bg-accent-50 border border-cream-border p-4">
+              <div className="m-card m-violet p-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-accent-100 flex items-center justify-center shrink-0">
-                    <History size={18} className="text-accent-600" strokeWidth={1.8} />
+                  <div className="m-ctl w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0" aria-hidden>
+                    <Glyph name="recurring" tone="violet" size={18} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-semibold text-ink-900 tracking-tight">
@@ -744,14 +758,14 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
                         : t('cds_past_records_many').replace('{n}', String(syncable.length))
                       ).replace('{name}', person.name)}
                     </p>
-                    <p className="text-[11px] text-ink-500 mt-0.5 leading-relaxed">
+                    <p className="text-[11px] text-ink-600 mt-0.5 leading-relaxed">
                       {t('cds_past_records_desc')}
                     </p>
                   </div>
                 </div>
                 {syncableByCurrency.length > 0 && (
-                  <div className="text-[11px] text-ink-500 mt-2.5 pl-[52px] space-y-0.5">
-                    <p className="text-ink-500">{t('cds_open_balance')}</p>
+                  <div className="text-[11px] text-ink-600 mt-2.5 pl-[52px] space-y-0.5">
+                    <p className="text-ink-600">{t('cds_open_balance')}</p>
                     {syncableByCurrency.map(([currency, { total, count }]) => (
                       <p
                         key={currency}
@@ -760,7 +774,7 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
                         <span className="font-semibold text-ink-900">
                           {formatMoney(total, currency)}
                         </span>
-                        <span className="text-ink-500 text-[10.5px]">
+                        <span className="text-ink-600 text-[10.5px]">
                           {count === 1
                             ? t('common_loan_one')
                             : t('common_loan_many').replace('{n}', String(count))}
@@ -772,9 +786,9 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
                 <button
                   onClick={handleSyncPastRecords}
                   disabled={syncing}
-                  className="mt-3 w-full py-2.5 rounded-xl bg-ink-900 text-white text-[12.5px] font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50 press"
+                  className="m-btn m-btn-primary mt-3.5 w-full py-2.5 text-[12.5px]"
                 >
-                  <RefreshCw size={12} strokeWidth={2.4} />
+                  <Glyph name="refresh" size={13} strokeWidth={2.6} />
                   {syncing
                     ? t('cds_sending')
                     : syncable.length === 1
@@ -785,7 +799,7 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
             )}
 
             {linkVerified ? (
-              <p className="text-[11px] text-ink-500 leading-relaxed">
+              <p className="text-[11px] text-ink-600 leading-relaxed">
                 {t('clink_mutual')} &mdash;{' '}
                 {t('cds_mutual_desc').replace('{name}', person.name)}
               </p>
@@ -795,13 +809,13 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
               // legacy link predating the consent flow) is exactly the
               // confusion that made people ask "why can't they see me?" —
               // see src/lib/contactVerification.ts (audit 2026-09 SEC-09).
-              <div className="rounded-2xl bg-warn-50 border border-cream-border p-3.5 flex items-start gap-2.5">
-                <Clock size={15} className="text-warn-600 shrink-0 mt-0.5" strokeWidth={2.2} />
+              <div className="m-card m-violet p-3.5 flex items-start gap-2.5">
+                <Glyph name="clock" tone="violet" size={16} className="mt-0.5" />
                 <div className="min-w-0">
                   <p className="text-[12px] font-semibold text-ink-900">
                     {t('clink_waiting').replace('{name}', person.name)}
                   </p>
-                  <p className="text-[11px] text-ink-500 mt-0.5 leading-relaxed">
+                  <p className="text-[11px] text-ink-600 mt-0.5 leading-relaxed">
                     {t('clink_waiting_desc')}
                   </p>
                 </div>
@@ -837,14 +851,14 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
                   });
                   setMode('resolved');
                 }}
-                className="w-full rounded-2xl bg-cream-soft border border-cream-border px-3.5 py-3 flex items-start gap-2.5 text-left disabled:opacity-50 press-lg"
+                className="m-tile px-3.5 py-3 flex items-start gap-2.5 text-left"
               >
-                <Phone size={16} strokeWidth={2.2} className="shrink-0 mt-0.5 text-ink-500" aria-hidden />
+                <Glyph name="phone" size={16} className="mt-0.5 text-ink-500" />
                 <span className="flex-1 min-w-0">
-                  <span className="block text-[12px] text-ink-700 leading-snug">
+                  <span className="block text-[12px] text-ink-800 leading-snug">
                     {t('disc_found').replace('{name}', discoveryHit.displayName)}
                   </span>
-                  <span className="block text-[10.5px] text-ink-500 leading-relaxed mt-0.5">
+                  <span className="block text-[10.5px] text-ink-600 leading-relaxed mt-0.5">
                     {t('disc_unverified_note')}
                   </span>
                 </span>
@@ -853,28 +867,29 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
                 </span>
               </button>
             )}
-            <div className="flex gap-2">
+            <div className="flex gap-2.5">
               <button
                 onClick={() => setShowScanner(true)}
-                className="flex-1 py-3 rounded-2xl bg-ink-900 text-white text-[12.5px] font-bold flex items-center justify-center gap-1.5 press"
+                className="m-btn m-btn-primary flex-1 px-3 py-3 text-[12.5px]"
               >
-                <QrCode size={14} strokeWidth={2.2} /> {t('qr_scan_cta')}
+                <Glyph name="qr" size={15} strokeWidth={2.6} /> {t('qr_scan_cta')}
               </button>
               <button
                 onClick={() => setMode('entering')}
-                className="flex-1 py-3 rounded-2xl bg-cream-soft border border-cream-border text-ink-700 text-[12.5px] font-bold press"
+                className="m-btn m-btn-plain flex-1 px-3 py-3 text-[12.5px]"
               >
-                {t('addc_link_code')}
+                <Glyph name="edit" size={14} className="text-ink-600" /> {t('addc_link_code')}
               </button>
             </div>
           </div>
         ) : (
           <div className="space-y-3">
             <div>
-              <label className="form-label">
+              <label htmlFor="cds-link-code" className="form-label">
                 {t('cds_user_code_label')}
               </label>
               <input
+                id="cds-link-code"
                 value={code}
                 onChange={(e) => {
                   setCode(e.target.value);
@@ -890,23 +905,23 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
                 autoComplete="off"
                 className="input-field"
               />
-              <p className="text-[11px] text-ink-500 mt-1.5">
+              <p className="text-[11px] text-ink-600 mt-1.5">
                 {t('cds_code_help')}
               </p>
               <button
                 type="button"
                 onClick={() => setShowScanner(true)}
-                className="mt-2 inline-flex items-center gap-1.5 text-[11.5px] font-bold text-accent-600"
+                className="mt-2 min-h-[32px] inline-flex items-center gap-1.5 text-[11.5px] font-bold text-accent-600"
               >
-                <QrCode size={13} strokeWidth={2.2} /> {t('qr_scan_cta')}
+                <Glyph name="qr" size={14} strokeWidth={2.6} /> {t('qr_scan_cta')}
               </button>
             </div>
 
             {mode === 'resolved' && resolved ? (
-              <div className="rounded-2xl border border-receive-100/70 bg-receive-50/60 p-3">
-                <p className="text-[11px] font-bold text-receive-text uppercase tracking-widest">{t('cds_found')}</p>
-                <p className="text-[14px] font-semibold text-ink-900 mt-0.5">{resolved.displayName}</p>
-                <p className="text-[11px] text-ink-500 mt-1">
+              <div className="m-card m-mint p-3.5">
+                <p className="m-label text-receive-text">{t('cds_found')}</p>
+                <p className="text-[14px] font-semibold text-ink-900 mt-1">{resolved.displayName}</p>
+                <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">
                   {/* Precise about what confirming does and doesn't do: the
                       link is yours immediately; appearing in THEIR contacts
                       is their call, not something this button decides. */}
@@ -917,28 +932,28 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
               <button
                 onClick={handleResolve}
                 disabled={resolving || !code.trim()}
-                className="w-full py-3 rounded-2xl bg-accent-100 text-accent-600 text-[13px] font-bold active:bg-accent-100 transition-all disabled:opacity-40"
+                className="m-btn m-btn-primary w-full py-3 text-[13px]"
               >
                 {resolving ? t('cds_looking_up') : t('cds_resolve')}
               </button>
             )}
 
             {mode === 'resolved' && resolved && (
-              <div className="flex gap-2">
+              <div className="flex gap-2.5">
                 <button
                   onClick={() => {
                     setMode('entering');
                     setResolved(null);
                   }}
                   disabled={saving}
-                  className="px-4 py-3 rounded-2xl bg-cream-soft text-ink-500 text-[12px] font-bold active:bg-slate-200 transition-all disabled:opacity-50"
+                  className="m-btn m-btn-plain px-4 py-3 text-[12.5px]"
                 >
                   {t('cancel')}
                 </button>
                 <button
                   onClick={handleConfirmLink}
                   disabled={saving}
-                  className="flex-1 py-3 rounded-2xl bg-ink-900 text-white text-[13px] font-bold disabled:opacity-40 shadow-md shadow-indigo-500/20"
+                  className="m-btn m-btn-primary flex-1 py-3 text-[13px]"
                 >
                   {saving ? t('cds_linking') : t('cds_confirm_link')}
                 </button>
@@ -948,7 +963,7 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
         )}
 
         {error && (
-          <p className="text-[12px] text-pay-text font-semibold bg-pay-50 rounded-xl p-3">{error}</p>
+          <p role="alert" className="m-card m-coral text-[12px] text-pay-text font-semibold px-3.5 py-3 leading-relaxed">{error}</p>
         )}
 
         {!isLinked && (
@@ -959,21 +974,21 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
               type="button"
               onClick={() => setShowMergePicker(true)}
               disabled={merging || archiving || saving}
-              className="w-full mt-3 py-3 rounded-2xl bg-cream-soft border border-cream-hairline text-ink-700 text-[12.5px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
+              className="m-btn m-btn-plain w-full mt-3.5 py-3 text-[12.5px]"
             >
-              <Merge size={13} strokeWidth={2.2} />
+              <Merge size={14} strokeWidth={2.4} className="text-ink-600" aria-hidden />
               {t('merge_button')}
             </button>
             <button
               type="button"
               onClick={handleArchive}
               disabled={archiving || saving}
-              className="w-full mt-2 py-3 rounded-2xl bg-pay-50 text-pay-text text-[12.5px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
+              className="m-btn m-btn-danger w-full mt-2.5 py-3 text-[12.5px]"
             >
-              <Trash2 size={13} strokeWidth={2.2} />
+              <Glyph name="trash" size={14} strokeWidth={2.6} />
               {archiving ? t('cds_removing') : t('cds_remove_local')}
             </button>
-            <p className="text-[10.5px] text-ink-400 mt-1.5 text-center leading-relaxed">
+            <p className="text-[10.5px] text-ink-500 mt-2 text-center leading-relaxed">
               {t('cds_remove_after_settled')}
             </p>
           </div>
@@ -983,23 +998,23 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
             the last resort, not a routine action. Linked contacts only: an
             unlinked row has no account on the other end. */}
         {isLinked && person.linkedProfileId && (
-          <div className="pt-1 border-t border-cream-hairline space-y-2">
+          <div className="pt-1 border-t border-cream-hairline space-y-2.5">
             <button
               type="button"
               onClick={isBlocked ? handleUnblock : () => setSafetyMode('block')}
-              className={`w-full mt-3 py-3 rounded-2xl text-[12.5px] font-bold flex items-center justify-center gap-1.5 ${
-                isBlocked ? 'bg-cream-soft border border-cream-hairline text-ink-700' : 'bg-pay-50 text-pay-text'
+              className={`m-btn w-full mt-3.5 py-3 text-[12.5px] ${
+                isBlocked ? 'm-btn-plain' : 'm-btn-danger'
               }`}
             >
-              <Ban size={13} strokeWidth={2.2} />
+              <Ban size={14} strokeWidth={2.4} aria-hidden />
               {isBlocked ? t('blk_action_unblock') : t('blk_action_block')}
             </button>
             <button
               type="button"
               onClick={() => setSafetyMode('report')}
-              className="w-full py-3 rounded-2xl bg-cream-soft border border-cream-hairline text-ink-700 text-[12.5px] font-bold flex items-center justify-center gap-1.5"
+              className="m-btn m-btn-plain w-full py-3 text-[12.5px]"
             >
-              <Flag size={13} strokeWidth={2.2} />
+              <Flag size={14} strokeWidth={2.4} className="text-ink-600" aria-hidden />
               {t('blk_action_report')}
             </button>
           </div>
@@ -1082,8 +1097,8 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
     {/* Merge target picker — sibling of the sheet (fixed overlays must not
         nest inside a transformed modal). */}
     <Modal open={showMergePicker} onClose={() => setShowMergePicker(false)} title={t('merge_pick_title')}>
-      <div className="space-y-2">
-        <p className="text-[12px] text-ink-500 leading-relaxed">
+      <div className="space-y-2.5">
+        <p className="text-[12px] text-ink-600 leading-relaxed pb-1">
           {t('merge_pick_desc').replace('{source}', person.name)}
         </p>
         {(() => {
@@ -1097,7 +1112,7 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
             (p) => p.id !== person.id && !accountNames.has(p.name.trim().toLowerCase()),
           );
           if (targets.length === 0) {
-            return <p className="text-[12px] text-ink-400 px-1 py-3">{t('merge_pick_empty')}</p>;
+            return <p className="text-[12px] text-ink-500 px-1 py-3">{t('merge_pick_empty')}</p>;
           }
           return targets.map((p) => (
             <button
@@ -1105,11 +1120,9 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
               type="button"
               disabled={merging}
               onClick={() => void handleMerge(p)}
-              className="w-full text-left rounded-2xl bg-cream-soft border border-cream-hairline px-4 py-3 flex items-center gap-2.5 active:bg-cream-hairline transition-colors disabled:opacity-50"
+              className="m-tile px-4 py-3 flex items-center gap-2.5 text-left"
             >
-              <span className="w-8 h-8 rounded-xl bg-accent-100 text-accent-600 flex items-center justify-center text-[12px] font-bold shrink-0">
-                {(p.name[0] ?? '?').toUpperCase()}
-              </span>
+              <UserAvatar name={p.name} size={32} />
               <span className="flex-1 min-w-0 truncate text-[13px] font-semibold text-ink-900">{p.name}</span>
               {isConsentVerifiedLink(contactLinks, myId, p.linkedProfileId) && (
                 <VerifiedBadge size={14} title={t('contact_linked_pill')} />

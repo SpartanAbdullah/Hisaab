@@ -23,12 +23,16 @@ interface Props {
 // Now the first paint is committed at zero and the real value lands on the
 // next frame. Two frames of empty ring is imperceptible; a goal visibly
 // filling is the entire reason to draw a progress ring instead of a number.
+// 1d: both strokes default to theme tokens — the violet accent arc over the
+// material's recessed track tint (--m-track), so a ring sits in a card the way
+// the inset progress bars do and flips with the theme. Callers may still pass
+// any CSS colour (prefer a var(--color-*) token).
 export function ProgressRing({
   size = 48,
   strokeWidth = 4,
   progress,
   color = 'var(--color-accent-500)',
-  trackColor = 'var(--color-ink-200)',
+  trackColor = 'var(--m-track)',
   children,
   className,
 }: Props) {
@@ -68,25 +72,28 @@ export function ProgressRing({
       style={{ width: size, height: size }}
     >
       <svg width={size} height={size} className="-rotate-90" aria-hidden>
+        {/* Strokes go through `style`, not the stroke attribute: a var()
+            token resolves reliably in CSS, where presentation-attribute
+            support for var() varies between WebViews. */}
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={trackColor}
           strokeWidth={strokeWidth}
           fill="none"
+          style={{ stroke: trackColor }}
         />
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={color}
           strokeWidth={strokeWidth}
           fill="none"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
           style={{
+            stroke: color,
             transition: reduced
               ? 'none'
               : 'stroke-dashoffset 0.9s cubic-bezier(0.16,1,0.3,1)',

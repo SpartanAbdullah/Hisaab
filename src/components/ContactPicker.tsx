@@ -16,9 +16,14 @@ export function getContactTypeLabel(person: Pick<Person, 'linkedProfileId'>): 'L
   return person.linkedProfileId ? 'Linked' : 'Local';
 }
 
+// `labels` lets the picker pass the localized words; the English defaults keep
+// the helper usable (and testable) without an i18n context.
 // eslint-disable-next-line react-refresh/only-export-components
-export function getContactSecondaryText(person: Pick<Person, 'linkedProfileId' | 'phone'>): string {
-  const typeText = person.linkedProfileId ? 'Hisaab user' : 'Saved locally';
+export function getContactSecondaryText(
+  person: Pick<Person, 'linkedProfileId' | 'phone'>,
+  labels: { linked: string; local: string } = { linked: 'Hisaab user', local: 'Saved locally' },
+): string {
+  const typeText = person.linkedProfileId ? labels.linked : labels.local;
   return person.phone ? `${typeText} · ${person.phone}` : typeText;
 }
 
@@ -69,9 +74,9 @@ export function ContactPicker({ value, onChange, placeholder, required, classNam
 
   const showDropdown = open && focused && query.length > 0 && (matches.length > 0 || !exactMatch);
 
-  const inputClass =
-    className ??
-    'w-full border border-slate-200/60 rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all';
+  // 1d default: the sunken .input-field well (3:1 edge, violet focus).
+  const inputClass = className ?? 'input-field';
+  const secondaryLabels = { linked: t('blk_unknown_person'), local: t('cp_saved_locally') };
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -89,8 +94,11 @@ export function ContactPicker({ value, onChange, placeholder, required, classNam
         autoComplete="off"
       />
 
+      {/* 1d dropdown: a lifted card (lit face + ambient shadow) with hairline
+          rows; "Linked" wears the violet chip, a local contact the neutral
+          outline chip — the same pair the Contacts list uses. */}
       {showDropdown && (
-        <div className="absolute left-0 right-0 mt-1 z-20 rounded-2xl border border-slate-200/70 bg-cream-card shadow-lg overflow-hidden">
+        <div className="m-card absolute left-0 right-0 mt-1.5 z-20 overflow-hidden divide-y divide-cream-hairline">
           {matches.map((p) => (
             <button
               type="button"
@@ -100,20 +108,18 @@ export function ContactPicker({ value, onChange, placeholder, required, classNam
                 onChange({ id: p.id, name: p.name });
                 setOpen(false);
               }}
-              className="w-full text-left px-4 py-2.5 hover:bg-accent-50/60 active:bg-accent-100/60 transition-colors border-b border-slate-100/60 last:border-0"
+              className="w-full text-left px-4 py-2.5 min-h-[44px] hover:bg-cream-soft active:bg-cream-soft transition-colors"
             >
               <span className="flex items-center gap-2 min-w-0">
                 <span className="text-[13px] font-medium text-ink-900 truncate">{p.name}</span>
-                <span className={`text-[9px] font-bold uppercase tracking-wider rounded-full px-1.5 py-0.5 shrink-0 ${
-                  p.linkedProfileId
-                    ? 'bg-accent-100 text-accent-600'
-                    : 'bg-cream-soft text-ink-500'
+                <span className={`m-chip m-chip-caps shrink-0 ${
+                  getContactTypeLabel(p) === 'Linked' ? 'm-chip-violet' : 'm-chip-neutral'
                 }`}>
-                  {getContactTypeLabel(p)}
+                  {getContactTypeLabel(p) === 'Linked' ? t('contact_linked_pill') : t('cts_local_chip')}
                 </span>
               </span>
-              <span className="block text-[10.5px] text-ink-500 mt-0.5 truncate">
-                {getContactSecondaryText(p)}
+              <span className="block text-[10.5px] text-ink-600 mt-0.5 truncate">
+                {getContactSecondaryText(p, secondaryLabels)}
               </span>
             </button>
           ))}
@@ -126,7 +132,7 @@ export function ContactPicker({ value, onChange, placeholder, required, classNam
                 onChange({ id: null, name: query });
                 setOpen(false);
               }}
-              className="w-full text-left px-4 py-2.5 text-[12px] font-semibold text-accent-600 hover:bg-accent-50/60 active:bg-accent-100/60 transition-colors"
+              className="w-full text-left px-4 py-2.5 min-h-[44px] text-[12px] font-semibold text-accent-600 hover:bg-cream-soft active:bg-cream-soft transition-colors"
             >
               {t('cp_create_new_prefix')}&ldquo;{query}&rdquo;
             </button>

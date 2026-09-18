@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Modal } from '../components/Modal';
+import { Glyph } from '../components/Glyph';
 import { useDiscardGuard } from '../lib/useDiscardGuard';
 import { useSubmitGuard } from '../lib/useSubmitGuard';
 import { useGoalStore } from '../stores/goalStore';
@@ -81,9 +82,12 @@ export function AddGoalModal({ open, onClose }: Props) {
       }
     >
       <form id="goal-form" onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-[12px] text-ink-500 leading-relaxed bg-cream-soft/80 border border-cream-hairline rounded-2xl p-3">
-          {t('goal_intro')}
-        </p>
+        <div className="m-inset p-3.5 flex items-start gap-2.5">
+          <Glyph name="savings" size={16} tone="green" className="mt-0.5" />
+          <p className="text-[12px] text-ink-600 leading-relaxed">
+            {t('goal_intro')}
+          </p>
+        </div>
 
         <div>
           <label className="form-label">{t('goal_name')}</label>
@@ -111,7 +115,12 @@ export function AddGoalModal({ open, onClose }: Props) {
           <p className="text-[11px] text-ink-500 mt-1.5 leading-relaxed">{t('goal_target_date_help')}</p>
         </div>
 
-        {error && <p className="text-[12px] text-pay-text font-semibold bg-pay-50 rounded-xl p-3">{error}</p>}
+        {error && (
+          <div className="m-card m-coral p-3 flex items-start gap-2" role="alert">
+            <Glyph name="alert" size={15} tone="coral" className="mt-px" />
+            <p className="text-[12px] text-pay-text font-semibold">{error}</p>
+          </div>
+        )}
       </form>
     </Modal>
   );

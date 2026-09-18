@@ -13,7 +13,6 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "check:bundle": "node scripts/check-bundle-size.mjs",
-    "build:3d": "node scripts/build-3d-icons.mjs",
     "cap:sync": "npm run build && npx cap sync android",
     "cap:open:android": "npx cap open android",
     "cap:run:android": "npm run build && npx cap run android"

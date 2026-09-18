@@ -166,15 +166,16 @@ export function SettleLinkedLoanModal({ open, onClose, loan }: Props) {
       }
     >
       <div className="space-y-4">
-        <div className="bg-cream-soft/80 rounded-2xl p-3.5 border border-cream-hairline">
-          <p className="text-[13px] text-ink-700">
+        {/* What this request says, on the violet every linked surface wears. */}
+        <div className="m-card m-violet p-3.5">
+          <p className="text-[13px] text-ink-800 leading-relaxed">
             {(isGiven ? t('stl_direction_receiving_from') : t('stl_direction_paying_to'))
               .replace('{name}', counterpartyName)
               .replace('{amount}', formatMoney(parseFloat(amount) || 0, loan.currency))}
           </p>
         </div>
 
-        <p className="text-[12px] text-ink-500 bg-cream-soft/80 border border-cream-hairline rounded-2xl p-3 leading-relaxed">
+        <p className="m-inset text-[12px] text-ink-600 p-3 leading-relaxed">
           {t('money_not_moved_notice')}
         </p>
 
@@ -188,9 +189,12 @@ export function SettleLinkedLoanModal({ open, onClose, loan }: Props) {
             min="0"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="input-field text-center text-lg font-bold tabular-nums"
+            className="input-field text-center font-semibold tabular-nums tracking-[-0.02em]"
+            // Inline on purpose: index.css pins every <input> to 16px (iOS
+            // focus-zoom guard), which beats any font-size utility.
+            style={{ fontSize: 22 }}
           />
-          <p className="text-[11px] text-ink-500 mt-1.5">
+          <p className="text-[11px] text-ink-600 mt-1.5">
             {t('stl_amount_hint').replace('{remaining}', formatMoney(loan.remainingAmount, loan.currency))}
           </p>
           {Number.isFinite(parseFloat(amount)) && parseFloat(amount) - loan.remainingAmount > 0.00001 && (
@@ -212,29 +216,29 @@ export function SettleLinkedLoanModal({ open, onClose, loan }: Props) {
 
         {appMode === 'full_tracker' && (
         <>
-        {/* Phase 2C-B: sender-side opt-in toggle + account picker. */}
-        <label className={`flex items-center gap-2.5 p-3 rounded-2xl border ${
-          hasEligibleAccounts
-            ? 'bg-cream-soft/80 border-cream-hairline cursor-pointer'
-            : 'bg-cream-soft/50 border-cream-hairline opacity-60 cursor-not-allowed'
-        }`}>
-          <input
-            type="checkbox"
-            checked={applyToBalance}
-            disabled={!hasEligibleAccounts}
-            onChange={(e) => {
-              setApplyToBalance(e.target.checked);
-              if (!e.target.checked) setSelectedAccountId('');
-            }}
-            className="w-4 h-4 rounded border-slate-300 text-accent-600 accent-indigo-600"
-          />
-          <span className="text-[13px] text-ink-700 font-medium flex-1">
+        {/* Phase 2C-B: sender-side opt-in toggle + account picker. The whole
+            row is the switch (role="switch"), so the label is its name and
+            the tap target is the full row. */}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={applyToBalance}
+          disabled={!hasEligibleAccounts}
+          onClick={() => {
+            const next = !applyToBalance;
+            setApplyToBalance(next);
+            if (!next) setSelectedAccountId('');
+          }}
+          className="m-card w-full flex items-center gap-3 px-4 py-3 text-left disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <span className="text-[13px] text-ink-800 font-medium flex-1">
             {t('stl_apply_toggle_label')}
           </span>
-        </label>
+          <span aria-hidden className={`m-switch block ${applyToBalance ? 'is-on' : ''}`} />
+        </button>
 
         {hasEligibleAccounts ? (
-          <p className="text-[11px] text-ink-500 -mt-2">{t('stl_apply_toggle_hint')}</p>
+          <p className="text-[11px] text-ink-600 -mt-2">{t('stl_apply_toggle_hint')}</p>
         ) : (
           <p className="text-[11px] text-warn-600 -mt-2">{t('stl_apply_no_eligible')}</p>
         )}
@@ -273,11 +277,11 @@ export function SettleLinkedLoanModal({ open, onClose, loan }: Props) {
         ) : null}
 
         {applyToBalance && selectedAccountId ? (
-          <p className="text-[12px] text-warn-600 bg-warn-50 rounded-2xl p-3 leading-relaxed">
+          <p className="m-card m-violet text-[12px] text-accent-text p-3 leading-relaxed">
             {isGiven ? t('stl_apply_increase_hint') : t('stl_apply_reduce_hint')}
           </p>
         ) : (
-          <p className="text-[12px] text-accent-600 bg-accent-50 rounded-2xl p-3 leading-relaxed">
+          <p className="m-card m-violet text-[12px] text-iris-text p-3 leading-relaxed">
             {t('stl_ledger_only_hint')}
           </p>
         )}
@@ -285,7 +289,7 @@ export function SettleLinkedLoanModal({ open, onClose, loan }: Props) {
         )}
 
         {appMode === 'splits_only' ? (
-          <p className="text-[12px] text-accent-600 bg-accent-50 rounded-2xl p-3 leading-relaxed">
+          <p className="m-card m-violet text-[12px] text-iris-text p-3 leading-relaxed">
             {t('stl_ledger_only_hint')}
           </p>
         ) : null}

@@ -215,17 +215,17 @@ describe('countBellItems', () => {
       linkedRequests: [{ status: 'pending', toUserId: ME, fromUserId: THEM }],
       settlementRequests: [{ status: 'pending', toUserId: ME, fromUserId: THEM }],
       contactLinkRequests: [{ status: 'pending', toUserId: ME, fromUserId: THEM }],
-    })).toEqual({ actionable: 5, waiting: 0 });
+    })).toEqual({ actionable: 5, waiting: 0, total: 5 });
   });
 
-  it('routes requests this user sent to `waiting`, never to the red number (N-7)', () => {
+  it('keeps requests this user sent in `waiting`, and the red total counts them (2026-09-18)', () => {
     expect(countBellItems({
       ...base,
       linkedRequests: [
         { status: 'pending', toUserId: THEM, fromUserId: ME },   // mine, waiting on them
         { status: 'pending', toUserId: ME, fromUserId: THEM },   // ✓ actionable
       ],
-    })).toEqual({ actionable: 1, waiting: 1 });
+    })).toEqual({ actionable: 1, waiting: 1, total: 2 });
   });
 
   it('does not double-count a loan request against its own notification', () => {
@@ -235,7 +235,7 @@ describe('countBellItems', () => {
       ...base,
       notifications: [notif({ id: '1', type: 'linked_request' })],
       linkedRequests: [{ status: 'pending', toUserId: ME, fromUserId: THEM }],
-    })).toEqual({ actionable: 1, waiting: 0 });
+    })).toEqual({ actionable: 1, waiting: 0, total: 1 });
   });
 
   it('is zero when nothing needs the user', () => {
@@ -243,7 +243,7 @@ describe('countBellItems', () => {
       ...base,
       notifications: [notif({ id: '1', readAt: '2026-09-02T11:00:00.000Z' })],
       linkedRequests: [{ status: 'accepted', toUserId: ME, fromUserId: THEM }],
-    })).toEqual({ actionable: 0, waiting: 0 });
+    })).toEqual({ actionable: 0, waiting: 0, total: 0 });
   });
 
   it('counts unread notifications even before the user id is known', () => {
@@ -254,15 +254,16 @@ describe('countBellItems', () => {
       userId: '',
       notifications: [notif({ id: '1' })],
       linkedRequests: [{ status: 'pending', toUserId: ME, fromUserId: THEM }],
-    })).toEqual({ actionable: 1, waiting: 0 });
+    })).toEqual({ actionable: 1, waiting: 0, total: 1 });
   });
 
   // ── The founder's production account, 2026-09-03, exactly as measured ────
   // 5 outgoing pending linked requests, 3 outgoing pending settlements, 0
   // incoming of either, 0 contact links, 76 group_update rows ALL READ, and 73
   // unread request mirrors (38 linked_request + 35 linked_settlement).
-  // Expected: no red number — nothing needs them — but a waiting dot for 8.
-  it('reproduces the founder’s account: actionable 0, waiting 8', () => {
+  // Expected (founder decision 2026-09-18): the red number shows 8 — every
+  // open request counts, including the user's own outgoing ones.
+  it('reproduces the founder’s account: actionable 0, waiting 8, bell shows 8', () => {
     const outgoing = (n: number) =>
       Array.from({ length: n }, () => ({ status: 'pending', toUserId: THEM, fromUserId: ME }));
     const read = (id: string, type: AppNotification['type']) =>
@@ -280,7 +281,7 @@ describe('countBellItems', () => {
       contactLinkRequests: [],
       userId: ME,
     });
-    expect(state).toEqual({ actionable: 0, waiting: 8 });
+    expect(state).toEqual({ actionable: 0, waiting: 8, total: 8 });
   });
 });
 

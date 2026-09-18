@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowDownLeft, ArrowUpRight, ArrowLeftRight,
-  HandCoins, Handshake, RotateCcw, Target, Delete, Users, Plus, ChevronDown, ChevronRight, Lock, Sparkles,
+  HandCoins, Handshake, RotateCcw, Target, Delete, Users, Plus, ChevronDown, ChevronRight, Lock,
   Search, X, CreditCard,
 } from 'lucide-react';
 import { useAccountStore } from '../stores/accountStore';
@@ -18,8 +18,8 @@ import { useSplitStore } from '../stores/splitStore';
 import { Modal } from '../components/Modal';
 import { Tile3D } from '../components/Tile3D';
 import { Card3D } from '../components/Card3D';
-import { normalizeClayIconRegistry, resolveClayIcon, type ClayTint } from '../lib/clay';
-import { CLAY_ICONS } from '../lib/clayIcons.generated';
+import type { Tint as ClayTint } from '../lib/material';
+import { Glyph } from '../components/Glyph';
 import { useDiscardGuard } from '../lib/useDiscardGuard';
 import { useSubmitGuard, useSubmitIntentId } from '../lib/useSubmitGuard';
 import { ContactPicker, type ContactValue } from '../components/ContactPicker';
@@ -62,13 +62,6 @@ import { AddAccountStepper } from './AddAccountStepper';
 // picked this tile, route to the group-picker step and hand off to App."
 type EntryKind = TransactionType | 'group_expense';
 
-// The split tile's 3D art. `calculator` is the asset this tile wants. The
-// manifest is GENERATED from public/3d, so the name is resolved against it
-// rather than assumed: Icon3D renders NOTHING for a name the manifest doesn't
-// know, and an art-less tile in a grid of clay tiles reads as broken. `chat`
-// (the splits family's icon) is the fallback if the asset is ever dropped.
-const SPLIT_CLAY_ICON: string =
-  resolveClayIcon('calculator', normalizeClayIconRegistry(CLAY_ICONS)) ?? 'chat';
 // 'split' is an intent, never an EntryKind: an ad-hoc split still SAVES as an
 // ordinary expense (type stays 'expense') and fans out through
 // executeSplitEvent. It exists as its own tile only because "split the coffee"
@@ -330,25 +323,24 @@ export function QuickEntry({
   // details form. The actual save happens in AddGroupExpenseModal which
   // App.tsx opens once the user picks (or creates) a group.
   const TX_TYPES = [
-    { value: 'expense' as EntryKind, label: t('tx_expense'), sub: t('tx_expense_sub'), icon: ArrowUpRight, gradient: 'from-red-500 to-rose-500', soft: 'bg-red-50 text-red-500 border-red-100' },
-    { value: 'income' as EntryKind, label: t('tx_income'), sub: t('tx_income_sub'), icon: ArrowDownLeft, gradient: 'from-emerald-500 to-teal-500', soft: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
-    { value: 'transfer' as EntryKind, label: t('tx_transfer'), sub: t('tx_transfer_sub'), icon: ArrowLeftRight, gradient: 'from-blue-500 to-cyan-500', soft: 'bg-blue-50 text-blue-600 border-blue-100' },
-    { value: 'loan_given' as EntryKind, label: t('tx_loan_given'), sub: t('tx_loan_given_sub'), icon: HandCoins, gradient: 'from-blue-500 to-indigo-500', soft: 'bg-blue-50 text-blue-600 border-blue-100' },
-    { value: 'loan_taken' as EntryKind, label: t('tx_loan_taken'), sub: t('tx_loan_taken_sub'), icon: Handshake, gradient: 'from-amber-500 to-orange-500', soft: 'bg-amber-50 text-amber-600 border-amber-100' },
-    { value: 'repayment' as EntryKind, label: t('tx_repayment'), sub: t('tx_repayment_sub'), icon: RotateCcw, gradient: 'from-teal-500 to-emerald-500', soft: 'bg-teal-50 text-teal-600 border-teal-100' },
-    { value: 'goal_contribution' as EntryKind, label: t('tx_goal_contribution'), sub: t('tx_goal_contribution_sub'), icon: Target, gradient: 'from-purple-500 to-violet-500', soft: 'bg-purple-50 text-purple-600 border-purple-100' },
-    { value: 'group_expense' as EntryKind, label: t('intent_group'), sub: t('intent_group_sub'), icon: Users, gradient: 'from-violet-500 to-purple-500', soft: 'bg-accent-50 text-accent-600 border-accent-100' },
+    { value: 'expense' as EntryKind, label: t('tx_expense'), sub: t('tx_expense_sub'), icon: ArrowUpRight },
+    { value: 'income' as EntryKind, label: t('tx_income'), sub: t('tx_income_sub'), icon: ArrowDownLeft },
+    { value: 'transfer' as EntryKind, label: t('tx_transfer'), sub: t('tx_transfer_sub'), icon: ArrowLeftRight },
+    { value: 'loan_given' as EntryKind, label: t('tx_loan_given'), sub: t('tx_loan_given_sub'), icon: HandCoins },
+    { value: 'loan_taken' as EntryKind, label: t('tx_loan_taken'), sub: t('tx_loan_taken_sub'), icon: Handshake },
+    { value: 'repayment' as EntryKind, label: t('tx_repayment'), sub: t('tx_repayment_sub'), icon: RotateCcw },
+    { value: 'goal_contribution' as EntryKind, label: t('tx_goal_contribution'), sub: t('tx_goal_contribution_sub'), icon: Target },
+    { value: 'group_expense' as EntryKind, label: t('intent_group'), sub: t('intent_group_sub'), icon: Users },
   ];
   // Intent picker. Splits-only mode has no accounts, so the Spend/Receive/
   // Move intents (which require source/dest account selection) are hidden
   // entirely — only the people-oriented intents remain. Full-tracker mode
   // shows everything; "Cash advance" appears only when a credit card exists.
   const hasCreditCard = accounts.some((a) => a.type === 'credit_card');
-  // 3D clay: `tint`/`clayIcon` replace the old per-tone class lookup. The tint
-  // is the SAME tone the tiles already carried (income → receive/mint, expense
-  // → pay/coral, cash advance → warn/gold, move → neutral); only the two
-  // people-facing intents move off the shared accent, onto the domain tints
-  // the rest of the app now uses for them (khata → blush, splits → sky).
+  // One tinted 1d tile per intent. Tint = the money semantics the app uses
+  // everywhere (receive → mint, spend → coral, cash advance → gold, move →
+  // neutral, khata → pink, splits/groups → blue); the glyph names the act
+  // exactly (a receipt for spending, arrows for moving between accounts).
   const ALL_INTENTS: {
     value: EntryIntent; label: string; sub: string; tint: ClayTint; clayIcon: string;
   }[] = [
@@ -360,12 +352,17 @@ export function QuickEntry({
     // (`person`/`person2`/`people` are all SINGLE figures), and the two
     // overlapping speech bubbles are the only asset that reads as "several
     // people", so a lone figure would be a downgrade here.
-    { value: 'expense', label: t('intent_spend'), sub: t('intent_spend_sub'), tint: 'coral', clayIcon: 'bag' },
-    { value: 'income', label: t('intent_receive'), sub: t('intent_receive_sub'), tint: 'mint', clayIcon: 'money' },
-    { value: 'transfer', label: t('intent_move'), sub: t('intent_move_sub'), tint: 'neutral', clayIcon: 'wallet' },
+    //
+    // ORDER is a founder decision (2026-09-06): Spend first, Money With
+    // Someone second, Split an Expense third, then the rest in their previous
+    // relative order. Nothing else reads this array by index — the
+    // splits_only filter below keeps whatever survives, in this order.
+    { value: 'expense', label: t('intent_spend'), sub: t('intent_spend_sub'), tint: 'coral', clayIcon: 'receipt' },
     { value: 'person_money', label: t('intent_person'), sub: t('intent_person_sub'), tint: 'blush', clayIcon: 'person' },
-    { value: 'group_expense', label: t('intent_group'), sub: t('intent_group_sub'), tint: 'sky', clayIcon: 'chat' },
-    { value: 'split', label: t('intent_split'), sub: t('intent_split_sub'), tint: 'sky', clayIcon: SPLIT_CLAY_ICON },
+    { value: 'split', label: t('intent_split'), sub: t('intent_split_sub'), tint: 'sky', clayIcon: 'split' },
+    { value: 'income', label: t('intent_receive'), sub: t('intent_receive_sub'), tint: 'mint', clayIcon: 'banknote' },
+    { value: 'transfer', label: t('intent_move'), sub: t('intent_move_sub'), tint: 'neutral', clayIcon: 'swap' },
+    { value: 'group_expense', label: t('intent_group'), sub: t('intent_group_sub'), tint: 'sky', clayIcon: 'groups' },
     { value: 'cash_advance', label: t('intent_cash_advance'), sub: t('intent_cash_advance_sub'), tint: 'gold', clayIcon: 'card' },
   ];
   // The ad-hoc split needs no accounts (executeSplitEvent writes loans only in
@@ -1437,7 +1434,8 @@ export function QuickEntry({
     } finally { setSaving(false); }
   };
 
-  const inputClass = "w-full border border-cream-border rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all";
+  // The 1d sunken field (index.css .input-field): inset face, 3:1 edge, violet focus.
+  const inputClass = "input-field";
 
   // Heads-up "After: …" preview for source rows (money leaving an account).
   // Glanceable only — never blocks submit. Tints pay-text + shows a small
@@ -1487,9 +1485,10 @@ export function QuickEntry({
           {canGoBackFromAmount && (
             <button
               onClick={() => setStep(intent === 'person_money' ? 3 : 1)}
-              className="px-4 rounded-2xl text-sm font-semibold border border-cream-border text-ink-500 active:bg-cream-soft transition-colors bg-cream-card"
+              className="m-btn m-btn-plain px-4"
+              aria-label={t('back')}
             >
-              &#x2190;
+              <Glyph name="arrow-left" size={17} />
             </button>
           )}
           <button
@@ -1500,8 +1499,8 @@ export function QuickEntry({
               setStep(2);
             }}
             disabled={!parseFloat(amount)}
-            className="clay-depth clay-depth-ink flex-1 bg-ink-900 text-white rounded-2xl py-4 text-sm font-semibold disabled:opacity-30"
-          >{`${t('quick_next')} \u2192`}</button>
+            className="m-btn m-btn-primary flex-1 py-4 text-[14px]"
+          >{t('quick_next')}<Glyph name="arrow-right" size={16} strokeWidth={2.8} /></button>
           </div>
         ) : step === 2 ? (
           isGroupExpense ? (
@@ -1515,11 +1514,11 @@ export function QuickEntry({
             </button>
           ) : (
             <div className="flex gap-2.5">
-              <button onClick={() => setStep(0)} className="px-4 py-3.5 rounded-2xl text-sm font-semibold border border-cream-border text-ink-500 active:bg-cream-soft transition-colors bg-cream-card">
-                &#x2190;
+              <button onClick={() => setStep(0)} className="m-btn m-btn-plain px-4" aria-label={t('back')}>
+                <Glyph name="arrow-left" size={17} />
               </button>
               <button onClick={preSubmit} disabled={saving || !canSubmit()}
-                className="clay-depth clay-depth-ink flex-1 bg-ink-900 text-white rounded-2xl py-3.5 text-sm font-semibold disabled:opacity-30"
+                className="m-btn m-btn-primary flex-1 py-3.5 text-[14px]"
               >{saving ? t('quick_processing') : wouldBranchToLinked ? t('ltr_branch_cta') : `${t('quick_save')} \u2713`}</button>
             </div>
           )
@@ -1535,11 +1534,12 @@ export function QuickEntry({
         ) : footerContent}
       >
 
-        {/* Step 0: Amount — Sukoon's centred big number + white keypad */}
+        {/* Step 0: Amount — the 1d entry: an extruded 56px figure over a
+            pressable keypad (walls collapse under the finger). */}
         {step === 0 && (
           <div className="space-y-5">
-            <div className="text-center py-4">
-              <p className="text-[12px] font-semibold text-ink-500 tracking-[0.12em] uppercase">{activeCurrency}</p>
+            <div className="text-center pt-3 pb-2">
+              <p className="m-label">{activeCurrency}</p>
               {/* readOnly + inputMode="none": the in-app numpad below is the
                   single input surface on touch — previously tapping the field
                   ALSO opened the phone's native keyboard, showing two keypads
@@ -1556,30 +1556,33 @@ export function QuickEntry({
                   else if (e.key === 'Backspace' || e.key === 'Delete') { numpadPress('del'); e.preventDefault(); }
                 }}
                 placeholder="0"
-                className="text-[54px] font-semibold text-center w-full border-none outline-none bg-transparent tabular-nums text-ink-900 caret-transparent"
-                style={{ letterSpacing: '-0.025em' }}
+                className="m-num m-num-violet text-center w-full h-[64px] border-none outline-none bg-transparent caret-transparent placeholder:text-ink-300 mt-2"
+                // Inline on purpose: index.css pins every <input> to 16px
+                // (unlayered, to stop iOS focus-zoom), which beats any
+                // font-size utility — the 56px entry figure has to win here.
+                style={{ fontSize: 56, lineHeight: 1, letterSpacing: '-0.045em' }}
               />
-              <p className="text-[12px] text-ink-500 mt-2">{t('quick_enter_amount')}</p>
+              <p className="text-[12px] text-ink-600 mt-3">{t('quick_enter_amount')}</p>
             </div>
 
             {/* Quick amounts */}
             <div className="flex gap-2 justify-center flex-wrap">
               {quickAmounts.map(v => (
                 <button key={v} onClick={() => setAmount(String(v))}
-                  className="min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-semibold bg-cream-card text-ink-600 border border-cream-border active:bg-cream-soft active:scale-95 transition-all tabular-nums"
+                  className="m-pill min-h-[44px] px-4 text-[12px] tabular-nums"
                 >{v.toLocaleString()}</button>
               ))}
             </div>
 
-            {/* Numpad — Sukoon: white cells, 1px cream-border, radius 14 */}
-            <div className="grid grid-cols-3 gap-2" aria-label={t('qe_numpad_label')} role="group">
+            {/* Numpad — 1d pressable keys, two-step wall, 52px rows */}
+            <div className="grid grid-cols-3 gap-[9px] pb-1" aria-label={t('qe_numpad_label')} role="group">
               {['1','2','3','4','5','6','7','8','9','.','0','del'].map(key => (
                 <button key={key} onClick={() => numpadPress(key)}
                   aria-label={key === 'del' ? t('qe_numpad_delete') : undefined}
-                  className={`h-12 rounded-[14px] text-[19px] font-medium transition-all active:scale-95 flex items-center justify-center border ${
-                    key === 'del' ? 'bg-pay-50 text-pay-text border-pay-100 active:bg-pay-100' : 'bg-cream-card text-ink-900 border-cream-border active:bg-cream-soft'
+                  className={`m-key h-[52px] text-[20px] font-medium tabular-nums flex items-center justify-center ${
+                    key === 'del' ? 'm-coral' : ''
                   }`}
-                >{key === 'del' ? <Delete size={18} /> : key}</button>
+                >{key === 'del' ? <Delete size={19} strokeWidth={2.4} /> : key}</button>
               ))}
             </div>
 
@@ -1590,7 +1593,7 @@ export function QuickEntry({
               onClick={() => { handleClose(); navigate('/hisaab-ai'); }}
               className="w-full flex items-center justify-center gap-1.5 text-[12px] text-ink-500 pt-1 min-h-[40px] press"
             >
-              <Sparkles size={13} className="text-accent-500 shrink-0" />
+              <Glyph name="sparkle" size={13} tone="violet" />
               {t('quick_type_instead')}
             </button>
 
@@ -1602,12 +1605,9 @@ export function QuickEntry({
         {step === 1 && (
           <div className="space-y-5 animate-fade-in">
             <p className="text-[12px] text-ink-500 leading-relaxed">{t('quick_where_money')}</p>
-            {/* 3D clay: one tile per intent, one column. The floating icon
-                overhangs each tile's top edge by 17px, so the column needs
-                pt-5 and gap-y-6 (design-system §10.8) — .modal-body is the
-                only scroll container above this and its own 20px padding
-                keeps the first icon clear of the clip edge. */}
-            <div className="grid grid-cols-1 gap-y-6 pt-5">
+            {/* One tile per intent, one column; the glyph sits in each tile's
+                corner, so a 10px gap clears the walls. */}
+            <div className="grid grid-cols-1 gap-2.5">
               {INTENTS.map(tx => {
                 const isActive = intent === tx.value;
                 return (
@@ -1667,14 +1667,11 @@ export function QuickEntry({
         {step === 3 && (
           <div className="space-y-3 animate-fade-in">
             <p className="text-[12px] text-ink-500 leading-relaxed">{t('intent_person_prompt')}</p>
-            {/* 3D clay. Tint carries the direction the app uses everywhere
-                else: mint = it lands in your favour, coral = you end up
-                owing. Icon separates a NEW loan (`money` — a banknote stack
-                changing hands) from a repayment that CLOSES something
-                (`tick`). Both used to be the thumbs-up/coin-stack pair,
-                which drew the same picture for two opposite acts.
-                pt-5/gap-y-6 for the floating icons' overhang. */}
-            <div className="grid grid-cols-1 gap-y-6 pt-5">
+            {/* Tint carries the direction the app uses everywhere else: mint =
+                it lands in your favour, coral = you end up owing. The glyph
+                separates a NEW loan (a banknote changing hands) from a
+                repayment that CLOSES something (a check). */}
+            <div className="grid grid-cols-1 gap-2.5">
             {[
               { value: 'loan_given' as const, label: t('person_gave'), sub: t('person_gave_sub'), tint: 'mint' as ClayTint, clayIcon: 'money' },
               { value: 'loan_taken' as const, label: t('person_borrowed'), sub: t('person_borrowed_sub'), tint: 'coral' as ClayTint, clayIcon: 'money' },
@@ -1722,7 +1719,7 @@ export function QuickEntry({
                 same amber as its intent tile, so the mode is unmistakable. */}
             {/* 3D clay, tier 2 (informational — it is not tappable, so it is a
                 card, never a tile). Gold keeps cash advance's amber identity. */}
-            <Card3D tint={cashAdvance ? 'gold' : 'neutral'} padding="sm" className="flex items-center justify-between">
+            <Card3D tint={cashAdvance ? 'gold' : 'neutral'} padding="sm" className="flex items-center justify-between !py-3">
               <div className="flex items-center gap-2.5">
                 {(() => {
                   // Keyed off the PLAN, not the intent: a user who opened the
@@ -1731,8 +1728,8 @@ export function QuickEntry({
                   const Icon = cashAdvance ? CreditCard : splitPlan ? Users : TX_TYPES.find(tx => tx.value === type)?.icon;
                   if (!Icon) return null;
                   return (
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${cashAdvance ? 'bg-warn-100/60 border-warn-100 text-warn-600' : 'bg-cream-soft border-cream-hairline text-ink-600'}`}>
-                      <Icon size={14} />
+                    <div className={`m-ctl w-8 h-8 rounded-[10px] flex items-center justify-center ${cashAdvance ? 'text-warn-700' : 'text-ink-700'}`}>
+                      <Icon size={14} strokeWidth={2.4} />
                     </div>
                   );
                 })()}
@@ -1760,10 +1757,10 @@ export function QuickEntry({
                   <div className="rounded-2xl bg-cream-card border border-cream-border overflow-hidden divide-y divide-cream-hairline">
                     {[0, 1, 2].map((i) => (
                       <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
-                        <div className="w-9 h-9 rounded-xl bg-cream-soft shrink-0" />
+                        <div className="m-skel w-9 h-9 rounded-xl shrink-0" />
                         <div className="flex-1 space-y-1.5">
-                          <div className="h-3 w-28 rounded-full bg-cream-soft" />
-                          <div className="h-2.5 w-20 rounded-full bg-cream-soft" />
+                          <div className="m-skel h-3 w-28 rounded-full" />
+                          <div className="m-skel h-2.5 w-20 rounded-full" />
                         </div>
                       </div>
                     ))}
@@ -1788,7 +1785,7 @@ export function QuickEntry({
                           onClick={() => handlePickGroup(g)}
                           className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-cream-soft transition-colors"
                         >
-                          <div className="w-9 h-9 rounded-xl bg-cream-soft border border-cream-hairline flex items-center justify-center text-base shrink-0">
+                          <div className="m-ctl w-9 h-9 flex items-center justify-center text-base shrink-0">
                             {g.emoji}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -1823,12 +1820,12 @@ export function QuickEntry({
 
             {/* Account selectors */}
             {(needsSource || needsDest) && !hasAccounts && (
-              <div className="rounded-2xl bg-warn-50 border border-cream-border p-4">
+              <div className="m-card m-violet p-4">
                 <p className="text-[12px] text-ink-700 leading-relaxed">{t('acct_need_for_tx')}</p>
                 <button
                   type="button"
                   onClick={() => setShowInlineAccount(true)}
-                  className="clay-depth clay-depth-ink mt-3 w-full rounded-xl bg-ink-900 text-white py-2.5 text-[12px] font-semibold"
+                  className="m-btn m-btn-primary mt-3 w-full py-2.5 text-[12px]"
                 >
                   {t('quick_create_first')}
                 </button>
@@ -2036,7 +2033,7 @@ export function QuickEntry({
             {needsPerson && (
               <div className="space-y-3">
                 <label className="flex items-center gap-2.5 cursor-pointer p-3 rounded-2xl bg-cream-card border border-cream-border">
-                  <input type="checkbox" checked={hasEmi} onChange={e => setHasEmi(e.target.checked)} className="w-4 h-4 rounded border-cream-border text-accent-600 accent-accent-600" />
+                  <input type="checkbox" checked={hasEmi} onChange={e => setHasEmi(e.target.checked)} className="w-4 h-4 rounded border-field-border text-accent-600 accent-accent-600" />
                   <span className="text-[13px] text-ink-800 font-medium">{t('loan_set_emi')}</span>
                 </label>
                 {hasEmi && (() => {
@@ -2102,7 +2099,7 @@ export function QuickEntry({
                           value={loanSearch}
                           onChange={(e) => setLoanSearch(e.target.value)}
                           placeholder={t('quick_loan_search_placeholder')}
-                          className="w-full border border-cream-border rounded-2xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all"
+                          className="input-field pl-9 pr-9 py-2.5"
                         />
                         {loanSearch && (
                           <button
@@ -2244,12 +2241,12 @@ export function QuickEntry({
               </div>
             )}
             {needsLoan && selectedLoanIsLinked && (
-              <div className="rounded-2xl bg-accent-50 border border-accent-100 p-3.5 space-y-2.5">
-                <p className="text-[12px] text-accent-600 leading-relaxed">{t('ltr_repay_linked_notice')}</p>
+              <div className="m-card m-violet p-3.5 space-y-2.5">
+                <p className="text-[12px] text-iris-text leading-relaxed">{t('ltr_repay_linked_notice')}</p>
                 <button
                   type="button"
                   onClick={() => { if (selectedLoan) { reset(); onClose(); navigate(`/loan/${selectedLoan.id}`); } }}
-                  className="clay-depth clay-depth-ink w-full rounded-xl bg-ink-900 text-white py-2.5 text-[12px] font-semibold"
+                  className="m-btn m-btn-violet w-full py-2.5 text-[12px]"
                 >{t('ltr_repay_linked_cta')}</button>
               </div>
             )}

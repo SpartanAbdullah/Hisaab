@@ -8,7 +8,7 @@
 // direction mismatch can never corrupt balances again.
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, ArrowLeftRight } from 'lucide-react';
+import { Glyph } from './Glyph';
 import { deriveRate, invertRate, formatRate, rateIsSane } from '../lib/conversionMath';
 import { formatMoney } from '../lib/constants';
 import { useT } from '../lib/i18n';
@@ -112,29 +112,28 @@ export function CurrencyConversionCard({
     setRateText(current !== null ? String(Math.round(current * 1000000) / 1000000) : '');
   };
 
-  const inputClass =
-    'w-full border border-cream-border rounded-xl px-3 py-2.5 text-[15px] font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all';
+  const inputClass = 'input-field py-2.5 font-semibold tabular-nums';
 
   return (
-    <div className="bg-info-50 rounded-2xl p-4 border border-cream-border space-y-3 animate-fade-in">
-      <p className="text-[10.5px] font-semibold text-info-600 uppercase tracking-[0.12em]">{t('conv_title')}</p>
+    <div className="m-card m-blue p-4 space-y-3 animate-fade-in">
+      <p className="text-[10.5px] font-semibold text-cobalt-text uppercase tracking-[0.12em]">{t('conv_title')}</p>
 
       {/* The move, stated as a sentence with no jargon: known side → other side. */}
-      <div className="flex items-center gap-2.5">
-        <div className="flex-1 rounded-xl bg-cream-card border border-cream-border px-3 py-2.5">
-          <p className="text-[9.5px] font-semibold text-ink-400 uppercase tracking-[0.12em]">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0 bg-cream-card rounded-[14px] shadow-[inset_0_1px_0_var(--m-hi)] px-3 py-2.5">
+          <p className="text-[9.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
             {otherSide === 'receiving' ? t('conv_side_sending') : t('conv_side_paying_back')}
           </p>
-          <p className="text-[15px] font-semibold text-ink-900 tabular-nums mt-0.5">
+          <p className="text-[15px] font-semibold text-ink-900 tabular-nums mt-0.5 truncate">
             {formatMoney(knownAmount, knownCurrency)}
           </p>
         </div>
-        <ArrowRight size={15} className="text-ink-400 shrink-0" />
-        <div className="flex-1 rounded-xl bg-cream-card border border-cream-border px-3 py-2.5">
-          <p className="text-[9.5px] font-semibold text-ink-400 uppercase tracking-[0.12em]">
+        <Glyph name="arrow-right" size={15} tone="blue" />
+        <div className="flex-1 min-w-0 bg-cream-card rounded-[14px] shadow-[inset_0_1px_0_var(--m-hi)] px-3 py-2.5">
+          <p className="text-[9.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
             {otherSide === 'receiving' ? t('conv_side_arrives') : t('conv_side_leaves')}
           </p>
-          <p className="text-[15px] font-semibold text-ink-900 tabular-nums mt-0.5">
+          <p className="text-[15px] font-semibold text-ink-900 tabular-nums mt-0.5 truncate">
             {otherAmount !== null ? formatMoney(otherAmount, otherCurrency) : `— ${otherCurrency}`}
           </p>
         </div>
@@ -142,7 +141,7 @@ export function CurrencyConversionCard({
 
       {mode === 'amount' ? (
         <div>
-          <label className="block text-[11px] font-semibold text-ink-600 mb-1.5">{askLabel}</label>
+          <label className="block text-[11.5px] font-semibold text-ink-700 mb-1.5">{askLabel}</label>
           <div className="flex items-center gap-2">
             <input
               type="number"
@@ -184,9 +183,9 @@ export function CurrencyConversionCard({
               type="button"
               onClick={flipRateDir}
               aria-label={t('conv_flip_direction')}
-              className="w-9 h-9 rounded-xl border border-cream-border bg-cream-card text-ink-600 flex items-center justify-center shrink-0 active:bg-cream-soft transition-colors"
+              className="m-ctl w-10 h-10 flex items-center justify-center shrink-0"
             >
-              <ArrowLeftRight size={14} />
+              <Glyph name="swap" size={15} tone="blue" />
             </button>
           </div>
           {rateInvalid && (
@@ -197,7 +196,7 @@ export function CurrencyConversionCard({
 
       {/* Derived rate, both directions — nothing to get backwards. */}
       {forwardRate !== null && inverse !== null && (
-        <p className="text-[10.5px] text-ink-500 tabular-nums leading-relaxed">
+        <p className="text-[11px] text-ink-600 tabular-nums leading-relaxed">
           1 {knownCurrency} ≈ {formatRate(forwardRate)} {otherCurrency} · 1 {otherCurrency} ≈ {formatRate(inverse)} {knownCurrency}
         </p>
       )}
@@ -205,7 +204,7 @@ export function CurrencyConversionCard({
       <button
         type="button"
         onClick={mode === 'amount' ? switchToRateMode : switchToAmountMode}
-        className="text-[11px] font-semibold text-info-600 active:opacity-70 transition-opacity"
+        className="text-[11.5px] font-semibold text-cobalt-text min-h-[32px] active:opacity-70 transition-opacity"
       >
         {mode === 'amount' ? t('conv_enter_rate_instead') : t('conv_enter_amount_instead')}
       </button>

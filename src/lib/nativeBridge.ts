@@ -36,9 +36,10 @@ export async function initNativeBridge(opts: {
     const { StatusBar, Style } = await import('@capacitor/status-bar');
     const { SplashScreen } = await import('@capacitor/splash-screen');
 
-    // Status bar: Sukoon navy, light icons. Try/catch each call so a single
-    // plugin failure doesn't abort the rest of the boot.
-    StatusBar.setBackgroundColor({ color: '#0B0E2A' }).catch(() => {});
+    // Status bar: the 1d hero base, light icons (the hero is dark in both
+    // themes). Try/catch each call so a single plugin failure doesn't abort
+    // the rest of the boot.
+    StatusBar.setBackgroundColor({ color: '#0A0A14' }).catch(() => {});
     StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
     StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
 

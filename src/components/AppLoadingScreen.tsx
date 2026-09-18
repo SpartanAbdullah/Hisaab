@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { LockKeyhole } from 'lucide-react';
 import { BrandMark } from './BrandMark';
+import { Glyph } from './Glyph';
 import { useT } from '../lib/i18n';
 
 // The loading hero: one big word typed out, held, deleted, then the next.
@@ -82,7 +82,7 @@ export function AppLoadingScreen() {
         </div>
 
         <p className="app-loading-trust">
-          <LockKeyhole size={12} strokeWidth={2} aria-hidden="true" />
+          <Glyph name="lock" size={12} strokeWidth={2.6} className="text-iris-text" />
           {t('als_trust')}
         </p>
       </div>

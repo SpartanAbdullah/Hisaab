@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Eye, Lock, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
+import { Glyph } from '../components/Glyph';
+import { skeletonDelay } from '../lib/material';
 import { khataLinksDb } from '../lib/supabaseDb';
 import { daysUntilExpiry, type KhataView } from '../lib/khataLinkStatus';
 import { buildStatement, type StatementSection } from '../lib/statementOfAccount';
@@ -77,9 +78,21 @@ export function KhataLinkPage() {
   }, [view]);
 
   if (status === 'loading') {
+    // The page shell in its final geometry — hero band, then the headline
+    // card and ledger rows as skeleton blocks on the sheet.
+    const delay = (i: number) => ({ '--m-skel-delay': skeletonDelay(i) }) as React.CSSProperties;
     return (
-      <main className="min-h-dvh bg-navy-900 flex items-center justify-center">
-        <p className="text-white/60 text-sm">{t('khata_page_loading')}</p>
+      <main className="min-h-dvh bg-cream-bg pb-12">
+        <div className="m-hero m-hero-violet px-5 pt-[max(20px,env(safe-area-inset-top))] pb-9" aria-hidden>
+          <div className="m-skel h-3 w-32" />
+          <div className="m-skel h-6 w-56 mt-3 rounded-lg" style={delay(1)} />
+          <div className="m-skel h-3 w-28 mt-3" style={delay(2)} />
+        </div>
+        <div className="sukoon-body px-5 pt-5 space-y-4">
+          <p className="sr-only" role="status">{t('khata_page_loading')}</p>
+          <div className="m-skel h-[110px] rounded-[18px]" aria-hidden />
+          <div className="m-skel h-[180px] rounded-[18px]" style={delay(1)} aria-hidden />
+        </div>
       </main>
     );
   }
@@ -89,11 +102,13 @@ export function KhataLinkPage() {
   // with the same NULL on purpose, so the page must not pretend to know more.
   if (status === 'invalid' || !view || !statement) {
     return (
-      <main className="min-h-dvh bg-navy-900 flex flex-col items-center justify-center px-6 text-center">
-        <Lock size={22} className="text-white/40 mb-3" strokeWidth={2} />
-        <p className="text-white text-[15px] font-semibold">{t('khata_page_invalid')}</p>
-        <p className="text-white/55 text-[12.5px] mt-2 leading-relaxed max-w-xs">{t('khata_page_invalid_sub')}</p>
-        <a href={buildAppShareUrl()} className="mt-5 text-accent-500 text-[13px] font-semibold">
+      <main className="m-hero m-hero-violet min-h-dvh flex flex-col items-center justify-center px-6 text-center">
+        <div className="m-plate m-violet mb-[18px]" aria-hidden>
+          <Glyph name="lock" size={26} tone="violet" extrude />
+        </div>
+        <p className="text-white text-[15px] font-semibold tracking-[-0.01em]">{t('khata_page_invalid')}</p>
+        <p className="text-white/70 text-[12.5px] mt-2 leading-relaxed max-w-xs">{t('khata_page_invalid_sub')}</p>
+        <a href={buildAppShareUrl()} className="m-btn m-btn-primary mt-6 text-[13px]">
           {t('khata_page_cta_button')}
         </a>
       </main>
@@ -121,25 +136,25 @@ export function KhataLinkPage() {
     <main className="min-h-dvh bg-cream-bg pb-12">
       {/* Navy hero — same shell as the kameti witness page, so the two public
           surfaces read as one product. */}
-      <div className="bg-navy-bloom px-5 pt-[max(20px,env(safe-area-inset-top))] pb-7">
+      <div className="m-hero m-hero-violet px-5 pt-[max(20px,env(safe-area-inset-top))] pb-9">
         <div className="flex items-center gap-1.5 text-white/70">
-          <Eye size={13} strokeWidth={2.2} />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.12em]">{t('khata_page_eyebrow')}</span>
+          <Glyph name="eye" size={14} />
+          <span className="text-[10.5px] font-semibold uppercase tracking-[0.12em]">{t('khata_page_eyebrow')}</span>
         </div>
-        <h1 className="text-[22px] font-bold text-white mt-2 tracking-tight">
+        <h1 className="text-[22px] font-semibold text-white mt-2 tracking-[-0.02em] leading-tight">
           {t('khata_page_between').replace('{owner}', ownerName).replace('{person}', personName)}
         </h1>
-        <p className="text-[12px] text-white/60 mt-1 tabular-nums">
+        <p className="text-[12px] text-white/70 mt-1.5 tabular-nums">
           {t('khata_page_as_of').replace('{date}', fmtDate(view.asOf))}
         </p>
       </div>
 
-      <div className="px-5 pt-5 space-y-4">
+      <div className="sukoon-body px-5 pt-5 space-y-4">
         {/* Read-only banner. The visitor must never wonder whether tapping
             something here changes the other side's records. */}
-        <div className="flex items-start gap-2.5 rounded-2xl bg-info-50 border border-info-50 p-3">
-          <Lock size={15} className="text-info-600 shrink-0 mt-0.5" strokeWidth={2.2} />
-          <p className="text-[11.5px] text-info-600 leading-relaxed">
+        <div className="m-card m-blue flex items-start gap-2.5 p-3.5">
+          <Glyph name="lock" size={15} tone="blue" className="mt-0.5" />
+          <p className="text-[11.5px] text-cobalt-text leading-relaxed">
             {t('khata_page_banner').replace('{owner}', ownerName)}
           </p>
         </div>
@@ -152,12 +167,12 @@ export function KhataLinkPage() {
           return (
             <div
               key={section.currency}
-              className={`rounded-2xl p-4 border ${settled || theyOwe ? 'bg-receive-50 border-receive-100' : 'bg-pay-50 border-pay-100'}`}
+              className={`m-card m-card-feature ${settled || theyOwe ? 'm-mint' : 'm-coral'} p-4`}
             >
-              <p className={`text-[10px] font-bold uppercase tracking-[0.12em] ${settled || theyOwe ? 'text-receive-text' : 'text-pay-text'}`}>
+              <p className={`text-[10.5px] font-semibold uppercase tracking-[0.12em] ${settled || theyOwe ? 'text-receive-text' : 'text-pay-text'}`}>
                 {section.currency}
               </p>
-              <p className="text-[24px] font-bold text-ink-900 mt-1 tabular-nums tracking-tight">
+              <p className="text-[26px] font-semibold text-ink-900 mt-1.5 tabular-nums tracking-[-0.03em] leading-tight">
                 {settled ? formatMoney(0, section.currency) : formatMoney(Math.abs(section.closing), section.currency)}
               </p>
               <p className="text-[12px] text-ink-600 mt-1">{netLabel(section.closing)}</p>
@@ -167,19 +182,19 @@ export function KhataLinkPage() {
 
         {/* The ledger itself */}
         {sections.length === 0 ? (
-          <div className="rounded-2xl bg-cream-card border border-cream-border p-4">
+          <div className="m-card p-4">
             <p className="text-[13px] text-ink-600">{t('khata_page_no_activity')}</p>
           </div>
         ) : (
           sections.map((section) => (
             <div key={section.currency}>
-              <div className="flex items-center justify-between mb-2.5">
-                <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
+              <div className="flex items-center justify-between mb-2.5 px-0.5">
+                <h2 className="m-label">
                   {t('khata_page_entries')}
                 </h2>
-                <span className="text-[11px] font-semibold text-ink-700 tabular-nums">{section.currency}</span>
+                <span className="text-[11px] font-semibold text-ink-600 tabular-nums">{section.currency}</span>
               </div>
-              <div className="rounded-2xl bg-cream-card border border-cream-border divide-y divide-cream-hairline overflow-hidden">
+              <div className="m-card divide-y divide-cream-hairline overflow-hidden">
                 {section.lines.map((line, index) => {
                   const positive = line.delta > 0.005;
                   const zero = isSettled(line.delta);
@@ -247,16 +262,17 @@ export function KhataLinkPage() {
         </div>
 
         {/* The acquisition half of O2: every shared khata is a doorway into the
-            app for someone who has never installed it. */}
+            app for someone who has never installed it. A violet-tinted tile
+            (the whole card is the link) with a violet button face inside. */}
         <a
           href={buildAppShareUrl()}
-          className="block rounded-2xl bg-accent-600 text-white p-4 mt-2 press"
+          className="m-tile m-violet block p-4 mt-2"
         >
-          <p className="text-[13.5px] font-bold">{t('khata_page_cta')}</p>
-          <p className="text-[11.5px] text-white/75 mt-0.5 leading-relaxed">{t('khata_page_cta_sub')}</p>
-          <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold mt-2.5">
+          <p className="text-[13.5px] font-semibold text-ink-900 tracking-[-0.01em]">{t('khata_page_cta')}</p>
+          <p className="text-[11.5px] text-ink-600 mt-0.5 leading-relaxed">{t('khata_page_cta_sub')}</p>
+          <span className="m-btn m-btn-primary min-h-[36px] mt-3 px-3.5 py-2 text-[12px] rounded-xl gap-1.5">
             {t('khata_page_cta_button')}
-            <ArrowRight size={13} strokeWidth={2.4} />
+            <Glyph name="arrow-right" size={14} strokeWidth={2.8} />
           </span>
         </a>
       </div>

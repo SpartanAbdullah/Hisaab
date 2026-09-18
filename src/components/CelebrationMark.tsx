@@ -47,10 +47,20 @@ interface Props {
 // CSS the same custom properties and an in-flight burst is never re-aimed.
 const BITS = confettiBits();
 
+// 1d disc: the empty-state plate material in the round — the tint scope's lit
+// face (--m-top → --m-bottom), a lit top edge and one hard 3px wall — so the
+// mark sits on the same extruded surface as every other plate. Stroke and ring
+// take the 3c glyph tone (≥3:1 on the plate in both themes, and re-scoped to
+// the dark values inside a hero band such as ConfirmationSheet's).
+const DISC_STYLE: CSSProperties = {
+  backgroundImage: 'linear-gradient(var(--m-top), var(--m-bottom))',
+  boxShadow: 'inset 0 1px 0 var(--m-hi-strong), 0 3px 0 var(--m-wall-1)',
+};
+
 export function CelebrationMark({ size = 56, tone = 'receive', className = '', burst = true }: Props) {
-  const ringColor = tone === 'receive' ? 'var(--color-receive-600)' : 'var(--color-accent-500)';
-  const discClass = tone === 'receive' ? 'bg-receive-50' : 'bg-accent-100';
-  const strokeColor = tone === 'receive' ? 'var(--color-receive-600)' : 'var(--color-accent-600)';
+  const ringColor = tone === 'receive' ? 'var(--color-glyph-green)' : 'var(--color-glyph-violet)';
+  const discClass = tone === 'receive' ? 'm-mint' : 'm-violet';
+  const strokeColor = ringColor;
 
   return (
     // No overflow-hidden here, deliberately: the ring and the confetti both
@@ -66,7 +76,11 @@ export function CelebrationMark({ size = 56, tone = 'receive', className = '', b
         className="absolute inset-0 rounded-full animate-celebrate-ring pointer-events-none"
         style={{ border: `2px solid ${ringColor}` }}
       />
-      <span className={`absolute inset-0 rounded-full ${discClass} animate-celebrate-pop`} aria-hidden />
+      <span
+        className={`absolute inset-0 rounded-full ${discClass} animate-celebrate-pop`}
+        style={DISC_STYLE}
+        aria-hidden
+      />
       <svg
         width={size * 0.5}
         height={size * 0.5}
@@ -85,7 +99,7 @@ export function CelebrationMark({ size = 56, tone = 'receive', className = '', b
           d="M4 12.5 L9.5 18 L20 6.5"
           pathLength={100}
           stroke={strokeColor}
-          strokeWidth={2.6}
+          strokeWidth={3}
           strokeLinecap="round"
           strokeLinejoin="round"
           className="animate-celebrate-check"

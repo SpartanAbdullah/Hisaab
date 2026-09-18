@@ -16,7 +16,9 @@ interface Props {
   sectionClassName?: string;
 }
 
-export function AccountGroupSections({ accounts, renderAccount, sectionClassName = 'space-y-2' }: Props) {
+// Default stack gap is 10px: the rows are raised selectors, and their 2px
+// wall must never touch the row below.
+export function AccountGroupSections({ accounts, renderAccount, sectionClassName = 'space-y-2.5' }: Props) {
   const t = useT();
   const groups = groupAccountsByType(accounts);
   const showLabels = groups.length > 1;
@@ -26,7 +28,7 @@ export function AccountGroupSections({ accounts, renderAccount, sectionClassName
       {groups.map((group) => (
         <div key={group.id}>
           {showLabels && (
-            <p className="text-[10px] font-semibold text-ink-400 uppercase tracking-[0.14em] mb-1.5 px-0.5">
+            <p className="m-label mb-1.5 px-0.5">
               {t(group.labelKey)}
             </p>
           )}

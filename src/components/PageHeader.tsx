@@ -1,8 +1,8 @@
-import { ArrowLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useT } from '../lib/i18n';
 import { InboxAction } from './InboxAction';
+import { Glyph } from './Glyph';
 
 interface Props {
   title: string;
@@ -34,10 +34,10 @@ export function PageHeader({ title, back, action, showInbox = true }: Props) {
             className="nav-icon-button -ml-1 shrink-0"
             aria-label={t('back')}
           >
-            <ArrowLeft size={16} className="text-ink-500" />
+            <Glyph name="arrow-left" size={16} className="text-ink-800" />
           </button>
         )}
-        <h1 className="text-[17px] font-bold tracking-tight text-ink-800 truncate min-w-0">{title}</h1>
+        <h1 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900 truncate min-w-0">{title}</h1>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {action}

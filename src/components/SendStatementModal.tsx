@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FileText, Copy, MessageCircle, CheckCircle2 } from 'lucide-react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
 import { useToast } from './Toast';
 import { useT } from '../lib/i18n';
 import { moneyFormatter } from '../lib/maskMoney';
@@ -194,16 +194,15 @@ export function SendStatementModal({
       onClose={onClose}
       title={mode === 'receipt' ? t('rcpt_title') : t('soa_title')}
       footer={
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-3">
           {/* PDF is a statement-mode action; the receipt is a quick text send. */}
           {mode === 'statement' && (
             <button
               onClick={handleSendPdf}
               disabled={preparing || !hasContent}
-              className="w-full rounded-2xl py-3.5 text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-40 press"
-              style={{ background: '#0B0E2A' }}
+              className="m-btn m-btn-primary w-full py-3.5 text-[14px]"
             >
-              <FileText size={16} strokeWidth={2.2} /> {preparing ? t('soa_preparing') : t('soa_send_pdf')}
+              <Glyph name="document" size={16} /> {preparing ? t('soa_preparing') : t('soa_send_pdf')}
             </button>
           )}
           <div className="flex gap-2.5">
@@ -217,17 +216,17 @@ export function SendStatementModal({
                 track('statement_shared', { doc_type: mode === 'receipt' ? 'receipt' : 'statement', channel: 'whatsapp' });
                 toast.show({ type: 'success', title: t('reminder_wa_opening') });
               }}
-              className={`flex-1 rounded-2xl py-3 text-[13px] font-bold flex items-center justify-center gap-2 ${hasContent ? '' : 'pointer-events-none opacity-40'} press`}
-              style={{ background: '#1FA855', color: '#fff' }}
+              aria-disabled={!hasContent}
+              className={`m-btn m-btn-green flex-1 py-3 text-[13px] ${hasContent ? '' : 'pointer-events-none opacity-40'}`}
             >
-              <MessageCircle size={14} /> {t('soa_whatsapp_text')}
+              <Glyph name="whatsapp" size={15} strokeWidth={2.6} /> {t('soa_whatsapp_text')}
             </a>
             <button
               onClick={handleCopy}
               disabled={copying || !hasContent}
-              className="px-4 rounded-2xl py-3 text-[13px] font-bold bg-cream-soft text-ink-700 flex items-center justify-center gap-2 active:bg-cream-border disabled:opacity-30"
+              className="m-btn m-btn-plain px-4 py-3 text-[13px]"
             >
-              <Copy size={14} /> {copying ? t('quick_processing') : t('soa_copy')}
+              <Glyph name="copy" size={15} /> {copying ? t('quick_processing') : t('soa_copy')}
             </button>
           </div>
         </div>
@@ -235,21 +234,22 @@ export function SendStatementModal({
     >
       <div className="space-y-4">
         {intro && (
-          <div className="rounded-2xl bg-receive-50/70 border border-receive-100/70 p-3.5 flex items-start gap-2.5">
-            <CheckCircle2 size={16} className="text-receive-text mt-0.5 shrink-0" strokeWidth={2.2} />
+          <div className="m-card m-mint p-3.5 flex items-start gap-2.5">
+            <Glyph name="check" size={16} tone="green" className="mt-0.5" />
             <p className="text-[12.5px] text-ink-800 leading-relaxed">{intro}</p>
           </div>
         )}
 
         {/* Receipt ⇄ Statement toggle — only when a payment just arrived. */}
         {receipt && (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="m-seg flex w-full">
             {(['receipt', 'statement'] as const).map((m) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => setMode(m)}
-                className={`py-2 rounded-xl text-[12px] font-bold border transition-all active:scale-95 ${mode === m ? 'bg-ink-900 text-white border-ink-900' : 'bg-cream-card text-ink-500 border-cream-border'}`}
+                aria-pressed={mode === m}
+                className="flex-1 min-h-[36px] text-[12px]"
               >
                 {m === 'receipt' ? t('rcpt_toggle_receipt') : t('rcpt_toggle_statement')}
               </button>
@@ -257,12 +257,13 @@ export function SendStatementModal({
           </div>
         )}
 
-        {/* Headline — received amount (receipt) or per-currency net (statement). */}
+        {/* Headline — received amount (receipt) or per-currency net (statement),
+            as tinted stat cards in the direction's own tone. */}
         {mode === 'receipt' && receipt ? (
-          <div className="rounded-2xl p-4 border bg-receive-50/60 border-receive-100/70">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-receive-text">{t('rcpt_received')}</p>
-            <p className="text-[18px] font-extrabold text-ink-900 mt-1 tabular-nums">{showMoney(receipt.receivedAmount, receipt.currency)}</p>
-            <p className="text-[11px] text-ink-500 mt-1">
+          <div className="m-card m-mint p-4">
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-receive-text">{t('rcpt_received')}</p>
+            <p className="text-[21px] font-semibold text-ink-900 mt-1.5 tabular-nums tracking-[-0.03em]">{showMoney(receipt.receivedAmount, receipt.currency)}</p>
+            <p className="text-[11px] text-ink-600 mt-1">
               {receipt.remaining == null
                 ? t('rcpt_thanks_short')
                 : receipt.remaining <= 0.005
@@ -271,25 +272,27 @@ export function SendStatementModal({
             </p>
           </div>
         ) : statement && statement.sections.length > 0 ? (
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {statement.sections.map((section) => {
               const positive = section.closing > 0.005;
               const settled = Math.abs(section.closing) <= 0.005;
               return (
                 <div
                   key={section.currency}
-                  className={`rounded-2xl p-4 border ${settled || positive ? 'bg-receive-50/60 border-receive-100/70' : 'bg-pay-50/60 border-pay-100/70'}`}
+                  className={`m-card ${settled || positive ? 'm-mint' : 'm-coral'} p-4`}
                 >
-                  <p className={`text-[10px] font-bold uppercase tracking-widest ${settled || positive ? 'text-receive-text' : 'text-pay-text'}`}>
+                  <p className={`text-[10.5px] font-semibold uppercase tracking-[0.12em] ${settled || positive ? 'text-receive-text' : 'text-pay-text'}`}>
                     {settled ? `${section.currency} · ${t('soa_settled_chip')}` : section.currency}
                   </p>
-                  <p className="text-[15px] font-extrabold text-ink-900 mt-1">
+                  <p className="text-[15px] font-semibold text-ink-900 mt-1.5 tracking-[-0.01em]">
                     {settled
                       ? t('soa_settled_celebrate').replace('{name}', partyName)
                       : netBalanceLabel(partyName, section.closing, section.currency, showMoney)}
                   </p>
-                  <p className="text-[11px] text-ink-500 mt-1">
-                    {section.lines.length} {section.lines.length === 1 ? 'entry' : 'entries'}
+                  <p className="text-[11px] text-ink-600 mt-1">
+                    {section.lines.length === 1
+                      ? t('soa_entry_one')
+                      : t('soa_entry_many').replace('{n}', String(section.lines.length))}
                   </p>
                 </div>
               );
@@ -299,7 +302,7 @@ export function SendStatementModal({
           // "No activity with Ahmed" while the older half of the ledger is
           // still in flight would be a false statement of account, so the two
           // are worded apart: still loading, or loaded-but-short.
-          <div className="rounded-2xl bg-cream-soft border border-cream-hairline p-4">
+          <div className="m-inset p-4">
             <p className="text-[13px] text-ink-600">
               {historyFailed && !historyLoading ? t('tx_history_partial')
                 .replace('{n}', String(transactions.length))
@@ -307,7 +310,7 @@ export function SendStatementModal({
             </p>
           </div>
         ) : (
-          <div className="rounded-2xl bg-cream-soft border border-cream-hairline p-4">
+          <div className="m-inset p-4">
             <p className="text-[13px] text-ink-600">{t('soa_none').replace('{name}', partyName)}</p>
           </div>
         )}
@@ -317,15 +320,14 @@ export function SendStatementModal({
         {hasContent && (
           <div>
             <p className="form-label">{t('soa_greeting_label')}</p>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="m-seg flex w-full">
               {(['hello', 'salaam', 'dear', 'none'] as GreetingStyle[]).map((style) => (
                 <button
                   key={style}
                   type="button"
                   onClick={() => setGreetingStyle(style)}
-                  className={`py-2 rounded-xl text-[11px] font-bold border transition-all active:scale-95 ${
-                    greetingStyle === style ? 'bg-ink-900 text-white border-ink-900' : 'bg-cream-card text-ink-500 border-cream-border'
-                  }`}
+                  aria-pressed={greetingStyle === style}
+                  className="flex-1 min-h-[36px] px-1.5 text-[11px]"
                 >
                   {greetLabels[style]}
                 </button>
@@ -334,30 +336,32 @@ export function SendStatementModal({
           </div>
         )}
 
-        {/* Privacy: hide the numbers — names, dates and structure stay. */}
+        {/* Privacy: hide the numbers — names, dates and structure stay. The
+            whole row is the switch (role="switch"). */}
         {hasContent && (
-          <label className="flex items-center justify-between gap-3 rounded-2xl bg-cream-card border border-cream-border px-4 py-3 cursor-pointer">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={hideAmounts}
+            onClick={() => setHideAmounts((v) => !v)}
+            className="m-card w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+          >
             <span className="text-[12.5px] font-semibold text-ink-800">
               {t('soa_hide_amounts')}
-              <span className="block text-[10.5px] font-normal text-ink-500 mt-0.5">{t('soa_hide_amounts_sub')}</span>
+              <span className="block text-[10.5px] font-normal text-ink-600 mt-0.5">{t('soa_hide_amounts_sub')}</span>
             </span>
-            <input
-              type="checkbox"
-              checked={hideAmounts}
-              onChange={(e) => setHideAmounts(e.target.checked)}
-              className="w-4 h-4 accent-accent-600 shrink-0"
-            />
-          </label>
+            <span aria-hidden className={`m-switch block ${hideAmounts ? 'is-on' : ''}`} />
+          </button>
         )}
 
         {/* Text preview — mirrors what the WhatsApp ping / copy will contain. */}
         {hasContent && (
           <div>
             <p className="form-label">{t('soa_preview')}</p>
-            <div className="rounded-2xl bg-cream-soft border border-cream-hairline p-4 max-h-56 overflow-auto">
+            <div className="m-inset p-4 max-h-56 overflow-auto">
               <p className="text-[12px] text-ink-800 leading-relaxed whitespace-pre-line">{message}</p>
             </div>
-            <p className="text-[10px] text-ink-500 mt-2">
+            <p className="text-[10.5px] text-ink-500 mt-2">
               {(knownNumber ? t('reminder_wa_to_name') : t('reminder_wa_pick')).replace('{name}', partyName)}
             </p>
           </div>

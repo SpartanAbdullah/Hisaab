@@ -196,6 +196,12 @@ export interface BellState {
   /** This user is waiting on SOMEONE ELSE: their own outgoing pending
    *  requests. Drives a quiet neutral dot — never a red number. */
   waiting: number;
+  /** What the bell's red number shows: `actionable + waiting`. Founder
+   *  decision 2026-09-18 — the red counter counts everything still open,
+   *  including the user's own outgoing requests (reverses the 4840d6f split,
+   *  which left the founder's bell with no number at all). The two parts stay
+   *  separate for the Inbox copy and the a11y label. */
+  total: number;
 }
 
 /** The bell badge, split.
@@ -205,16 +211,13 @@ export interface BellState {
  *    1. requests waiting on a DECISION from this user (Incoming tab), and
  *    2. unread notifications that are not a mirror of (1) (Info tab).
  *
- *  `waiting` — outgoing pending requests. Audit N-7 was right that these must
- *  not ring an alarm ("a red animated badge for days with nothing to act on"),
- *  but removing them left the founder's bell completely dark: production says
- *  their entire badge was 5 outgoing loan requests + 3 outgoing settlements,
- *  with zero incoming and every group notification already read. Silence is
- *  the wrong answer too — those 8 asks are real, and the user wants to see
- *  them to nudge people. So they get their own quiet channel: a dot, no
- *  number, no animation, and the Inbox "Waiting on others" section behind it.
- *
- *  If both exist the number wins — attention outranks patience.
+ *  `waiting` — outgoing pending requests. Audit N-7 kept these off the red
+ *  number and 4840d6f gave them a quiet dot instead — which left the founder's
+ *  bell showing no number at all (production: 5 outgoing loan requests + 3
+ *  outgoing settlements, nothing incoming). Founder decision 2026-09-18: the
+ *  red counter is `total` = actionable + waiting, so every open request is
+ *  counted. The split is kept for the Inbox "Waiting on others" copy and the
+ *  a11y label, which still say which side the items are on.
  *
  *  Deliberately NOT counted anywhere: the derived To-do queue
  *  (`buildInboxActionItems`), which has never been part of this badge and
@@ -227,17 +230,16 @@ export interface BellState {
  *  key to de-duplicate on; acting on the ask and reading the ping both drive
  *  the number down, and it still reaches zero. */
 export function countBellItems(input: BellCountInput): BellState {
-  return {
-    actionable:
-      countIncomingPending(input.linkedRequests, input.userId) +
-      countIncomingPending(input.settlementRequests, input.userId) +
-      countIncomingPending(input.contactLinkRequests, input.userId) +
-      // `|| null`: an empty id means "not signed in yet", not "the actor is ''".
-      countBellNotifications(input.notifications, input.userId || null, input.mutes),
-    waiting:
-      countOutgoingPending(input.linkedRequests, input.userId) +
-      countOutgoingPending(input.settlementRequests, input.userId),
-  };
+  const actionable =
+    countIncomingPending(input.linkedRequests, input.userId) +
+    countIncomingPending(input.settlementRequests, input.userId) +
+    countIncomingPending(input.contactLinkRequests, input.userId) +
+    // `|| null`: an empty id means "not signed in yet", not "the actor is ''".
+    countBellNotifications(input.notifications, input.userId || null, input.mutes);
+  const waiting =
+    countOutgoingPending(input.linkedRequests, input.userId) +
+    countOutgoingPending(input.settlementRequests, input.userId);
+  return { actionable, waiting, total: actionable + waiting };
 }
 
 /** Whole days a request has been waiting, local-calendar style (a request sent

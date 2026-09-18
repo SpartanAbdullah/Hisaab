@@ -6,7 +6,7 @@ import { ConfirmationSheet } from './ConfirmationSheet';
 // The coin drop and the settle-up burst are CROSS-FILE CONTRACTS: index.css
 // owns the keyframes and the single reduced-motion gate under exact class
 // names, and this sheet has to put those names on the right elements — the
-// wallet <img>, an absolutely-positioned coin <img> that rests invisible, and
+// wallet glyph, an absolutely-positioned coin glyph that rests invisible, and
 // (only when a debt closed) the CelebrationMark's bits. Break either side and
 // nothing throws; the approved animation just silently never plays, which is
 // exactly how the coin shipped as dead code the first time (reviewer blocker,
@@ -25,32 +25,30 @@ describe('ConfirmationSheet coin drop', () => {
   it('renders the wallet with .animate-wallet-catch on every open — money moved', () => {
     const html = render();
     expect(html.match(/animate-wallet-catch/g)?.length).toBe(1);
-    // The wallet is the 3D clay asset, not the lucide tick the sheet used
-    // to show. (If the clay assets were missing the tick would be the
-    // correct fallback; the generated registry ships both.)
-    expect(html).toContain('/3d/wallet');
+    // The wallet is the 3c glyph (1d redesign) — no raster art, no lucide tick.
+    expect(html).toMatch(/animate-wallet-catch"><svg\b/);
+    expect(html).not.toContain('/3d/');
     expect(html).not.toContain('lucide-circle-check');
   });
 
   it('renders exactly one coin, absolutely positioned and resting at opacity 0', () => {
     const html = render();
-    const coin = html.match(/<img\b[^>]*animate-coin-drop[^>]*>/g) ?? [];
+    const coin = html.match(/<span\b[^>]*animate-coin-drop[^>]*>/g) ?? [];
     expect(coin).toHaveLength(1);
     expect(coin[0]).toContain('absolute');
     expect(coin[0]).toContain('opacity-0');
     // Headroom for the 46px fall (see the component comment): the coin rests
     // 12px inside the 36px stage, not above it.
     expect(coin[0]).toContain('top-3');
-    expect(coin[0]).toContain('/3d/money');
+    expect(html).toMatch(/animate-coin-drop[^>]*><svg\b/);
   });
 
-  it('keeps both moving images out of the accessibility tree', () => {
+  it('keeps both moving glyphs out of the accessibility tree', () => {
     const html = render();
-    const imgs = html.match(/<img\b[^>]*>/g) ?? [];
-    expect(imgs.length).toBeGreaterThanOrEqual(2);
-    for (const img of imgs) {
-      expect(img).toContain('alt=""');
-      expect(img).toContain('aria-hidden="true"');
+    const svgs = html.match(/<svg\b[^>]*>/g) ?? [];
+    expect(svgs.length).toBeGreaterThanOrEqual(2);
+    for (const svg of svgs.slice(0, 2)) {
+      expect(svg).toContain('aria-hidden="true"');
     }
   });
 

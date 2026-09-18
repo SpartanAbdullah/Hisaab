@@ -30,102 +30,136 @@
 }
 
 /* ========== DESIGN TOKENS AS CSS ========== */
+/* ════════════════════════════════════════════════════════════════════
+ * HISAAB "1d" — DESIGN TOKENS (redesign 2026-09-18)
+ *
+ * The values here are mirrored as data in src/lib/designTokens.ts, and
+ * designTokens.test.ts parses THIS file to fail the build if the two ever
+ * disagree — and checks every text/surface, chip, fill, icon and control
+ * pairing against WCAG AA in both themes. Change a value here → change it
+ * there too, and the contrast suite re-proves it.
+ *
+ * `@theme` holds the LIGHT ("ivory") theme plus the fixed material colours;
+ * `html.dark` further down overrides the themed values with the handoff's
+ * dark "1d" palette. Dark is the default on a device with no stored choice
+ * (themeStore DEFAULT_THEME); an explicit Light/Dark/System pick always wins.
+ *
+ * Names are the app's existing ones, so every token utility re-skins by
+ * value. `accent` is the brand violet (the primary action); `iris` is the
+ * same violet family used as the section accent for AI, investments and
+ * linked chips. Gold is fixed material for kameti and warnings only.
+ * New families: gold-* (fixed material), cobalt-* (groups/blue), blush-*
+ * (contacts/pink), glyph-* (the 3c icon stroke per semantic tone).
+ * ════════════════════════════════════════════════════════════════════ */
 @theme {
-  /* NOTE: the legacy --color-brand-* alias ramp (indigo, kept for the
-   * pre-Sukoon "brand" palette) was removed here (audit
-   * docs/audit-2026-09/09-ui-quality.md §1.2, docs/design-system.md).
-   * A full census across src/**\/*.tsx found 0 call sites for brand-50
-   * /100/500/600/700 as Tailwind utilities, and no CSS rule in this file
-   * ever referenced var(--color-brand-*) either — card-premium,
-   * btn-gradient and cta-primary all hardcode their indigo hex directly,
-   * so the alias was dead on both sides. See docs/design-system.md for
-   * the surviving token set. */
+  /* Hero band — dark in BOTH themes (the big white figures need a dark
+   * ground). The hero gradient itself is .m-hero / .bg-navy-bloom. */
+  --color-navy-900: #0A0A14;
+  --color-navy-800: #0F1020;
+  --color-navy-700: #171A2E;
+  --color-navy-600: #22264A;
 
-  /* ========================================================
-   * SUKOON PALETTE — Hisaab 2.0 redesign
-   *
-   * Calm, premium, Wio-inspired: deep navy hero on top,
-   * warm cream body below, single violet accent. Money
-   * semantics use forest green (receive) and warm coral
-   * (pay) — coral, NOT red — to keep the dozens-per-week
-   * "you owe" reads from feeling emotionally taxing.
-   * ======================================================== */
-
-  /* Navy — hero surface. Bloom gradient lives as .bg-navy-bloom
-   * below since it's a multi-radial that can't be a single token. */
-  --color-navy-900: #0B0E2A;
-  --color-navy-800: #11142F;
-  --color-navy-700: #171B3D;
-  --color-navy-600: #222654;
-
-  /* Cream — warm body palette. Softer than slate-50; reads
-   * like Wio's lower half. */
-  --color-cream-bg:       #F4F2EC;
+  /* Sheet + card surfaces ("cream" is the historical name; the light theme is
+   * a warm ivory). cream-bg is the page/sheet, cream-card a card face. */
+  --color-cream-bg:       #F4F1EA;
   --color-cream-card:     #FFFFFF;
-  --color-cream-border:   #EAE5D9;
-  --color-cream-hairline: #EFEBE0;
-  --color-cream-soft:     #F8F6F0;
+  --color-cream-border:   #E6E0D3;
+  --color-cream-hairline: #EEE9DF;
+  --color-cream-soft:     #F9F7F2;
 
-  /* Accent — primary action. Calmer than indigo-600,
-   * more violet than blue. */
+  /* Ink — text ramp. 900 = figures/titles, 600 = secondary lines, 400 = the
+   * muted floor (micro-labels, placeholders) — still 4.5:1 on every surface
+   * incl. the inset field face (#ECE7DC → 4.6). */
+  --color-ink-200: #E6E6EF;
+  --color-ink-300: #C9CAD8;
+  --color-ink-400: #62657F;
+  --color-ink-500: #60627B;
+  --color-ink-600: #5A5C72;
+  --color-ink-700: #3F4156;
+  --color-ink-800: #23253F;
+  --color-ink-900: #0E102B;
+
+  /* Accent = the brand VIOLET, the primary action (founder decision
+   * 2026-09-19 — the handoff's gold primary was replaced by the brand
+   * colour; gold survives only as kameti / warning material). 600 is the
+   * fill (white label, 6.4:1), 500 the ring / selected edge / icon,
+   * accent-text the readable violet for links. */
   --color-accent-50:  #F3F0FF;
   --color-accent-100: #EBE6FF;
   --color-accent-500: #7C5CFF;
   --color-accent-600: #5B47E8;
+  --color-accent-text: #5B47E8;
 
-  /* Receive — money in / positive. Forest green, not lime. */
+  /* Iris — violet: Hisaab AI, investments, analytics, linked-contact chips. */
+  --color-iris-50:  #F3F0FF;
+  --color-iris-100: #EBE6FF;
+  --color-iris-500: #7C5CFF;
+  --color-iris-600: #5B47E8;
+  --color-iris-text: #5B47E8;
+
+  /* Cobalt — blue: Group Splits. */
+  --color-cobalt-50:  #EAF0FD;
+  --color-cobalt-100: #DCE6FB;
+  --color-cobalt-500: #4A74E0;
+  --color-cobalt-600: #335FCB;
+  --color-cobalt-text: #2F58BF;
+
+  /* Blush — pink: Contacts. */
+  --color-blush-50:  #FCEDF2;
+  --color-blush-100: #F7DDE6;
+  --color-blush-500: #D2527E;
+  --color-blush-600: #B83D68;
+  --color-blush-text: #A3305A;
+
+  /* Receive — money in (green). 600 carries white text at 4.66:1. */
   --color-receive-50:   #E6F4EE;
-  --color-receive-100:  #DEF1E7; /* chip fill */
-  --color-receive-600:  #0F9D7B;
+  --color-receive-100:  #DEF1E7;
+  --color-receive-600:  #0B8466;
   --color-receive-700:  #076B53;
-  --color-receive-text: #0F8466; /* on cream */
+  --color-receive-text: #0C7458;
 
-  /* Pay — money out / negative. Warm coral, NOT red. */
+  /* Pay — money out (coral, never red). */
   --color-pay-50:   #FBEDE7;
-  --color-pay-100:  #F7DDD2; /* chip fill */
+  --color-pay-100:  #F7DDD2;
   --color-pay-600:  #D9614A;
   --color-pay-700:  #B4452C;
-  --color-pay-text: #C45339; /* on cream */
+  --color-pay-text: #A6402A;
 
-  /* Ink — true neutral scale. No slate-bluish cast.
-   * ink-400/ink-500 were darkened from the original #A8AABD/#7E809A — see
-   * docs/accessibility-contrast.md for the WCAG math. Both are used as body
-   * text (labels, amounts, secondary copy, mostly 9-13px — well under the
-   * 18.66px-bold "large text" threshold, so the 4.5:1 normal-text minimum
-   * applies) and previously read 2.05:1 / 3.45:1 against cream-bg — a hard
-   * AA fail (audit 09-ui-quality.md §4). Hue (~235°) and saturation (~11-14%)
-   * are unchanged from the originals; only lightness moved, keeping the
-   * 300→900 ramp monotonic (ink-300 lightest → ink-900 darkest). */
-  --color-ink-200: #E6E6EF;
-  --color-ink-300: #C9CAD8;
-  --color-ink-400: #696C8B; /* was #A8AABD — 2.05:1 → 4.55:1 on cream-bg */
-  --color-ink-500: #60627B; /* was #7E809A — 3.45:1 → 5.31:1 on cream-bg */
-  --color-ink-600: #5A5C72;
-  --color-ink-700: #3F4156;  /* Interpolated body text — covers callers that
-                                came in via the Phase 4 bulk swap (Tailwind
-                                slate-700 → ink-700). Sits between 600 and
-                                800 on the perceptual scale. */
-  --color-ink-800: #23253F;
-  --color-ink-900: #0E102B;
-
-  /* Functional
-   * warn-600 was darkened from #C28E1A — it reads as text-on-warn-50 at 68
-   * call sites (badges, inline warnings) and previously hit only 2.64:1,
-   * failing AA (audit 09-ui-quality.md §4). Hue/saturation preserved (~40°
-   * amber); see docs/accessibility-contrast.md for the math. warn-700
-   * (added earlier for exactly this pairing but never adopted at those call
-   * sites) is now very close in value to the fixed warn-600 — expected,
-   * since both now clear the same AA floor for the same background. */
+  /* Functional. */
   --color-warn-50:  #FBF3DD;
-  --color-warn-600: #8D6813; /* was #C28E1A — 2.64:1 → 4.60:1 on warn-50 */
-  --color-warn-700: #8A6410;  /* darker amber for TEXT on warn-50 — passes WCAG AA (~5.5:1) */
+  --color-warn-600: #8D6813;
+  --color-warn-700: #8A6410;
   --color-info-50:  #E8EEFB;
-  --color-info-600: #3F6BD9;
+  --color-info-600: #335FCB;
 
-  /* Font family — Geist. Loaded via Google Fonts in index.html.
-   * Inter kept as the very first fallback so screens that haven't
-   * been re-skinned yet keep their original numeral letterforms
-   * if Geist hasn't loaded. */
+  /* Controls (WCAG 1.4.11 — 3:1 boundaries; docs/accessibility-contrast.md §7
+   * and §8). field-border is the 1px edge of every input/selector: 3.26:1 on
+   * the inset field face, 4.0 on white. */
+  --color-field-border: #857E6D;
+  --color-control-off:  #857E6D;
+  --color-control-on:   #0B8466;
+  --color-whatsapp:     #15873F;
+
+  /* 3c glyph strokes, one per semantic tone (≥3:1 on sheet/card/control).
+   * <Glyph tone="…"> reads these; inside a hero they re-scope to the dark
+   * values (see .m-hero). */
+  --color-glyph-gold:    #A88418;
+  --color-glyph-green:   #0C8F70;
+  --color-glyph-coral:   #D9614A;
+  --color-glyph-violet:  #7C5CFF;
+  --color-glyph-blue:    #4A74E0;
+  --color-glyph-pink:    #D2527E;
+  --color-glyph-neutral: #3F4156;
+
+  /* Gold material — fixed in both themes (a gold button is gold everywhere).
+   * gold-ink is the only colour ever written on a gold face. */
+  --color-gold-300: #F5DA8F;
+  --color-gold-500: #E8C063;
+  --color-gold-700: #B8901F;
+  --color-gold-900: #7A5C12;
+  --color-gold-ink: #2A1F06;
+
+  /* Font family — Geist (self-hosted, @font-face above). */
   --font-sukoon: "Geist", "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 
   /* Animations */
@@ -137,146 +171,142 @@
   --animate-shake: shake 0.4s ease-out;
 }
 
-/* ========================================================
- * DARK THEME — opt-in (html.dark)
- *
- * Light mode is the default and stays byte-identical: every rule here is
- * scoped to html.dark. The token VALUES are overridden so all token-based
- * utilities (bg-cream-*, text-ink-*, receive/pay/accent tints) flip
- * automatically. The hardcoded component-layer classes (.input-field,
- * .selector-base, …) bake in white/slate hex, so they get explicit dark
- * overrides below. These overrides are NON-layered, so they win over the
- * @layer components defaults regardless of source order.
- *
- * NOTE: only SOLID `bg-white` is remapped to a dark card surface; the
- * translucent `bg-white/10`-style overlays used on the navy hero are a
- * different utility and intentionally stay translucent.
- * ======================================================== */
-/* Floating bottom-nav surface — an inline style in BottomNav reads this var so
- * it can flip in dark mode (a plain rgba white can't). */
-:root { --nav-surface: rgba(255, 255, 255, 0.92); }
+/* Tailwind v4's built-in `dark:` variant follows prefers-color-scheme; the app
+ * themes with a class on <html>, so point the variant at that class. */
+@custom-variant dark (&:where(.dark, .dark *));
 
-/* Sticky PageHeader surface — same translucent-cream-plus-blur treatment as
- * .modal-header, but PageHeader sets it via an inline style (audit finding
- * #3, docs/audit-2026-09/09-ui-quality.md §8): a plain inline rgba() can't
- * be overridden by any stylesheet rule, including html.dark, because inline
- * styles always beat CSS specificity — so it needs a custom property like
- * --nav-surface instead. Render-unverified; still needs a device/dark-mode
- * visual check (tracked in docs/accessibility-contrast.md). */
-:root { --header-surface: rgba(244, 242, 236, 0.9); }
+/* Floating bottom nav + sticky PageHeader surfaces (inline styles read these
+ * vars, so they flip with the theme). */
+:root {
+  --nav-surface: linear-gradient(rgba(255, 255, 255, 0.95), rgba(250, 247, 241, 0.97));
+  --nav-edge: rgba(74, 58, 20, 0.10);
+  --header-surface: rgba(244, 241, 234, 0.9);
+  color-scheme: light;
+}
 
-html.dark {
-  --nav-surface: rgba(22, 23, 29, 0.92);
-  --header-surface: rgba(19, 20, 25, 0.9);
+/* ════════════════════════════════════════════════════════════════════
+ * DARK THEME — the handoff's "1d" palette verbatim, except where a value
+ * was nudged for AA (each noted). Token VALUES are overridden, so every
+ * token utility flips automatically.
+ * ════════════════════════════════════════════════════════════════════ */
+/* 1D-DARK-TOKENS
+ * Also applied inside the hero band (.m-hero / .bg-navy-bloom): the hero is
+ * dark in BOTH themes, so everything in it — chips, pills, ink, cards — takes
+ * the dark values and reads the same in either theme. */
+html.dark,
+.m-hero,
+.bg-navy-bloom {
+  --nav-surface: linear-gradient(rgba(21, 23, 42, 0.94), rgba(10, 10, 20, 0.97));
+  --nav-edge: rgba(255, 255, 255, 0.08);
+  --header-surface: rgba(11, 12, 22, 0.9);
+  color-scheme: dark;
 
-  /* Warm-neutral dark surfaces — mirrors the cream ramp (bg → card → soft). */
-  --color-cream-bg:       #131419;
-  --color-cream-card:     #1E1F27;
-  --color-cream-border:   #2E2F3A;
-  --color-cream-hairline: #262731;
-  --color-cream-soft:     #191A21;
+  --color-cream-bg:       #0B0C16;
+  --color-cream-card:     #141628;
+  --color-cream-border:   #262A40;
+  --color-cream-hairline: #1B1E30;
+  --color-cream-soft:     #10121F;
 
-  /* Ink ramp inverts: low numbers = dark surfaces/borders, high = light text.
-   * ink-400 lightened from #6B6D82 (3.62:1 on dark cream-bg, 3.23:1 on dark
-   * cream-card — fails AA on both; it's used as text at hundreds of call
-   * sites, same as the light ramp — see docs/accessibility-contrast.md).
-   * The dark cream-CARD is the binding constraint here (unlike light mode,
-   * where cream-bg is worse): cream-card (#1E1F27) is a lighter surface
-   * than cream-bg (#131419) in dark mode, so a light ink color gets LESS
-   * contrast against it, not more. ink-200/300 stay as-is: audited usage is
-   * decorative-only in this ramp too (disclosure chevrons, "—" empty-state
-   * placeholders), never body text, so they're out of the body-text
-   * contrast requirement this pass targets. ink-500 and darker already
-   * clear AA against both surfaces (5.36:1+) and are unchanged. */
-  --color-ink-200: #2C2D38;
-  --color-ink-300: #3C3E4C;
-  --color-ink-400: #848699; /* was #6B6D82 — 3.23:1 → 4.57:1 on dark cream-card (binding), 5.12:1 on dark cream-bg */
-  --color-ink-500: #9092A8;
+  /* ink-900 #FFF (figures, titles) · 800 #E6E6EF (body) · 600 #B4B6C8
+   * (secondary) · 400 = the handoff's muted #848699 lifted to #8A8CA0 so it
+   * clears 4.5:1 on the keypad/inset face (#1D2036) as well as the card. */
+  --color-ink-200: #262940;
+  --color-ink-300: #3A3D55;
+  --color-ink-400: #8A8CA0;
+  --color-ink-500: #9C9EB2;
   --color-ink-600: #B4B6C8;
-  --color-ink-700: #CFD0DD;
+  --color-ink-700: #D2D3DF;
   --color-ink-800: #E6E6EF;
-  --color-ink-900: #F5F5F9;
+  --color-ink-900: #FFFFFF;
 
-  /* Accent — brighter on dark. */
-  --color-accent-50:  #221C36;
+  --color-accent-50:  #1F1936;
   --color-accent-100: #2A2342;
   --color-accent-500: #8E72FF;
   --color-accent-600: #7459F0;
+  --color-accent-text: #B7A4FF;
 
-  /* Receive — money in. Dark green tints; lighter green text. */
-  --color-receive-50:   #12271F;
-  --color-receive-100:  #163528;
-  --color-receive-600:  #14B891;
+  --color-iris-50:  #1C1733;
+  --color-iris-100: #262045;
+  --color-iris-500: #8E72FF;
+  --color-iris-600: #6A55F0;
+  --color-iris-text: #B7A4FF;
+
+  --color-cobalt-50:  #121A30;
+  --color-cobalt-100: #19243F;
+  --color-cobalt-500: #6B92F5;
+  --color-cobalt-600: #5A82EE;
+  --color-cobalt-text: #9BB6FA;
+
+  --color-blush-50:  #24121B;
+  --color-blush-100: #321A26;
+  --color-blush-500: #E56C94;
+  --color-blush-600: #E0628C;
+  --color-blush-text: #F09AB6;
+
+  --color-receive-50:   #10201A;
+  --color-receive-100:  #163026;
+  --color-receive-600:  #2BC99A;
   --color-receive-700:  #0E8E6E;
   --color-receive-text: #3FD7A6;
 
-  /* Pay — money out (coral, never red). pay-700 lightened from #C2543C
-   * (3.79:1 on dark pay-50 — fails AA; it's used as text at
-   * BudgetsPage.tsx's over-budget pill). pay-600 (5.57:1) and pay-text
-   * (8.26:1) already clear AA and are unchanged. */
-  --color-pay-50:   #2A1611;
-  --color-pay-100:  #371C15;
-  --color-pay-600:  #E5705A;
-  --color-pay-700:  #CA6752; /* was #C2543C — 3.79:1 → 4.56:1 on dark pay-50 */
+  --color-pay-50:   #25140F;
+  --color-pay-100:  #33201A;
+  --color-pay-600:  #EE8468;
+  --color-pay-700:  #D6735D;
   --color-pay-text: #F2967C;
 
-  /* Functional. warn-600/700 and receive-600/700 already clear AA against
-   * their dark -50 backgrounds (6.90:1+ / 6.21:1+) — computed, unchanged.
-   * receive-700 (3.83:1) is below AA but is only ever used decoratively in
-   * this codebase (gradient fills, avatar initials) — never as text on
-   * receive-50 — so it's left as-is; see docs/accessibility-contrast.md. */
   --color-warn-50:  #2A2410;
   --color-warn-600: #D9A52E;
   --color-warn-700: #E8C063;
-  --color-info-50:  #15203A;
+  --color-info-50:  #121A30;
   --color-info-600: #6B92F5;
+
+  --color-field-border: #6B6D82;
+  --color-control-off:  #6B6D82;
+  --color-control-on:   #0E8E6E;
+  --color-whatsapp:     #15873F;
+
+  --color-glyph-gold:    #E8C063;
+  --color-glyph-green:   #3FD7A6;
+  --color-glyph-coral:   #F2967C;
+  --color-glyph-violet:  #8E72FF;
+  --color-glyph-blue:    #6B92F5;
+  --color-glyph-pink:    #E56C94;
+  --color-glyph-neutral: #E6E6EF;
 }
 
-html.dark body {
-  background: var(--color-cream-bg);
-  color: var(--color-ink-900);
-}
+/* ── Label flips on solid fills ───────────────────────────────────────
+ * Brand violet carries white (6.0:1 light, 4.7:1 dark on accent-600); only
+ * the lighter dark-theme accent-500 needs the dark label. Light accent-500
+ * (#7C5CFF) carries no label at all: white on it is 4.35:1 (guarded in
+ * designTokens.test.ts). Gold fills always carry gold-ink. */
+:is(html.dark, .m-hero, .bg-navy-bloom) .bg-accent-500.text-white { color: var(--color-cream-bg); }
+.bg-gold-500.text-white { color: var(--color-gold-ink); }
 
-/* Component-layer classes bake in white/slate — re-point them at tokens.
- * NOTE: this selector list and the standalone rules below it were pruned
- * to only the classes that still exist — .card-base, .card-premium,
- * .chip-base, .row-card, .toggle-row, .state-hint-*, and .glass were
- * removed elsewhere in this file (0 call sites; docs/design-system.md),
- * so their dark-mode overrides here would have targeted nothing. Values
- * for the surviving rules are unchanged. */
-html.dark .input-field,
-html.dark .selector-base,
-html.dark .sheet-transient {
-  background: var(--color-cream-card);
-  border-color: var(--color-cream-border);
+/* The ink ramp inverts in dark, so bg-ink-900 becomes near-white — the
+ * handoff's "light-faced active pill". Flip its text to the dark sheet. */
+:is(html.dark, .m-hero, .bg-navy-bloom) .bg-ink-900.text-white,
+:is(html.dark, .m-hero, .bg-navy-bloom) .bg-ink-800.text-white,
+:is(html.dark, .m-hero, .bg-navy-bloom) .bg-ink-700.text-white {
+  color: var(--color-cream-bg);
 }
-html.dark .input-field { color: var(--color-ink-900); }
-html.dark .form-label { color: var(--color-ink-500); }
-html.dark .selector-selected { background: var(--color-accent-50); border-color: var(--color-accent-500); }
-html.dark .cta-secondary { background: var(--color-cream-soft); color: var(--color-ink-600); }
-html.dark .cta-secondary:active { background: var(--color-cream-border); }
-html.dark .cta-destructive { background: var(--color-pay-50); color: var(--color-pay-text); }
-html.dark .cta-destructive:active { background: var(--color-pay-100); }
-html.dark .modal-header { background: rgba(19, 20, 25, 0.9); }
-
-/* SYSTEMIC FIX for the "dark primary button" idiom (bg-ink-900/800 + text-white).
- * The ink ramp inverts in dark, so bg-ink-900 becomes LIGHT — but text-white
- * stays white → white-on-light = invisible. Targeting both classes on the same
- * element (no space), we flip the TEXT to dark so the button stays a proper
- * high-contrast filled button (dark text on a light fill, iOS-style). This
- * fixes ~70 buttons app-wide (nav-adjacent toggles, selected pills, CTAs) in
- * one rule. Non-layered, so it beats the text-white utility. */
-html.dark .bg-ink-900.text-white,
-html.dark .bg-ink-800.text-white,
-html.dark .bg-ink-700.text-white {
+/* A solid white pill keeps navy ink in dark too (ink-900 itself is white in
+ * dark, which would put white text on the white face). */
+:is(html.dark, .m-hero, .bg-navy-bloom) .bg-white.text-ink-900 { color: #0E102B; }
+/* Semantic -600 fills are light in dark; dark text on them (7.4–8.9:1). */
+:is(html.dark, .m-hero, .bg-navy-bloom) .bg-receive-600.text-white,
+:is(html.dark, .m-hero, .bg-navy-bloom) .bg-pay-600.text-white,
+:is(html.dark, .m-hero, .bg-navy-bloom) .bg-warn-600.text-white {
   color: var(--color-cream-bg);
 }
 
-/* Safety-net for residual non-token light tints a few shared components still
- * use (e.g. the <Button> secondary/ghost variants, focus/hover flashes). Unlike
- * `bg-white`, solid slate/indigo tints are never used as CTAs on the navy hero,
- * so darkening them blanket-style is safe (translucent variants like
- * bg-slate-900/40 are a different class and stay as dark scrims). */
+/* Text-only accent: text-accent-600/500 always paint the READABLE violet
+ * (accent-text), never the fill violet. Non-layered, so it beats the utility. */
+.text-accent-600,
+.text-accent-500 { color: var(--color-accent-text); }
+
+/* Safety net for residual Tailwind default-palette tints (being removed
+ * screen by screen — see docs/design-system.md §9). */
 html.dark .bg-slate-50,
 html.dark .bg-slate-100 { background-color: var(--color-cream-soft); }
 html.dark .bg-slate-200 { background-color: var(--color-cream-border); }
@@ -287,25 +317,9 @@ html.dark .text-slate-600 { color: var(--color-ink-500); }
 html.dark .text-slate-700,
 html.dark .text-slate-800,
 html.dark .text-slate-900 { color: var(--color-ink-900); }
-html.dark .text-indigo-600 { color: var(--color-accent-500); }
+html.dark .text-indigo-600 { color: var(--color-accent-text); }
 html.dark .border-slate-100,
 html.dark .border-slate-200 { border-color: var(--color-cream-border); }
-
-/* NOTE: solid `bg-white` body surfaces are converted to `bg-cream-card` at the
- * call sites (so they flip via the token override) rather than blanket-mapped
- * here — a blanket rule wrongly darkens intentional white CTAs/overlays that
- * sit on the always-dark navy hero (e.g. the auth mode-toggle pills and the
- * verify-screen "Back to login" button). The auth PRIMARY CTA is no longer
- * white — it now uses the accent-violet gradient via `.auth-cta`, which needs
- * the explicit dark-mode flatten below to keep white-on-violet at AA. */
-
-/* Auth primary CTA — accent-violet gradient. In dark mode the accent tokens
- * brighten, so plain white on the lighter top stop (#8E72FF) drops to ~3.5:1.
- * Flatten the fill toward the darker accent so the whole button clears AA
- * (white on #7459F0 ≈ 4.74:1). */
-html.dark .auth-cta {
-  background-image: linear-gradient(to bottom, var(--color-accent-600), #6A4FE0);
-}
 
 /* ========== KEYFRAMES ========== */
 @keyframes slide-up {
@@ -749,19 +763,71 @@ html.dark .skeleton-sweep::after {
   .animate-shake { animation: none; }
 }
 
+/* ========== AUTH — DARK INK SCOPE (1d) ==========
+ * The auth, onboarding, PIN-lock and update / verify gate screens paint the
+ * navy hero ground (.bg-navy-bloom) in BOTH themes. .bg-navy-bloom already
+ * re-scopes the material (--m-*), the *-text accents and the glyph tones to
+ * their dark values; this class does the same for the ink ramp, the tint
+ * fills that chips sit on and the control edges — so any material component
+ * placed on those screens (Tile3D, CurrencyPicker chips, m-btn-plain, m-seg,
+ * m-chip) keeps light-on-dark text in the ivory theme as well.
+ * The values MIRROR the 1D-DARK-TOKENS block (html.dark) — change one, change
+ * both (designTokens.test.ts fails if they drift: this block comes after
+ * .bg-navy-bloom, so a stale value here wins on those screens). Scoped to a
+ * class, so nothing outside those screens is affected. */
+.auth-ink-dark {
+  --color-ink-200: #262940;
+  --color-ink-300: #3A3D55;
+  --color-ink-400: #8A8CA0;
+  --color-ink-500: #9C9EB2;
+  --color-ink-600: #B4B6C8;
+  --color-ink-700: #D2D3DF;
+  --color-ink-800: #E6E6EF;
+  --color-ink-900: #FFFFFF;
+  --color-cream-bg: #0B0C16;
+  --color-cream-card: #141628;
+  --color-cream-border: #262A40;
+  --color-cream-hairline: #1B1E30;
+  --color-cream-soft: #10121F;
+  --color-accent-50: #1F1936;
+  --color-accent-100: #2A2342;
+  --color-accent-500: #8E72FF;
+  --color-accent-600: #7459F0;
+  --color-iris-50: #1C1733;
+  --color-iris-100: #262045;
+  --color-cobalt-50: #121A30;
+  --color-cobalt-100: #19243F;
+  --color-blush-50: #24121B;
+  --color-blush-100: #321A26;
+  --color-receive-50: #10201A;
+  --color-receive-100: #163026;
+  --color-pay-50: #25140F;
+  --color-pay-100: #33201A;
+  --color-warn-50: #2A2410;
+  --color-field-border: #6B6D82;
+  --color-control-off: #6B6D82;
+  --m-surface-top: #141628;
+  --m-surface-bottom: #0D0F1E;
+  color-scheme: dark;
+}
+
 /* ========== AUTH — FLOATING (PINNED) INPUT LABEL ==========
- * The login/signup glass inputs pin their label: it sits like a placeholder
- * when empty+blurred, then floats up + shrinks the moment the field is focused
- * or filled, so the field name never vanishes once typing starts. Pure CSS off
- * the input's :focus / :placeholder-shown state — the input carries .auth-input
- * plus placeholder=" ", and the <label> is its immediately-following sibling. */
+ * The login/signup fields (the 1d sunken well on the navy ground) pin their
+ * label: it sits like a placeholder when empty+blurred, then floats up +
+ * shrinks the moment the field is focused or filled, so the field name never
+ * vanishes once typing starts. Pure CSS off the input's :focus /
+ * :placeholder-shown state — the input carries .auth-input plus
+ * placeholder=" ", and the <label> is its immediately-following sibling.
+ * Resting ink is white at .62 (≈6.9:1 on the #13152A well), focus lights the
+ * label in the brand violet with the rim (accent-text, which the navy ground
+ * scopes to #B7A4FF: ≈8.4:1). */
 .auth-float-label {
   position: absolute;
   left: 3rem;                       /* clears the leading icon (matches pl-12) */
   top: 50%;
   transform: translateY(-50%);
   transform-origin: left center;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.62);
   font-size: 15px;
   pointer-events: none;
   transition: top 200ms cubic-bezier(0.4, 0, 0.2, 1),
@@ -774,13 +840,14 @@ html.dark .skeleton-sweep::after {
   top: 8px;
   transform: translateY(0);
   font-size: 11px;
+  letter-spacing: 0.02em;
 }
 .auth-input:focus ~ .auth-float-label {
-  color: #EBE6FF;                   /* accent-100 — ~11:1 on the glass, AA */
-  font-weight: 500;
+  color: var(--color-accent-text);
+  font-weight: 600;
 }
 .auth-input:not(:placeholder-shown):not(:focus) ~ .auth-float-label {
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.66);
 }
 @media (prefers-reduced-motion: reduce) {
   .auth-float-label { transition: none; }
@@ -790,7 +857,7 @@ html.dark .skeleton-sweep::after {
 .app-loading-screen {
   background:
     radial-gradient(80% 55% at 50% 22%, rgba(124, 92, 255, 0.2), transparent 70%),
-    var(--color-navy-900);
+    linear-gradient(var(--color-navy-800), var(--color-navy-900));
   color: white;
   display: flex;
   flex-direction: column;
@@ -819,8 +886,8 @@ html.dark .skeleton-sweep::after {
 
 .app-loading-brand h1 {
   font-size: 28px;
-  font-weight: 800;
-  letter-spacing: 0;
+  font-weight: 600;
+  letter-spacing: -0.03em;
   line-height: 1;
 }
 
@@ -847,16 +914,17 @@ html.dark .skeleton-sweep::after {
 }
 
 .app-loading-word {
-  color: #2FE3A0; /* brand green — the logo tile color */
+  color: #FFFFFF;
+  /* The hero-figure weight (600) and tracking (-.04em), set crisp. */
   font-size: clamp(44px, 15vw, 60px);
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-weight: 600;
+  letter-spacing: -0.04em;
   line-height: 1;
   white-space: nowrap;
 }
 
 .app-loading-caret {
-  background: #2FE3A0;
+  background: linear-gradient(#9A80FF, #5B47E8);
   border-radius: 3px;
   display: inline-block;
   height: clamp(40px, 13.5vw, 54px);
@@ -866,24 +934,27 @@ html.dark .skeleton-sweep::after {
 }
 
 .app-loading-subline {
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.7);
   font-size: 13px;
   line-height: 1.6;
   margin-top: 14px;
 }
 
+/* The progress track is the 1d sunken well: a recessed groove with the violet
+   shimmer running inside it. */
 .app-loading-progress {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
   border-radius: 999px;
-  height: 4px;
-  margin-top: 12px;
+  height: 5px;
+  margin-top: 14px;
   overflow: hidden;
   width: min(100%, 240px);
 }
 
 .app-loading-progress span {
   animation: loading-shimmer 1.5s ease-in-out infinite;
-  background: linear-gradient(90deg, transparent, rgba(205, 193, 255, 0.92), transparent);
+  background: linear-gradient(90deg, transparent, rgba(183, 164, 255, 0.92), transparent);
   display: block;
   height: 100%;
   width: 48%;
@@ -891,13 +962,13 @@ html.dark .skeleton-sweep::after {
 
 .app-loading-trust {
   align-items: center;
-  color: rgba(255, 255, 255, 0.48);
+  color: rgba(255, 255, 255, 0.66);
   display: flex;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
   gap: 6px;
   justify-content: center;
-  margin-top: 16px;
+  margin-top: 18px;
 }
 
 @keyframes loading-caret-blink {
@@ -917,7 +988,7 @@ html.dark .skeleton-sweep::after {
   }
 
   .app-loading-progress span {
-    background: rgba(205, 193, 255, 0.78);
+    background: rgba(183, 164, 255, 0.78);
     width: 64%;
   }
 }
@@ -939,14 +1010,26 @@ html.dark .skeleton-sweep::after {
    without shouting. Used on the Investments "Record trade" button; reusable
    anywhere one action deserves attention. Respects reduced-motion. */
 @keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 92, 255, 0.45); }
-  50%      { box-shadow: 0 0 12px 3px rgba(124, 92, 255, 0.25); }
+  0%, 100% { opacity: 0; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.04); }
 }
-.glow-attention {
+/* The glow lives on ::after so the element's own box-shadow (a 1d button's
+ * walls) is never touched. Brand violet by default; set --glow-rgb for
+ * another hue. */
+.glow-attention { position: relative; isolation: isolate; }
+.glow-attention::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 14px 3px rgb(var(--glow-rgb, 124 92 255) / 0.35);
   animation: glow-pulse 2.4s ease-in-out infinite;
 }
+.glow-violet { --glow-rgb: 142 114 255; }
 @media (prefers-reduced-motion: reduce) {
-  .glow-attention { animation: none; box-shadow: 0 0 8px 2px rgba(124, 92, 255, 0.3); }
+  .glow-attention::after { animation: none; opacity: 0.6; }
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -968,10 +1051,17 @@ html.dark .skeleton-sweep::after {
  * rainbow is the personality, the movement is just decoration.
  * ════════════════════════════════════════════════════════════════════ */
 :root {
-  /* Saturated but not clip-art — the violet is the app's own accent, so the
-     cycle passes through Hisaab's identity on its way round. */
-  --wisdom-spectrum: #FF5A5F, #FF9F45, #FFD84D, #3ECF8E, #38BDF8, #6A4FE0, #E052C2;
-  --wisdom-loop: linear-gradient(90deg, var(--wisdom-spectrum), var(--wisdom-spectrum), #FF5A5F);
+  /* 1d: the spectrum IS the app's own accent set going round — coral, gold,
+     green, blue, violet, pink — so the one loud surface still speaks Hisaab.
+     Built from the 3c glyph tones, which flip per theme: the bright dark-theme
+     values on the dark sheet, the deeper ivory-theme values (≥3:1 on the
+     light sheet) in light — so the gradient label stays legible in both.
+     Six stops, stated twice + the first again: identical pixels sit exactly
+     100% apart, so the -50% drift below still loops without a seam. */
+  --wisdom-spectrum:
+    var(--color-glyph-coral), var(--color-glyph-gold), var(--color-glyph-green),
+    var(--color-glyph-blue), var(--color-glyph-violet), var(--color-glyph-pink);
+  --wisdom-loop: linear-gradient(90deg, var(--wisdom-spectrum), var(--wisdom-spectrum), var(--color-glyph-coral));
 }
 
 @keyframes wisdom-drift {
@@ -1006,7 +1096,7 @@ html.dark .skeleton-sweep::after {
   to   { background-position: -100% 50%; }
 }
 .wisdom-text {
-  color: var(--color-accent-600);
+  color: var(--color-accent-text); /* the readable violet, both themes — fallback without background-clip */
 }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .wisdom-text {
@@ -1024,11 +1114,11 @@ html.dark .skeleton-sweep::after {
 .wisdom-wash {
   background-image: linear-gradient(
     135deg,
-    rgba(255, 90, 95, 0.12),
-    rgba(255, 216, 77, 0.12) 30%,
-    rgba(62, 207, 142, 0.10) 55%,
-    rgba(56, 189, 248, 0.10) 75%,
-    rgba(224, 82, 194, 0.14)
+    rgba(242, 150, 124, 0.13),
+    rgba(232, 192, 99, 0.12) 30%,
+    rgba(63, 215, 166, 0.10) 55%,
+    rgba(107, 146, 245, 0.10) 75%,
+    rgba(229, 108, 148, 0.13)
   );
 }
 
@@ -1044,6 +1134,7 @@ html.dark .skeleton-sweep::after {
 }
 
 html {
+  background: var(--color-cream-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -1051,8 +1142,8 @@ html {
 
 body {
   font-family: 'Geist', 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #f8fafc;
-  color: #1e293b;
+  background: var(--color-cream-bg);
+  color: var(--color-ink-900);
   max-width: 480px;
   margin: 0 auto;
   min-height: 100dvh;
@@ -1075,38 +1166,12 @@ input, select, textarea {
  * /-income/-expense were removed here — 0 call sites across src/**\/*.tsx
  * (docs/audit-2026-09/09-ui-quality.md §1.2, docs/design-system.md). */
 
-/* ========== MESH GRADIENT BG ========== */
-.bg-mesh {
-  background:
-    radial-gradient(at 30% 10%, rgba(99,102,241,0.06) 0%, transparent 50%),
-    radial-gradient(at 80% 80%, rgba(168,85,247,0.04) 0%, transparent 50%),
-    radial-gradient(at 10% 90%, rgba(16,185,129,0.04) 0%, transparent 50%);
-}
-
-/* ========== SUKOON HERO BLOOM ==========
- * Overlay-only gradient. Apply on a `.bg-navy-800` (or 900) surface.
- * Two radials — violet from top-right, warm coral from bottom-left —
- * prevent the navy hero from feeling clinical. Identical math to
- * `SukoonTokens.navy.bloom` in the design handoff. */
-.bg-navy-bloom {
-  background-color: var(--color-navy-800);
-  background-image:
-    radial-gradient(120% 90% at 80% 10%, rgba(124,92,255,0.32) 0%, rgba(124,92,255,0) 55%),
-    radial-gradient(80% 70% at 10% 100%, rgba(217,97,74,0.18) 0%, rgba(217,97,74,0) 60%);
-}
-
-/* ========== SUKOON CREAM BODY ==========
- * The cream half of a navy-hero screen. Pulls up 16px under the
- * navy hero with a 24px top radius — that's the signature
- * Sukoon transition. Use on the wrapper that holds the page body. */
-.sukoon-body {
-  background: var(--color-cream-bg);
-  border-top-left-radius: 24px;
-  border-top-right-radius: 24px;
-  margin-top: -16px;
-  position: relative;
-  z-index: 1;
-}
+/* ========== PAGE BACKGROUND ==========
+ * Legacy page-wrapper class (GroupDetailPage, JoinGroupPage). The old
+ * indigo/purple mesh is gone — the 1d sheet is a flat, lit surface. The
+ * hero (.bg-navy-bloom / .m-hero) and sheet (.sukoon-body / .m-sheet) now
+ * live in the 1D MATERIAL block at the end of this file. */
+.bg-mesh { background: var(--color-cream-bg); }
 
 /* ========== TABULAR NUMERALS ========== */
 .tabular-nums { font-variant-numeric: tabular-nums; }
@@ -1116,25 +1181,8 @@ input, select, textarea {
  * InvestmentsPage's "Record trade" CTA) is unrelated and stays — see the
  * DAILY WISDOM / attention-glow rules further down this file. */
 
-/* ========== GRADIENT BUTTON BASE ========== */
-.btn-gradient {
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-  color: white;
-  border: none;
-  position: relative;
-  overflow: hidden;
-  transition: all 0.2s ease;
-}
-.btn-gradient::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 100%);
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-.btn-gradient:active::after { opacity: 1; }
-.btn-gradient:active { transform: scale(0.97); }
+/* .btn-gradient (the old indigo gradient) is now the brand-violet 1d primary — see
+ * .m-btn-primary (brand violet) in the 1D MATERIAL block, which it is aliased onto. */
 
 /* ============================================================
  * PHASE A CANONICAL TOKENS
@@ -1147,113 +1195,78 @@ input, select, textarea {
  * Pairs with the ladder comments in src/lib/design-tokens.ts.
  * ============================================================ */
 
+/* Placeholder colour, app-wide (§7.4). Tailwind v4's preflight paints
+ * placeholders as currentColor at 50% — #878895 on white = 3.51:1, under the
+ * 4.5:1 that placeholder TEXT needs. ink-400 is already tuned to clear 4.5 on
+ * every surface in both themes (5.10 white / 4.55 cream-bg; 4.57 dark card).
+ * In @layer base so the eleven existing `placeholder:` utilities — including
+ * the white/60 ones on the navy onboarding inputs — keep winning. */
+@layer base {
+  ::placeholder { color: var(--color-ink-400); }
+}
+
 @layer components {
   /* ========== FORM FIELD TOKENS ==========
    * Transition values match Tailwind's `transition-all` default so
    * swapping from `className={inputClass}` → `className="input-field"`
-   * does not change focus-state animation timing. Placeholder color
-   * is intentionally NOT set here so inputs keep the browser default
-   * (same as the inline pattern this extracts from). */
+   * does not change focus-state animation timing. Placeholder colour comes
+   * from the @layer base rule above (was the browser default until §7). */
+  /* ========== FORM FIELD (1d: sunken well) ==========
+   * The field is recessed into the sheet: inset face + inner shadow. The
+   * 1px field-border edge stays — it is the control's 3:1 boundary (WCAG
+   * 1.4.11, docs/accessibility-contrast.md §7/§8). Focus lights it violet. */
   .input-field {
     width: 100%;
-    background: white;
-    border: 1px solid rgba(226, 232, 240, 0.6); /* slate-200/60 */
-    border-radius: 16px;                         /* rounded-2xl */
-    padding: 14px 16px;                          /* py-3.5 px-4 */
-    font-size: 14px;                             /* text-sm */
-    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1); /* = transition-all */
+    background-color: var(--m-inset-bottom);
+    background-image: linear-gradient(var(--m-inset-top), var(--m-inset-bottom));
+    border: 1px solid var(--color-field-border);
+    border-radius: 14px;
+    padding: 13px 14px;
+    font-size: 14px;
+    color: var(--color-ink-900);
+    box-shadow: inset 0 2px 5px var(--m-inset-shade);
+    transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
     outline: none;
   }
   .input-field:focus {
-    border-color: #818cf8;                       /* indigo-400 */
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2); /* ring-2 indigo-500/20 */
+    border-color: var(--color-accent-500);
+    box-shadow: inset 0 2px 5px var(--m-inset-shade), 0 0 0 3px var(--m-focus-glow);
   }
 
+  /* Field caption — the handoff's micro-label. */
   .form-label {
     display: block;
-    font-size: 11px;
-    font-weight: 700;                            /* bold */
-    color: #94a3b8;                              /* slate-400 */
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--color-ink-500);
     text-transform: uppercase;
-    letter-spacing: 0.1em;                       /* tracking-widest */
-    margin-bottom: 8px;                          /* mb-2 */
+    letter-spacing: 0.12em;
+    margin-bottom: 8px;
   }
 
   /* ========== CTA TOKENS ==========
-   * Full-width mobile footer buttons: py-4 px-4, rounded-2xl, text-sm/bold.
-   * Self-contained — cta-primary duplicates the btn-gradient paint/press
-   * behaviour so call sites need only one class after Phase C migration. */
-  /* Transition matches the inline `btn-gradient` class (transition: all 0.2s
-   * ease) so the disabled-opacity and active-scale animations time
-   * identically after swap. Cursor is left at the browser default on :disabled
-   * to match the inline pattern (which did not set cursor). */
-  .cta-primary {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-    color: white;
-    border: none;
-    border-radius: 16px;
-    padding: 16px;
-    font-size: 14px;
-    font-weight: 700;
-    /* shadow-md shadow-indigo-500/20 */
-    box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2),
-                0 2px 4px -2px rgba(99, 102, 241, 0.2);
-    position: relative;
-    overflow: hidden;
-    transition: all 0.2s ease;
-  }
-  .cta-primary::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%);
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-  .cta-primary:active::after { opacity: 1; }
-  .cta-primary:active { transform: scale(0.97); }
-  .cta-primary:disabled { opacity: 0.3; }
-
-  .cta-secondary {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: #f1f5f9;                          /* slate-100 */
-    color: #64748b;                               /* slate-500 */
-    border: none;
-    border-radius: 16px;
-    padding: 16px;
-    font-size: 14px;
-    font-weight: 700;
-    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .cta-secondary:active { background: #e2e8f0; }  /* slate-200 */
-  .cta-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  /* Density Tier B (action card). Matches the inline pattern used for the
-   * ContactDetailSheet Unlink button: w-full, py-3, text-[13px], transition-all.
-   * Cursor is left at browser default on :disabled to match the inline pattern. */
+   * Full-width footer buttons. Structure only here — the paint (violet
+   * primary, key-material secondary, coral destructive) comes from the 1D
+   * MATERIAL block, where these names are aliased onto .m-btn-primary /
+   * .m-btn-plain / .m-btn-danger. The wall sits 2px below the face, which the
+   * footers' bottom padding already clears. */
+  .cta-primary,
+  .cta-secondary,
   .cta-destructive {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
-    background: #fef2f2;                          /* red-50 */
-    color: #ef4444;                               /* red-500 */
+    gap: 8px;
     border: none;
     border-radius: 16px;
-    padding: 12px 16px;                           /* py-3 — horizontal padding
-                                                     is invisible under w-full
-                                                     with centered content */
-    font-size: 13px;                              /* text-[13px] */
     font-weight: 700;
-    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1); /* = transition-all */
+    transition: transform 120ms var(--m-ease), box-shadow 120ms var(--m-ease), opacity 120ms;
   }
-  .cta-destructive:active { background: #fee2e2; } /* red-100 */
+  .cta-primary { width: 100%; padding: 16px; font-size: 14px; }
+  .cta-primary:disabled { opacity: 0.4; }
+  .cta-secondary { padding: 16px; font-size: 14px; }
+  .cta-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .cta-destructive { width: 100%; padding: 12px 16px; font-size: 13px; }
   .cta-destructive:disabled { opacity: 0.5; }
 
   /* NOTE: .state-hint-info/-warn/-error (inline advisory-banner tokens)
@@ -1312,25 +1325,29 @@ input, select, textarea {
     justify-content: space-between;
     width: 100%;
     min-height: 44px;                             /* touch target */
-    padding: 14px;                                /* p-3.5 */
-    border: 2px solid var(--color-cream-border);
-    border-radius: 16px;                          /* rounded-2xl */
-    background: white;
+    padding: 14px;
+    border: 1px solid var(--color-field-border);  /* control boundary, 3:1 (§7) */
+    border-radius: 16px;
+    background-color: var(--m-card-bottom);
+    background-image: linear-gradient(var(--m-card-top), var(--m-card-bottom));
+    box-shadow: inset 0 1px 0 var(--m-hi);
     text-align: left;
     cursor: pointer;
-    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 120ms var(--m-ease), box-shadow 120ms var(--m-ease), border-color 150ms;
   }
   .selector-base:active {
-    transform: scale(0.98);
+    transform: scale(0.99);
   }
   .selector-base:focus-visible {
     outline: 2px solid var(--color-accent-500);
     outline-offset: 2px;
   }
+  /* Selected: violet-lit face + a 2px violet edge (the handoff's selected
+   * method card, in the primary accent). */
   .selector-selected {
     border-color: var(--color-accent-500);
-    background: var(--color-accent-50);
-    box-shadow: 0 1px 2px 0 rgba(91, 71, 232, 0.06);
+    background-image: linear-gradient(var(--color-accent-100), var(--color-accent-50));
+    box-shadow: inset 0 0 0 1px var(--color-accent-500), inset 0 1px 0 var(--m-hi);
   }
 
   /* NOTE: .chip-base/.chip-selected and .toggle-row were removed here —
@@ -1357,9 +1374,9 @@ input, select, textarea {
   .modal-backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(11, 14, 42, 0.5);            /* navy-900 @ 50% */
-    backdrop-filter: blur(4px);                   /* backdrop-blur-sm */
-    -webkit-backdrop-filter: blur(4px);
+    background: var(--m-scrim);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
@@ -1374,9 +1391,10 @@ input, select, textarea {
     max-width: 480px;
     max-height: 92dvh;
     background: var(--color-cream-bg);
-    border-top-left-radius: 26px;
-    border-top-right-radius: 26px;
-    box-shadow: 0 -20px 60px -20px rgba(11, 14, 42, 0.4);
+    border-top-left-radius: 24px;
+    border-top-right-radius: 24px;
+    /* The sheet's lit top edge + a deep ambient lift off the page. */
+    box-shadow: inset 0 1px 0 var(--m-sheet-hi), 0 -24px 60px -20px rgba(0, 0, 0, 0.55);
     transition: transform 350ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -1387,8 +1405,8 @@ input, select, textarea {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 20px;
-    background: rgba(244, 242, 236, 0.9);         /* cream-bg @ 90% */
+    padding: 12px 20px 10px;
+    background: var(--header-surface);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--color-cream-hairline);
@@ -1429,11 +1447,11 @@ input, select, textarea {
     position: relative;
     width: 100%;
     max-width: 480px;
-    background: white;
+    background: var(--color-cream-bg);
     border-top-left-radius: 24px;
     border-top-right-radius: 24px;
     overflow: hidden;
-    box-shadow: 0 -20px 60px -20px rgba(11, 14, 42, 0.5);
+    box-shadow: inset 0 1px 0 var(--m-sheet-hi), 0 -24px 60px -20px rgba(0, 0, 0, 0.6);
     transform: translateY(100%);
     transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
   }
@@ -1458,23 +1476,24 @@ input, select, textarea {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;                                  /* w-8 */
-    height: 32px;                                 /* h-8 */
-    border-radius: 12px;                          /* rounded-xl */
-    background: var(--color-cream-soft);
-    transition-property: color, background-color, border-color,
-                         outline-color, text-decoration-color, fill, stroke;
-    transition-duration: 150ms;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background-color: var(--m-ctl-bottom);
+    background-image: linear-gradient(var(--m-ctl-top), var(--m-ctl-bottom));
+    box-shadow: inset 0 1px 0 var(--m-hi-strong), var(--m-edge), 0 2px 0 var(--m-ctl-wall);
+    color: var(--color-ink-800);
+    transition: transform 120ms var(--m-ease), box-shadow 120ms var(--m-ease);
   }
-  /* Expand the tap target to ~44px without changing the 32px visual. */
+  /* Expand the tap target to 44px+ without changing the 36px visual. */
   .nav-icon-button::before {
     content: "";
     position: absolute;
-    inset: -6px;
+    inset: -5px;
   }
   .nav-icon-button:active {
-    background: var(--color-cream-border);
+    transform: translateY(2px);
+    box-shadow: inset 0 1px 0 var(--m-hi-strong), var(--m-edge), 0 0 0 var(--m-ctl-wall);
   }
   .nav-icon-button:focus-visible {
     outline: 2px solid var(--color-accent-500);
@@ -1486,662 +1505,765 @@ input, select, textarea {
 }
 
 /* ╔══════════════════════════════════════════════════════════════════════╗
- * ║  3D CLAY  — start of block. Everything between this banner and the   ║
- * ║  matching "3D CLAY — end of block" banner belongs to the clay        ║
- * ║  treatment. Nothing above it was changed; no existing token VALUE    ║
- * ║  is redefined here, only new --clay-* properties are added.          ║
+ * ║  1D MATERIAL — start of block (redesign 2026-09-18)                  ║
  * ╚══════════════════════════════════════════════════════════════════════╝
  *
- * WHAT THIS IS
- * A two-tier surface system: a flat, faintly luminous tinted panel that a
- * 3D rendered icon can float over, expressed as tokens + utilities so it
- * reads as a system rather than as decoration on one screen.
+ * Every raised element is the same four-part recipe — that is what makes the
+ * depth read as real rather than as a drop shadow:
+ *   1. a vertical gradient face, lighter top → darker bottom
+ *   2. an inset top highlight — the lit edge
+ *   3. ONE thin (2px) hard, zero-blur offset wall in a darker shade of the
+ *      element's own colour — the extruded side. Pressables only: cards,
+ *      fields, selectors and plates carry none.
+ *   4. a soft ambient shadow underneath
+ * Never a single blurred box-shadow; the hard wall is the whole point
+ * (founder decision 2026-09-18 — supersedes the 2026-09-03 "no lips" rule).
+ * 2026-09-19 the founder found the handoff's stacked walls and the sheet seam
+ * heavy: one 2px wall, no seam line, and numerals / glyphs set crisp (no
+ * offset text-shadow or drop filter).
  *
- * THE LIP IS GONE (founder feedback, 2026-09-03)
- * v1 gave every tile and depth-button a 3px solid bottom LIP in a lighter
- * tint of its own surface. The founder's verdict was blunt and correct:
- * "the underlining border … it is so obvious that this is a vibe coded app
- * and which results in trust drain". A hard candy-coloured edge under every
- * surface is the single most templated-looking thing a UI can do, and in a
- * money app looking templated IS a trust cost. It was removed everywhere —
- * tiles, cards and `.clay-depth` buttons — and replaced with the premium
- * fintech recipe below (Revolut / Wise / Monzo card surfaces): a hairline
- * in the surface's OWN hue at low alpha, and a large-radius ambient shadow
- * doing the elevation work instead of a drawn edge. `--clay-lip-*` and
- * every `--clay-*-lip` token were deleted, not zeroed — a 0px lip left in
- * the tokens is an invitation to turn it back on.
+ * Pressing collapses the first wall: the element travels down by exactly the
+ * wall's height and that wall drops to 0 — the extrusion gives under the
+ * finger. 120ms, transform + box-shadow only.
  *
- * THE SURFACE RECIPE — one recipe, two tiers:
- *   1. fill      a faint top→bottom gradient between the tint's two rungs
- *   2. hairline  inset 0 0 0 1px, the tint's own key hue at 14% (light)
- *   3. highlight inset 0 1px 0 0 white at 45% — kept subtle, no shine
- *   4. contact   0 1px 2px -1px navy at 5% — grounds it, never a line
- *   5. ambient   0 8px 24px -12px the tint's key hue at 25% — large,
- *                soft, tinted, and the ONLY elevation cue
+ * Both themes read the same classes; only the --m-* variables differ. The
+ * hero is dark in BOTH themes, so .m-hero re-scopes the variables to their
+ * dark values for everything inside it.
  *
- * THE TWO TIERS — and they are never collapsed into one:
- *   .clay-tile  PRESSABLE.     The recipe above, 16px radius, and a press
- *                              that is scale(0.985) + a shadow that pulls
- *                              in. No translate, no edge change.
- *   .clay-card  INFORMATIONAL. Same recipe with a larger, softer ambient
- *                              (0 12px 32px -16px), NO press, NO focus
- *                              ring, 24px radius. The radius difference is
- *                              deliberate: the two tiers must be
- *                              distinguishable at a glance, before the
- *                              user ever touches one.
- *
- * DARK MODE
- * Same recipe with the shadows switched OFF entirely (a cast shadow on a
- * dark ground is invisible at best, muddy at worst) and the tint hairline
- * replaced by a 1px inset rim light at 7% white. One box-shadow list, two
- * themes — the *-alpha properties are what flip, so the list never changes
- * shape.
- *
- * WHY THIS BLOCK IS MOSTLY NON-LAYERED
- * The surface/shadow rules sit OUTSIDE @layer components on purpose:
- * `.clay-depth` has to beat the `shadow-sm`/`active:shadow-none` Tailwind
- * utilities already baked into BUTTON_VARIANT_CLASSES, and a layered rule
- * always loses to a utility. Same trick the html.dark overrides above use.
- * GEOMETRY (padding, min-size, radius, type) lives in the @layer components
- * block at the bottom of this section instead, so page code can still
- * override it with plain `p-4` / `rounded-none` utilities.
- *
- * MOTION CONTRACT
- * Only `transform` transitions (140ms). The shadow pull-in is
- * instantaneous — box-shadow is never animated, per the MOTION SYSTEM
- * performance contract further up this file (transform/opacity only; this
- * app ships to low-end Android WebViews). Under prefers-reduced-motion the
- * scale is dropped and the instant shadow change carries the whole press on
- * its own, so a reduced-motion user still gets real tap feedback.
- *
- * See docs/design-system.md §10 for the do/don't rules and the measured
- * contrast table behind every value below.
- */
+ * (The 3D-clay classes this replaced were removed with their last call sites.)
+ * ════════════════════════════════════════════════════════════════════════ */
 
-/* ---- Tier geometry + universal lighting ----------------------------------
- * Radii are NOT new values: 16px is the canonical card/button radius
- * (design-system §4 "lg") and 24px is the .sukoon-body corner. The contact
- * shadow colour is navy-900 (11 14 42), the same ink every other shadow in
- * this file is tinted with (.modal-sheet, .sheet-transient, .app-loading-mark).
- *
- * The *-alpha properties exist so dark mode can switch a whole shadow layer
- * off without the box-shadow list changing shape — one list, two themes.
- * They are also what the press uses: :active remaps ONE alpha and the whole
- * stack recomputes, which is why no rule here ever restates the shadow list.
- *
- * NOTE the shadow layers are composed inline in `.clay-tile` / `.clay-card`
- * rather than hoisted into a `--clay-shadow` token. A custom property whose
- * value contains `var(--clay-key)` resolves that var at the element it is
- * DECLARED on (:root), not at the element it is used on, so a hoisted token
- * would paint every tint with the neutral key. The alphas can be hoisted
- * because they carry no var() of their own. */
 :root {
-  --clay-radius-tile: 16px;
-  --clay-radius-card: 24px;
+  --m-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
-  /* The press: a scale, and nothing else. No travel, no edge change — see
-   * the "THE LIP IS GONE" note in this section's header. */
-  --clay-press-scale: 0.985;
-  --clay-press-duration: 140ms;
-  --clay-press-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Light — ivory material */
+  --m-hi: rgba(255, 255, 255, 0.95);
+  --m-hi-strong: rgba(255, 255, 255, 1);
+  --m-lo: rgba(74, 58, 20, 0.10);
+  --m-shadow: rgba(74, 58, 20, 0.30);
+  --m-edge: 0 0 0 1px rgba(74, 58, 20, 0.07);
+  --m-sheet-hi: rgba(255, 255, 255, 0.9);
 
-  /* 1px inset top highlight — the "lit from above" cue. Deliberately weaker
-   * than v1's 0.6: at 0.45 it reads as light catching an edge rather than as
-   * a drawn white line. */
-  --clay-highlight: rgba(255, 255, 255, 0.45);
+  --m-card-top: #FFFFFF;
+  --m-card-bottom: #FAF7F1;
+  --m-ctl-top: #FFFFFF;
+  --m-ctl-bottom: #F2EDE3;
+  --m-ctl-wall: #DCD3C0;
+  --m-key-top: #FFFFFF;
+  --m-key-bottom: #F2EDE3;
+  --m-key-wall-1: #DCD3C0;
+  --m-inset-top: #ECE7DC;
+  --m-inset-bottom: #F7F4EE;
+  --m-inset-hi: rgba(74, 58, 20, 0.06);
+  --m-inset-shade: rgba(74, 58, 20, 0.14);
 
-  /* The hairline. An INSET 1px ring in the surface's own key hue, so it is
-   * the tint's own colour a shade deeper — never a grey or black stroke, and
-   * never an outset border (an outset ring is a drawn edge; this is a
-   * material boundary). */
-  --clay-hairline-alpha: 0.14;
+  --m-skel: rgba(74, 58, 20, 0.09);
+  --m-track: rgba(74, 58, 20, 0.07);
+  --m-track-shade: rgba(74, 58, 20, 0.10);
+  --m-seg-on: #FFFFFF;
+  --m-seg-on-ink: #0E102B;
+  --m-pill-on-top: #262A4E;
+  --m-pill-on-bottom: #0E102B;
+  --m-pill-on-wall: #05061A;
+  --m-pill-on-ink: #FFFFFF;
+  --m-focus-glow: rgba(124, 92, 255, 0.22);
+  --m-brand-glow: rgba(91, 71, 232, 0.4);
+  --m-scrim: rgba(14, 16, 43, 0.42);
 
-  /* Contact shadow — navy ink, barely there, 1px of grounding. */
-  --clay-ambient-rgb: 11 14 42;
-  --clay-ambient-alpha: 0.05;
+  --m-switch-off-top: #E4DED2;
+  --m-switch-off-bottom: #EEE9DF;
+  --m-switch-off-shade: rgba(74, 58, 20, 0.18);
+  --m-knob-off-top: #FFFFFF;
+  --m-knob-off-bottom: #EDE8DE;
 
-  /* Ambient (cast) shadow — large radius, heavily negative spread, tinted
-   * with the surface's own colour so the panel looks like it is made of that
-   * material rather than sitting on a grey drop. This is the ONLY elevation
-   * cue; there is no edge doing the work any more. */
-  --clay-shadow-alpha: 0.25;
-  --clay-shadow-alpha-pressed: 0.14;
-  --clay-card-shadow-alpha: 0.2;
+  --m-num-ink: #0E102B;
 
-  /* Rim light — dark mode only. Transparent here so the same box-shadow list
-   * is valid in both themes. */
-  --clay-rim: 0 0 0 0 rgba(0, 0, 0, 0);
+  /* Tint ramps — face top/bottom, the wall, and the strong label colour. */
+  --m-neutral-top: #FFFFFF;  --m-neutral-bottom: #F6F2EA; --m-neutral-wall-1: #E2DACA; --m-neutral-strong: #3F4156;
+  --m-gold-top:    #FCF2D6;  --m-gold-bottom:    #F6E6BC; --m-gold-wall-1:    #E6CF8F; --m-gold-strong:    #7A5A0E;
+  --m-mint-top:    #EAF7F0;  --m-mint-bottom:    #DAF0E4; --m-mint-wall-1:    #B9DDCA; --m-mint-strong:    #0C7458;
+  --m-coral-top:   #FDEFE8;  --m-coral-bottom:   #F8E0D5; --m-coral-wall-1:   #ECC4B3; --m-coral-strong:   #A6402A;
+  --m-violet-top:  #F3EFFF;  --m-violet-bottom:  #E7E1FF; --m-violet-wall-1:  #CFC5F5; --m-violet-strong:  #5B47E8;
+  --m-blue-top:    #ECF1FD;  --m-blue-bottom:    #DDE7FB; --m-blue-wall-1:    #C0D0F3; --m-blue-strong:    #2F58BF;
+  --m-pink-top:    #FDEEF3;  --m-pink-bottom:    #F8DEE7; --m-pink-wall-1:    #ECC1D0; --m-pink-strong:    #A3305A;
 
-  /* Gradient DIRECTION, not colour — which is the only way to flip which end
-   * of a tint ramp faces the light without hitting the var()-resolves-at-
-   * :root problem described above. Both themes must end up LIGHTER AT THE
-   * TOP, and the ramps disagree about which rung that is: in light the -50
-   * (`--clay-bottom`) rung is the lighter one, in dark it is the -100
-   * (`--clay-top`) rung. `to top` paints the first colour at the BOTTOM, so
-   * light gets `to top` and dark gets `to bottom` — same declaration, same
-   * two stops, opposite arithmetic.
-   *
-   * This matters more than it sounds: v1 ran darker-at-top in light mode,
-   * which put the surface's darkest band directly under the white top
-   * highlight and made every panel read as slightly DISHED. Lighter at top
-   * is what makes it read as lit from above, which is the whole "premium
-   * fintech card" effect. */
-  --clay-grad-dir: to top;
-
-  /* Selection ring. Transparent by default and carried as a slot in the tile's
-   * box-shadow list, so `.clay-tile-selected` can switch it on by remapping
-   * ONE property instead of redeclaring the whole (non-layered) shadow stack
-   * and re-stating four values it does not care about. */
-  --clay-ring: 0 0 0 0 rgba(0, 0, 0, 0);
-
-  /* ---- Tint ramps -------------------------------------------------------
-   * Five tints the founder specified (gold/sky/blush/mint/coral) plus two
-   * additions, each with a stated reason:
-   *
-   *   accent  — Button's `depth` primary. design-system §2 makes accent
-   *             violet the app's real primary-action colour and pay-coral
-   *             the money-OUT semantic; painting every primary CTA coral
-   *             would break the "coral means you owe" read users get dozens
-   *             of times a week. Coral stays available as a tint, it just
-   *             isn't wired to the primary button.
-   *   neutral — Card3D's default. An informational surface with no domain
-   *             meaning must not borrow one; this maps to the existing cream
-   *             card ramp.
-   *
-   * Each tint supplies four properties (v1's `-lip` was deleted with the
-   * lip itself — see this section's header):
-   *   -top     gradient start (the -100 rung; the darker stop in light mode)
-   *   -bottom  gradient end   (the -50 rung)
-   *   -key     an "R G B" triple for the hairline, the ambient shadow and
-   *            the icon's drop-shadow — one hue doing all three, which is
-   *            what makes the panel read as a single material
-   *   -strong  a saturated on-tint colour for a badge dot or icon fallback
-   *
-   * Where the ramp already exists it is REFERENCED, not copied, so it flips
-   * with the rest of the palette in dark mode for free. Only the genuinely
-   * missing rungs are new hex. */
-
-  /* gold — kameti / coins. Extends warn-* (amber ~44°). */
-  --clay-gold-top:    #F8EAC4;
-  --clay-gold-bottom: var(--color-warn-50);
-  --clay-gold-key:    218 180 78;
-  --clay-gold-strong: var(--color-warn-700);
-
-  /* sky — splits / chat. Extends info-* (blue ~221°). */
-  --clay-sky-top:    #D4DFF7;
-  --clay-sky-bottom: var(--color-info-50);
-  --clay-sky-key:    104 141 223;
-  --clay-sky-strong: var(--color-info-600);
-
-  /* blush — khata / hands. The one fully new ramp: no pink exists in the
-   * palette. Hue 340° keeps it clearly apart from coral (18°) and from
-   * accent violet (252°), and far enough from red that it never reads as an
-   * error state. */
-  --clay-blush-top:    #F6DAE3;
-  --clay-blush-bottom: #F9EBF0;
-  --clay-blush-key:    218 108 145;
-  --clay-blush-strong: #99294E;
-
-  /* mint — savings / money in. Reuses receive-* wholesale. */
-  --clay-mint-top:    var(--color-receive-100);
-  --clay-mint-bottom: var(--color-receive-50);
-  --clay-mint-key:    107 199 150;
-  --clay-mint-strong: var(--color-receive-700);
-
-  /* coral — money out. Reuses pay-* wholesale. Coral, never red. */
-  --clay-coral-top:    var(--color-pay-100);
-  --clay-coral-bottom: var(--color-pay-50);
-  --clay-coral-key:    227 138 99;
-  --clay-coral-strong: var(--color-pay-700);
-
-  /* accent — primary action. Reuses accent-*. */
-  --clay-accent-top:    var(--color-accent-100);
-  --clay-accent-bottom: var(--color-accent-50);
-  --clay-accent-key:    139 113 244;
-  --clay-accent-strong: var(--color-accent-600);
-
-  /* neutral — untinted informational surface. Reuses the cream ramp. */
-  --clay-neutral-top:    var(--color-cream-card);
-  --clay-neutral-bottom: var(--color-cream-soft);
-  --clay-neutral-key:    11 14 42;
-  --clay-neutral-strong: var(--color-ink-700);
-
-  /* Shadow hues for SOLID fills (Button `depth`). A solid button paints its
-   * own fill, so it takes nothing from the tint ramps above — it only needs
-   * an "R G B" triple to tint its ambient shadow with, and that triple is
-   * the fill's own colour. These replace v1's --clay-solid-*-lip tokens
-   * one-for-one; the classes that consume them kept their names so no page
-   * file had to change.
-   *
-   * `secondary` and `ink` both borrow the navy ambient rather than their own
-   * fill: a slate-100 button has no colour worth casting, and ink-900 cast
-   * as ink-900 is just black — navy at a low alpha is the softer read. */
-  --clay-depth-accent-rgb:  91 71 232;   /* accent-600 #5B47E8 */
-  --clay-depth-neutral-rgb: var(--clay-ambient-rgb);
-  --clay-depth-pay-rgb:     217 97 74;   /* pay-600 #D9614A */
-  --clay-depth-warn-rgb:    141 104 19;  /* warn-600 #8D6813 */
-  --clay-depth-ink-rgb:     var(--clay-ambient-rgb);
-
-  /* Untinted defaults, so a bare .clay-card / <Icon3D> outside any tint
-   * scope still resolves to a valid (neutral) surface. */
-  --clay-top:    var(--clay-neutral-top);
-  --clay-bottom: var(--clay-neutral-bottom);
-  --clay-key:    var(--clay-neutral-key);
-  --clay-strong: var(--clay-neutral-strong);
+  /* Active tint slots (neutral unless a tint class says otherwise). */
+  --m-top: var(--m-neutral-top);
+  --m-bottom: var(--m-neutral-bottom);
+  --m-wall-1: var(--m-neutral-wall-1);
+  --m-strong: var(--m-neutral-strong);
+  --m-tint-walls: 0 0 #0000;
 }
 
-/* ---- Dark theme: designed, not inverted ----------------------------------
- * Three changes, and they are the whole difference:
- *   1. Every shadow goes away entirely (all three alphas → 0). A cast shadow
- *      on a dark ground is invisible at best and muddy at worst; the
- *      elevation cue becomes a 1px rim light instead.
- *   2. The tint hairline goes to 0 and --clay-rim takes over: an INSET 1px
- *      ring at 7% white. Inset, not outset — an outset ring paints a hard
- *      1px edge OUTSIDE the radius, which is exactly the drawn-border look
- *      this rebuild exists to remove.
- *   3. The top highlight drops from 0.45 to 0.06 white — enough to catch the
- *      edge on top of the rim, not enough to look like a scratch.
- *
- * Surfaces themselves come from the dark tint ramps (which are dark tinted
- * card surfaces, never pure black — receive-50 #12271F, pay-50 #2A1611, …).
- * Note the gradient direction is unchanged (top → bottom) but the ROLES
- * flip: in dark, the -100 rung is the LIGHTER value, so the surface is
- * light-at-top / dark-at-bottom — which is exactly the convex read a
- * surface lit from above should have. Same rule, opposite arithmetic. */
-html.dark {
-  --clay-highlight: rgba(255, 255, 255, 0.06);
-  --clay-hairline-alpha: 0;
-  --clay-ambient-alpha: 0;
-  --clay-shadow-alpha: 0;
-  --clay-shadow-alpha-pressed: 0;
-  --clay-card-shadow-alpha: 0;
-  --clay-rim: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
-  /* The ramps invert, so the direction does too — see --clay-grad-dir. */
-  --clay-grad-dir: to bottom;
+/* Dark — the handoff's "1d" material, verbatim. `.m-hero` shares this block:
+ * the hero is dark in both themes, so everything inside it (header buttons,
+ * seg tabs, numerals, glyphs, accent text) always gets the dark material. */
+html.dark,
+.m-hero,
+.bg-navy-bloom {
+  --m-hi: rgba(255, 255, 255, 0.08);
+  --m-hi-strong: rgba(255, 255, 255, 0.12);
+  --m-lo: rgba(0, 0, 0, 0.55);
+  --m-shadow: #000;
+  --m-edge: 0 0 #0000;
+  --m-sheet-hi: rgba(255, 255, 255, 0.07);
 
-  --clay-gold-top:  #372F15;
-  --clay-sky-top:   #1C2A4B;
+  --m-card-top: #141628;
+  --m-card-bottom: #0D0F1E;
+  --m-ctl-top: #1B1E33;
+  --m-ctl-bottom: #12142A;
+  --m-ctl-wall: #0A0B16;
+  --m-key-top: #1D2036;
+  --m-key-bottom: #13152A;
+  --m-key-wall-1: #0C0D18;
+  --m-inset-top: #1D2036;
+  --m-inset-bottom: #13152A;
+  --m-inset-hi: rgba(255, 255, 255, 0.10);
+  --m-inset-shade: rgba(0, 0, 0, 0.45);
 
-  --clay-blush-top:    #361621;
-  --clay-blush-bottom: #281018;
-  --clay-blush-strong: #E56C94;
+  --m-skel: rgba(255, 255, 255, 0.08);
+  --m-track: rgba(255, 255, 255, 0.08);
+  --m-track-shade: rgba(0, 0, 0, 0.5);
+  --m-seg-on: rgba(255, 255, 255, 0.92);
+  --m-seg-on-ink: #0E102B;
+  --m-pill-on-top: #FFFFFF;
+  --m-pill-on-bottom: #DDD9CC;
+  --m-pill-on-wall: #A9A496;
+  --m-pill-on-ink: #0E102B;
+  --m-focus-glow: rgba(142, 114, 255, 0.28);
+  --m-brand-glow: rgba(124, 92, 255, 0.5);
+  --m-scrim: rgba(4, 5, 12, 0.62);
+
+  --m-switch-off-top: #15172A;
+  --m-switch-off-bottom: #1E2138;
+  --m-switch-off-shade: rgba(0, 0, 0, 0.6);
+  --m-knob-off-top: #5A5E7A;
+  --m-knob-off-bottom: #3A3D55;
+
+  --m-num-ink: #FFFFFF;
+
+  --m-neutral-top: #171A2E;  --m-neutral-bottom: #0F1122; --m-neutral-wall-1: #090A14; --m-neutral-strong: #E6E6EF;
+  --m-gold-top:    #332813;  --m-gold-bottom:    #201808; --m-gold-wall-1:    #1A1306; --m-gold-strong:    #E8C063;
+  --m-mint-top:    #1A2A24;  --m-mint-bottom:    #101C18; --m-mint-wall-1:    #0B1511; --m-mint-strong:    #3FD7A6;
+  --m-coral-top:   #33201A;  --m-coral-bottom:   #1F110C; --m-coral-wall-1:   #170C08; --m-coral-strong:   #F2967C;
+  --m-violet-top:  #211C3C;  --m-violet-bottom:  #151228; --m-violet-wall-1:  #0C0A18; --m-violet-strong:  #B7A4FF;
+  --m-blue-top:    #131C33;  --m-blue-bottom:    #0D1424; --m-blue-wall-1:    #0A1020; --m-blue-strong:    #9BB6FA;
+  --m-pink-top:    #2C1725;  --m-pink-bottom:    #20101A; --m-pink-wall-1:    #12080E; --m-pink-strong:    #F09AB6;
+
+  --m-top: var(--m-neutral-top);
+  --m-bottom: var(--m-neutral-bottom);
+  --m-wall-1: var(--m-neutral-wall-1);
+  --m-strong: var(--m-neutral-strong);
 }
 
-/* ---- Tint scopes ---------------------------------------------------------
- * A tint class only remaps the four local properties. It paints nothing, so
- * it composes onto .clay-tile, .clay-card, .clay-depth, or a bare wrapper
- * that wants its children to inherit a tint. */
-.clay-gold    { --clay-top: var(--clay-gold-top);    --clay-bottom: var(--clay-gold-bottom);    --clay-key: var(--clay-gold-key);    --clay-strong: var(--clay-gold-strong); }
-.clay-sky     { --clay-top: var(--clay-sky-top);     --clay-bottom: var(--clay-sky-bottom);     --clay-key: var(--clay-sky-key);     --clay-strong: var(--clay-sky-strong); }
-.clay-blush   { --clay-top: var(--clay-blush-top);   --clay-bottom: var(--clay-blush-bottom);   --clay-key: var(--clay-blush-key);   --clay-strong: var(--clay-blush-strong); }
-.clay-mint    { --clay-top: var(--clay-mint-top);    --clay-bottom: var(--clay-mint-bottom);    --clay-key: var(--clay-mint-key);    --clay-strong: var(--clay-mint-strong); }
-.clay-coral   { --clay-top: var(--clay-coral-top);   --clay-bottom: var(--clay-coral-bottom);   --clay-key: var(--clay-coral-key);   --clay-strong: var(--clay-coral-strong); }
-.clay-accent  { --clay-top: var(--clay-accent-top);  --clay-bottom: var(--clay-accent-bottom);  --clay-key: var(--clay-accent-key);  --clay-strong: var(--clay-accent-strong); }
-.clay-neutral { --clay-top: var(--clay-neutral-top); --clay-bottom: var(--clay-neutral-bottom); --clay-key: var(--clay-neutral-key); --clay-strong: var(--clay-neutral-strong); }
-
-/* ---- Tier 1: pressable tile ---------------------------------------------
- * Shadow list, front to back:
- *   1. selection ring   (inset, transparent unless .clay-tile-selected)
- *   2. hairline         (inset 1px, the tint's own hue at 14% — light only)
- *   3. rim light        (inset 1px white at 7% — dark only)
- *   4. top highlight    (inset 1px white at 45%)
- *   5. contact shadow   (1px of navy grounding)
- *   6. ambient shadow   (0 8px 24px -12px, tinted, THE elevation cue)
- *
- * There is no outset ring, no border and no lip anywhere in that list: the
- * only hard 1px anything is INSIDE the radius, where it reads as the edge of
- * a material rather than as a drawn outline. That is the whole difference
- * between this and v1. */
-.clay-tile {
-  background-image: linear-gradient(var(--clay-grad-dir), var(--clay-top), var(--clay-bottom));
-  box-shadow:
-    var(--clay-ring),
-    inset 0 0 0 1px rgb(var(--clay-key) / var(--clay-hairline-alpha)),
-    var(--clay-rim),
-    inset 0 1px 0 0 var(--clay-highlight),
-    0 1px 2px -1px rgb(var(--clay-ambient-rgb) / var(--clay-ambient-alpha)),
-    0 8px 24px -12px rgb(var(--clay-key) / var(--clay-shadow-alpha));
-  /* transform ONLY — see the motion contract in this section's header. */
-  transition: transform var(--clay-press-duration) var(--clay-press-ease);
+/* ── Tint scopes ─────────────────────────────────────────────────────── */
+.m-neutral { --m-top: var(--m-neutral-top); --m-bottom: var(--m-neutral-bottom); --m-wall-1: var(--m-neutral-wall-1); --m-strong: var(--m-neutral-strong); }
+.m-gold,
+.m-mint,
+.m-coral,
+.m-violet,
+.m-blue,
+.m-pink {
+  --m-card-top: var(--m-top);
+  --m-card-bottom: var(--m-bottom);
+  /* Tinted cards carry no wall — only pressables get an edge, and a single
+   * thin one (founder feedback 2026-09-19: stacked walls read heavy). */
+  --m-tint-walls: 0 0 #0000;
 }
+.m-gold   { --m-top: var(--m-gold-top);   --m-bottom: var(--m-gold-bottom);   --m-wall-1: var(--m-gold-wall-1);   --m-strong: var(--m-gold-strong); }
+.m-mint   { --m-top: var(--m-mint-top);   --m-bottom: var(--m-mint-bottom);   --m-wall-1: var(--m-mint-wall-1);   --m-strong: var(--m-mint-strong); }
+.m-coral  { --m-top: var(--m-coral-top);  --m-bottom: var(--m-coral-bottom);  --m-wall-1: var(--m-coral-wall-1);  --m-strong: var(--m-coral-strong); }
+.m-violet { --m-top: var(--m-violet-top); --m-bottom: var(--m-violet-bottom); --m-wall-1: var(--m-violet-wall-1); --m-strong: var(--m-violet-strong); }
+.m-blue   { --m-top: var(--m-blue-top);   --m-bottom: var(--m-blue-bottom);   --m-wall-1: var(--m-blue-wall-1);   --m-strong: var(--m-blue-strong); }
+.m-pink   { --m-top: var(--m-pink-top);   --m-bottom: var(--m-pink-bottom);   --m-wall-1: var(--m-pink-wall-1);   --m-strong: var(--m-pink-strong); }
 
-/* ---- Selected state ------------------------------------------------------
- * ONE selection treatment for the whole app. Four call sites had hand-rolled
- * their own rings before this existed; they drift the moment anyone touches
- * one of them.
- *
- * An INSET ring, not an outline: an outline would collide visually with the
- * `:focus-visible` ring (also accent-500, also 2px) and leave a keyboard user
- * unable to tell "focused" from "selected". Inset vs outset keeps them
- * legible together — and selection is state, focus is position.
- *
- * Semantics come from the component: aria-pressed on a <button>,
- * aria-current="page" on a <Link>. The ring alone is not an accessible
- * selected state. */
-.clay-tile-selected {
-  --clay-ring: inset 0 0 0 2px var(--color-accent-500);
-}
+/* Card faces pick up the lit-top gradient everywhere they are used as a plain
+ * token utility too. Reads --m-surface-*, which tint scopes never touch, so a
+ * plain card nested inside a tinted one stays a plain card. */
+:root { --m-surface-top: #FFFFFF; --m-surface-bottom: #FAF7F1; }
+html.dark, .m-hero, .bg-navy-bloom { --m-surface-top: #141628; --m-surface-bottom: #0D0F1E; }
+.bg-cream-card { background-image: linear-gradient(var(--m-surface-top), var(--m-surface-bottom)); }
 
-/* The press. This is the only motion in the system: no hover lift, no
- * entrance animation, no glow.
- *
- * A 1.5% scale-DOWN plus the ambient shadow pulling in (0.25 → 0.14) reads
- * as the surface settling toward the page — the same physical story the lip
- * told, without drawing an edge to tell it with. Deliberately NOT a
- * translate: a tile that moves down leaves a visible gap at its old top
- * edge, which is what made v1 look like a button decal. */
-.clay-tile:not(:disabled):not([aria-disabled='true']):active {
-  --clay-shadow-alpha: var(--clay-shadow-alpha-pressed);
-  transform: scale(var(--clay-press-scale));
-}
-
-.clay-tile:focus-visible {
-  outline: 2px solid var(--color-accent-500);
-  outline-offset: 2px;
-}
-
-.clay-tile:disabled,
-.clay-tile[aria-disabled='true'] {
-  --clay-shadow-alpha: 0;
-  opacity: 0.5;
-}
-
-/* ---- Tier 2: informational card -----------------------------------------
- * No press, no focus ring — it is not interactive and must not pretend to
- * be. Same recipe as the tile with a LARGER, softer ambient (0 12px 32px
- * -16px at 20% vs the tile's 0 8px 24px -12px at 25%): a card floats wider
- * and flatter, a tile sits tighter and reads as liftable. That plus the
- * radius gap is what separates the tiers at a glance now that neither has an
- * edge treatment of its own. */
-.clay-card {
-  background-image: linear-gradient(var(--clay-grad-dir), var(--clay-top), var(--clay-bottom));
-  box-shadow:
-    inset 0 0 0 1px rgb(var(--clay-key) / var(--clay-hairline-alpha)),
-    var(--clay-rim),
-    inset 0 1px 0 0 var(--clay-highlight),
-    0 1px 2px -1px rgb(var(--clay-ambient-rgb) / var(--clay-ambient-alpha)),
-    0 12px 32px -16px rgb(var(--clay-key) / var(--clay-card-shadow-alpha));
-}
-
-/* ---- Depth modifier (Button `depth`) ------------------------------------
- * Adds the tile's elevation + press to an element that already paints its
- * own fill — Button's solid variants. Non-layered so it beats the
- * `shadow-sm` / `active:shadow-none` utilities inside
- * BUTTON_VARIANT_CLASSES.
- *
- * It paints NO hairline and NO highlight: a saturated fill supplies its own
- * edge, and an inset white line across the top of an accent-600 button is
- * the "glossy web 2.0 button" tell. Shadow and press only. */
-.clay-depth {
-  box-shadow: 0 6px 18px -8px rgb(var(--clay-depth-rgb, var(--clay-ambient-rgb)) / var(--clay-shadow-alpha));
-  transition: transform var(--clay-press-duration) var(--clay-press-ease);
-}
-.clay-depth:not(:disabled):active {
-  --clay-shadow-alpha: var(--clay-shadow-alpha-pressed);
-  transform: scale(var(--clay-press-scale));
-}
-.clay-depth:disabled { --clay-shadow-alpha: 0; }
-
-/* These four kept their v1 class names on purpose — they are what Button
- * emits and what page files compose by hand, so swapping the recipe under
- * them needed no call-site change. Only what they SET changed: a lip colour
- * became a shadow hue. */
-.clay-depth-primary   { --clay-depth-rgb: var(--clay-depth-accent-rgb); }
-.clay-depth-secondary { --clay-depth-rgb: var(--clay-depth-neutral-rgb); }
-.clay-depth-danger    { --clay-depth-rgb: var(--clay-depth-pay-rgb); }
-.clay-depth-warning   { --clay-depth-rgb: var(--clay-depth-warn-rgb); }
-/* For the raw `bg-ink-900 text-white` CTA idiom (design-system §9). Not
- * reachable through <Button>'s `depth` prop, because Button has no ink
- * variant — compose it by hand:
- *   <button class="bg-ink-900 text-white … clay-depth clay-depth-ink">
- * Adding an `ink` variant to BUTTON_VARIANT_CLASSES was considered and left
- * alone: §9 lists that idiom as an indigo-era leak awaiting its own sweep,
- * and blessing it as a first-class variant would entrench it. */
-.clay-depth-ink       { --clay-depth-rgb: var(--clay-depth-ink-rgb); }
-
-/* ---- The floating 3D icon ------------------------------------------------
- * A tint-coloured drop-shadow, so the rendered icon casts onto the tile in
- * the tile's own material colour. Softened from v1's 0 6px 8px / 0.35: with
- * the icon now the single bold element on the home grid, a heavy coloured
- * halo under it is what tips "3D icon" into "sticker". LIGHT ONLY: on a dark
- * ground the shadow is invisible and only costs a filter pass on a WebView
- * that cannot spare one. `filter` is used rather than box-shadow because the
- * assets are transparent PNG/WebP with non-rectangular silhouettes. */
-.clay-icon {
-  filter: drop-shadow(0 5px 10px rgb(var(--clay-key) / 0.2));
-}
-html.dark .clay-icon { filter: none; }
-
-/* ---- Reduced motion ------------------------------------------------------
- * The transform goes, the instant shadow pull-in stays. A press that
- * produces no feedback at all is worse than a subtle one — same reasoning as
- * the .press ladder above, which keeps its scale under reduced motion for
- * exactly this reason. Unchanged in kind from v1: only the thing that
- * carries the residual feedback moved (lip → shadow). */
-@media (prefers-reduced-motion: reduce) {
-  .clay-tile,
-  .clay-depth { transition: none; }
-  .clay-tile:not(:disabled):not([aria-disabled='true']):active,
-  .clay-depth:not(:disabled):active { transform: none; }
-}
-
-/* ---- Geometry + type: layered, so utilities can still win ---------------- */
 @layer components {
-  .clay-tile {
+  /* ── Hero band + sheet (the page shell) ─────────────────────────────── */
+  .m-hero,
+  .bg-navy-bloom {
+    --hero-rgb: 124 92 255;
+    background-color: var(--color-navy-900);
+    background-image:
+      radial-gradient(120% 70% at 85% 0%, rgb(var(--hero-rgb) / 0.2) 0%, rgb(var(--hero-rgb) / 0) 60%),
+      linear-gradient(var(--color-navy-800), var(--color-navy-900));
+    color: #FFFFFF;
+  }
+  .m-hero-gold   { --hero-rgb: 232 192 99; }  /* kameti */
+  .m-hero-violet { --hero-rgb: 142 114 255; }
+  .m-hero-blue   { --hero-rgb: 107 146 245; }
+  .m-hero-pink   { --hero-rgb: 229 108 148; }
+  .m-hero-green  { --hero-rgb: 63 215 166; }
+  .m-hero-ai {
+    background-image:
+      radial-gradient(130% 80% at 80% -10%, rgba(124, 92, 255, 0.38) 0%, rgba(124, 92, 255, 0) 60%),
+      linear-gradient(#11142F, #0A0C1C);
+  }
+
+  .m-sheet,
+  .sukoon-body {
+    position: relative;
+    z-index: 1;
+    margin-top: -16px;
+    background: var(--color-cream-bg);
+    border-top-left-radius: 24px;
+    border-top-right-radius: 24px;
+    /* No highlight line on the seam — the sheet meets the hero smoothly. */
+  }
+
+  /* ── Surfaces ─────────────────────────────────────────────────────── */
+  .m-card {
+    position: relative;
+    border-radius: 18px;
+    background-color: var(--m-card-bottom);
+    background-image: linear-gradient(var(--m-card-top), var(--m-card-bottom));
+    box-shadow:
+      var(--m-ring, 0 0 #0000),
+      inset 0 1px 0 var(--m-hi),
+      var(--m-edge),
+      var(--m-tint-walls),
+      0 16px 28px -18px var(--m-shadow);
+    color: var(--color-ink-900);
+  }
+  .m-card-feature { border-radius: 22px; }
+  /* Attention rings that keep the card's own lit edge + shadow (a ring-*
+   * utility would overwrite the whole box-shadow). */
+  .m-ring-violet { --m-ring: inset 0 0 0 2px rgb(142 114 255 / 0.55); }
+  .m-ring-gold   { --m-ring: inset 0 0 0 2px rgb(232 192 99 / 0.6); }
+  .m-ring-green  { --m-ring: inset 0 0 0 2px rgb(63 215 166 / 0.55); }
+
+  .m-tile {
     position: relative;
     display: block;
     width: 100%;
-    min-height: 44px;                 /* minimum tap target */
-    padding: 14px;
-    border-radius: var(--clay-radius-tile);
-    text-align: start;                /* logical — RTL safe */
-    color: var(--color-ink-900);
-  }
-
-  /* ---- Tile layout A: CORNER (the default) --------------------------------
-   * Icon hangs off the top inline-end corner, title/subtitle beside it,
-   * left-aligned. Reserves the inline-end gutter the icon occupies.
-   *
-   * `.clay-tile-has-icon` is the md pairing and its VALUES ARE FROZEN — it is
-   * what every pre-`iconSize` call site already renders. The sm pairing is a
-   * separate class rather than a tweak to this one. */
-  .clay-tile-has-icon {
-    min-height: 76px;
-    padding-inline-end: 64px;
-  }
-  /* sm icon (36px) + 12px inset + 4px breathing room. */
-  .clay-tile-has-icon-sm {
-    min-height: 64px;
-    padding-inline-end: 52px;
-  }
-  /* lg icon (64px) + 12px inset + 4px. Corner + lg is a wide hero tile, not
-   * a grid cell — a 4-up grid uses `top` placement instead. */
-  .clay-tile-has-icon-lg {
-    min-height: 92px;
-    padding-inline-end: 80px;
-  }
-
-  /* ---- Tile layout B: TOP (stacked) ---------------------------------------
-   * Icon centred over the tile's top edge, title + subtitle centred beneath
-   * it. This is the shape that survives a 4-up grid on a 360px phone: at
-   * 20px page gutters and 8px column gaps a tile is ~74px wide, which a
-   * corner layout (64px reserved for the icon alone) cannot fit.
-   *
-   * padding-block-start is NOT decoration — it reserves the VISIBLE part of
-   * the icon (its height minus the 40% that hangs above the edge) plus an 8px
-   * gap, so the title can never collide with the art. The numbers are
-   * derived, not guessed: clayIconStackOffset()/clayTileStackPadding() in
-   * src/lib/clay.ts compute them and clay.test.ts pins them to these rules.
-   *
-   * padding-inline drops to 6px so an 11px title has ~62px to sit in. */
-  .clay-tile-stack {
-    text-align: center;
-    padding-inline: 6px;
-    padding-block-end: 10px;
-  }
-  .clay-tile-stack-sm { padding-block-start: 30px; }  /* 36 - 14 float + 8 gap */
-  .clay-tile-stack-md { padding-block-start: 37px; }  /* 48 - 19 float + 8 gap */
-  .clay-tile-stack-lg { padding-block-start: 46px; }  /* 64 - 26 float + 8 gap */
-
-  /* Type for the stacked shape. Founder feedback 2026-09-03 asked for the
-   * icon to carry the tile and the words to stop competing with it, so the
-   * title drops 12px semibold ink-900 → 11px MEDIUM ink-700. It is a caption
-   * under a picture now, not a heading. 10px is the documented legibility
-   * floor (§6) — do not go below it to win another character. */
-  .clay-tile-stack .clay-tile-title {
-    font-size: 11px;
-    font-weight: 500;
-    line-height: 1.3;
-    color: var(--color-ink-700);
-  }
-  .clay-tile-stack .clay-tile-sub { font-size: 10px; }
-
-  /* Label hidden (`label="hidden"`): the title still ships as an sr-only
-   * span, so the tile keeps a real accessible name — it is only the pixels
-   * that go. With nothing under the art, the bottom padding balances the
-   * icon's visible height instead of a line of text, and min-height keeps
-   * the tap target legal without a label to hold it open. */
-  .clay-tile-stack-bare {
-    padding-block-end: 14px;
     min-height: 44px;
-  }
-
-  .clay-card {
-    position: relative;
-    border-radius: var(--clay-radius-card);
+    border-radius: 15px;
+    text-align: start;
+    background-color: var(--m-bottom);
+    background-image: linear-gradient(var(--m-top), var(--m-bottom));
+    box-shadow:
+      var(--m-ring, 0 0 #0000),
+      inset 0 1px 0 var(--m-hi),
+      var(--m-edge),
+      0 2px 0 var(--m-wall-1),
+      0 10px 18px -12px var(--m-shadow);
     color: var(--color-ink-900);
+    transition: transform 120ms var(--m-ease), box-shadow 120ms var(--m-ease);
   }
-  /* `none` is for a list container that supplies its own row padding — the
-   * card contributes the surface and the radius only. */
-  .clay-card-none { padding: 0; }
-  .clay-card-sm { padding: 14px; }
-  .clay-card-md { padding: 20px; }
-  .clay-card-lg { padding: 24px; }
-
-  /* Icon anchored to the surface's inline-END corner and pulled up out of the
-   * box by .clay-icon-float's negative block margin, so it overlaps the top
-   * edge. inset-inline-end (not right) is what makes this mirror correctly
-   * if the app ever renders RTL.
-   *
-   * TIER-NEUTRAL, deliberately. A floating icon on a tier-2 card IS
-   * sanctioned: what separates the tiers is the LIP, the press, the focus
-   * ring and the radius — the affordances — not the art. A card with a
-   * floating icon still cannot be pressed and still reads as informational,
-   * so the tier boundary holds. `.clay-card-icon` is a true alias, not a
-   * variant, so the two never drift. */
-  .clay-tile-icon,
-  .clay-card-icon {
-    position: absolute;
-    inset-inline-end: 12px;
-    inset-block-start: 0;
+  .m-tile:is(button, a, [role='button']):not(:disabled):not([aria-disabled='true']):active {
+    transform: translateY(2px);
+    box-shadow:
+      var(--m-ring, 0 0 #0000),
+      inset 0 1px 0 var(--m-hi),
+      var(--m-edge),
+      0 0 0 var(--m-wall-1),
+      0 6px 12px -10px var(--m-shadow);
+  }
+  .m-tile:disabled,
+  .m-tile[aria-disabled='true'] { opacity: 0.5; }
+  .m-tile-selected { --m-ring: inset 0 0 0 2px var(--color-accent-500); }
+  /* Top-placement tiles (the Home grid, category pickers) fit their label
+   * to the tile instead of abbreviating it. "Subscriptions" is ~6.6x its font
+   * size wide (Geist 500, measured): 69px at 10.5px, more than the 64px label
+   * box of a 4-up tile on a 360dp phone, and far more on a phone set to a
+   * larger display size. The tile is a size container, so the label shrinks
+   * only when its own tile is too narrow; every tile in a grid is the same
+   * width, so the grid's labels stay one size. Past the 8.5px floor the word
+   * breaks rather than spilling out of the tile. */
+  .m-tile-top { container-type: inline-size; }
+  .m-tile-label {
+    font-size: 10.5px; /* engines without container units keep the plain size */
+    font-size: clamp(8.5px, 14.8cqw, 10.5px);
+    overflow-wrap: anywhere;
   }
 
-  /* Gutter for a card carrying a corner icon. Not applied when
-   * padding="none" — the whole point of `none` is that the caller owns the
-   * spacing, so silently adding 64px back would defeat it. */
-  .clay-card-has-icon { padding-inline-end: 64px; }
+  /* Pressable key — keypad digits, big secondary actions. One thin wall. */
+  .m-key {
+    border-radius: 14px;
+    background-color: var(--m-key-bottom);
+    background-image: linear-gradient(var(--m-key-top), var(--m-key-bottom));
+    box-shadow:
+      inset 0 1px 0 var(--m-hi-strong),
+      inset 0 -1px 0 var(--m-lo),
+      var(--m-edge),
+      0 2px 0 var(--m-key-wall-1),
+      0 10px 16px -12px var(--m-shadow);
+    color: var(--color-ink-900);
+    transition: transform 120ms var(--m-ease), box-shadow 120ms var(--m-ease);
+  }
+  .m-key:not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow:
+      inset 0 1px 0 var(--m-hi-strong),
+      inset 0 -1px 0 var(--m-lo),
+      var(--m-edge),
+      0 0 0 var(--m-key-wall-1),
+      0 6px 12px -10px var(--m-shadow);
+  }
+  /* Tinted keys: `m-key m-coral` (keypad delete), `m-key m-mint`, … */
+  .m-key:is(.m-gold, .m-mint, .m-coral, .m-violet, .m-blue, .m-pink) {
+    --m-key-top: var(--m-top);
+    --m-key-bottom: var(--m-bottom);
+    --m-key-wall-1: var(--m-wall-1);
+    color: var(--m-strong);
+  }
 
-  .clay-tile-title {
+  /* Raised control — 36px header buttons, row icon squares, small actions. */
+  .m-ctl {
+    border-radius: 12px;
+    background-color: var(--m-ctl-bottom);
+    background-image: linear-gradient(var(--m-ctl-top), var(--m-ctl-bottom));
+    box-shadow: inset 0 1px 0 var(--m-hi-strong), var(--m-edge), 0 2px 0 var(--m-ctl-wall);
+    color: var(--color-ink-900);
+    transition: transform 120ms var(--m-ease), box-shadow 120ms var(--m-ease);
+  }
+  .m-ctl:disabled { opacity: 0.4; cursor: not-allowed; }
+  .m-ctl:is(button, a):not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow: inset 0 1px 0 var(--m-hi-strong), var(--m-edge), 0 0 0 var(--m-ctl-wall);
+  }
+
+  /* Tinted controls: `m-ctl m-coral` (remove), `m-ctl m-mint`, … — the tint's
+   * face and first wall, one-step like every control. */
+  .m-ctl:is(.m-gold, .m-mint, .m-coral, .m-violet, .m-blue, .m-pink) {
+    --m-ctl-top: var(--m-top);
+    --m-ctl-bottom: var(--m-bottom);
+    --m-ctl-wall: var(--m-wall-1);
+    color: var(--m-strong);
+  }
+
+  /* Sunken surface — inputs, recessed wells, the donut centre. */
+  .m-inset {
+    border-radius: 14px;
+    background-color: var(--m-inset-bottom);
+    background-image: linear-gradient(var(--m-inset-top), var(--m-inset-bottom));
+    box-shadow: inset 0 1px 0 var(--m-inset-hi), inset 0 2px 5px var(--m-inset-shade);
+  }
+
+  /* Labelled field card — caption above, bare input inside. */
+  .m-field {
     display: block;
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
+    border-radius: 16px;
+    padding: 12px 15px;
+    background-color: var(--m-card-bottom);
+    background-image: linear-gradient(var(--m-card-top), var(--m-card-bottom));
+    box-shadow: inset 0 1px 0 var(--m-hi), var(--m-edge), inset 0 0 0 1px var(--m-field-edge, transparent);
   }
-  .clay-tile-sub {
-    display: block;
-    margin-block-start: 2px;
-    font-size: 12px;
-    line-height: 1.35;
-    color: var(--color-ink-600);
-  }
-  /* Neutral cream pill rather than a --clay-strong fill: white-on-600 fails
-   * AA for mint (2.9:1) and would have to differ per tint. ink-900 on
-   * cream-card is 18.6:1 light / 15.1:1 dark, in every tint. */
-  .clay-tile-badge {
+  .m-field:focus-within { --m-field-edge: var(--color-accent-500); }
+
+  /* ── Buttons ──────────────────────────────────────────────────────── */
+  .m-btn {
     display: inline-flex;
     align-items: center;
-    margin-block-start: 8px;
-    padding: 2px 8px;
-    border-radius: 9999px;
-    background: var(--color-cream-card);
-    color: var(--color-ink-900);
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 12px 20px;
+    border-radius: 16px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    transition: transform 120ms var(--m-ease), box-shadow 120ms var(--m-ease), opacity 120ms;
+  }
+  .m-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* Primary = the brand violet (also Button primary/gradient/hero). One
+   * thin wall + a violet glow; the label is white (4.9:1 at the face's
+   * middle — designTokens PRIMARY_BUTTON). */
+  .m-btn-primary,
+  .m-btn-violet,
+  .btn-gradient,
+  .cta-primary {
+    background-color: #6D57F0;
+    background-image: linear-gradient(#9A80FF, #6D57F0 55%, #4A36D6);
+    color: #FFFFFF;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+      0 2px 0 #2E2290,
+      0 14px 24px -12px var(--m-brand-glow);
+  }
+  :is(.m-btn-primary, .m-btn-violet, .btn-gradient, .cta-primary):not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+      0 0 0 #2E2290,
+      0 8px 16px -12px var(--m-brand-glow);
+  }
+
+  /* Green (accept / settle) and coral (reject / destructive) solids. */
+  .m-btn-green {
+    background-color: #0F9D7B;
+    background-image: linear-gradient(#6BE0B4, #0F9D7B);
+    color: #04241B;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 2px 0 #0A6650, 0 12px 20px -14px rgba(15, 157, 123, 0.5);
+  }
+  .m-btn-green:not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 0 #0A6650, 0 6px 12px -10px rgba(15, 157, 123, 0.5);
+  }
+  .m-btn-coral {
+    background-color: #D9614A;
+    background-image: linear-gradient(#F9B69F, #D9614A);
+    color: #2A0D06;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 2px 0 #7C2D1C, 0 12px 20px -14px rgba(217, 97, 74, 0.45);
+  }
+  .m-btn-coral:not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 0 #7C2D1C, 0 6px 12px -10px rgba(217, 97, 74, 0.45);
+  }
+
+  /* WhatsApp share / remind — the WhatsApp green (--color-whatsapp) as a
+   * solid in the same material: lit edge, one thin wall, green glow. The
+   * face's middle stop sits at 45%, so the white label (centred at 50%)
+   * always reads on #15873F or deeper (4.6:1+, designTokens WHATSAPP_BUTTON). */
+  .m-btn-whatsapp {
+    background-color: #15873F;
+    background-image: linear-gradient(#22A755, #15873F 45%, #0E6B30);
+    color: #FFFFFF;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+      0 2px 0 #0B5A28,
+      0 12px 20px -14px rgba(21, 135, 63, 0.5);
+  }
+  .m-btn-whatsapp:not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+      0 0 0 #0B5A28,
+      0 6px 12px -10px rgba(21, 135, 63, 0.5);
+  }
+
+  /* Centre FAB — the + button keeps its existing brand colour (violet
+   * deepening into navy, founder decision 2026-09-19), in the 1d material:
+   * lit edge, one thin wall, violet glow. */
+  .m-fab {
+    background-color: #5B47E8;
+    background-image: linear-gradient(160deg, #7C5CFF 0%, #5B47E8 35%, #11142F 100%);
+    color: #FFFFFF;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 2px 0 #0B0E2A,
+      0 12px 24px -6px var(--m-brand-glow);
+    transition: transform 120ms var(--m-ease), box-shadow 120ms var(--m-ease);
+  }
+  .m-fab:active {
+    transform: translateY(2px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 0 0 #0B0E2A,
+      0 6px 14px -6px var(--m-brand-glow);
+  }
+
+  /* Neutral secondary — key material at button scale. */
+  .m-btn-plain,
+  .cta-secondary {
+    background-color: var(--m-key-bottom);
+    background-image: linear-gradient(var(--m-key-top), var(--m-key-bottom));
+    color: var(--color-ink-800);
+    box-shadow:
+      inset 0 1px 0 var(--m-hi-strong),
+      var(--m-edge),
+      0 2px 0 var(--m-key-wall-1),
+      0 10px 16px -14px var(--m-shadow);
+  }
+  :is(.m-btn-plain, .cta-secondary):not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow: inset 0 1px 0 var(--m-hi-strong), var(--m-edge), 0 0 0 var(--m-key-wall-1), 0 6px 12px -14px var(--m-shadow);
+  }
+  /* Destructive secondary — coral-tinted key, coral text. */
+  .m-btn-danger,
+  .cta-destructive {
+    background-color: var(--m-coral-bottom);
+    background-image: linear-gradient(var(--m-coral-top), var(--m-coral-bottom));
+    color: var(--color-pay-text);
+    box-shadow:
+      inset 0 1px 0 var(--m-hi-strong),
+      var(--m-edge),
+      0 2px 0 var(--m-coral-wall-1),
+      0 10px 16px -14px var(--m-shadow);
+  }
+  :is(.m-btn-danger, .cta-destructive):not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow: inset 0 1px 0 var(--m-hi-strong), var(--m-edge), 0 0 0 var(--m-coral-wall-1);
+  }
+
+  /* ── Numerals ──────────────────────────────────────────────────────── */
+  .m-num {
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Figures are set crisp: solid ink, no offset shadows (founder feedback
+   * 2026-09-19 — the layered extrusion read as blurred, "like a cheap logo").
+   * The variants are kept as names so call sites don't churn. */
+  .m-num-gold,
+  .m-num-violet,
+  .m-num-blue { color: var(--m-num-ink); }
+
+  /* ── Pills, segmented tabs, chips ────────────────────────────────── */
+  .m-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 7px 14px;
+    border-radius: 99px;
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    background-color: var(--m-ctl-bottom);
+    background-image: linear-gradient(var(--m-ctl-top), var(--m-ctl-bottom));
+    color: var(--color-ink-600);
+    box-shadow: inset 0 1px 0 var(--m-hi-strong), var(--m-edge), 0 2px 0 var(--m-ctl-wall);
+    transition: transform 120ms var(--m-ease), box-shadow 120ms var(--m-ease);
+  }
+  .m-pill:not(:disabled):active { transform: translateY(1px); }
+  .m-pill:is(.is-active, [aria-pressed='true'], [aria-selected='true'], [aria-current='page']) {
+    background-color: var(--m-pill-on-bottom);
+    background-image: linear-gradient(var(--m-pill-on-top), var(--m-pill-on-bottom));
+    color: var(--m-pill-on-ink);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 0 var(--m-pill-on-wall);
+  }
+  /* Toned pills (Loans tabs): tinted face at rest, solid tone when active. */
+  .m-pill-receive { background-image: linear-gradient(var(--m-mint-top), var(--m-mint-bottom)); color: var(--m-mint-strong); box-shadow: inset 0 1px 0 var(--m-hi-strong), var(--m-edge), 0 2px 0 var(--m-mint-wall-1); }
+  .m-pill-pay     { background-image: linear-gradient(var(--m-coral-top), var(--m-coral-bottom)); color: var(--m-coral-strong); box-shadow: inset 0 1px 0 var(--m-hi-strong), var(--m-edge), 0 2px 0 var(--m-coral-wall-1); }
+  .m-pill-receive:is(.is-active, [aria-pressed='true'], [aria-selected='true']) {
+    background-image: linear-gradient(#6BE0B4, #0F9D7B);
+    color: #04241B;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 2px 0 #0A6650;
+  }
+  .m-pill-pay:is(.is-active, [aria-pressed='true'], [aria-selected='true']) {
+    background-image: linear-gradient(#F9B69F, #D9614A);
+    color: #2A0D06;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 2px 0 #7C2D1C;
+  }
+  .m-pill-violet  { background-image: linear-gradient(var(--m-violet-top), var(--m-violet-bottom)); color: var(--m-violet-strong); box-shadow: inset 0 1px 0 var(--m-hi-strong), var(--m-edge), 0 2px 0 var(--m-violet-wall-1); }
+  .m-pill-blue    { background-image: linear-gradient(var(--m-blue-top), var(--m-blue-bottom)); color: var(--m-blue-strong); box-shadow: inset 0 1px 0 var(--m-hi-strong), var(--m-edge), 0 2px 0 var(--m-blue-wall-1); }
+  .m-pill-violet:is(.is-active, [aria-pressed='true'], [aria-selected='true']) {
+    /* Stops chosen so the white label clears 4.5:1 at the pill's middle. */
+    background-image: linear-gradient(#8E72FF, #4A36D6);
+    color: #FFFFFF;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 0 #241C5E;
+  }
+  .m-pill-blue:is(.is-active, [aria-pressed='true'], [aria-selected='true']) {
+    background-image: linear-gradient(#5A82EE, #274BA8);
+    color: #FFFFFF;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 0 #1C3A85;
+  }
+  /* Gold active pill — kameti-only (cadence etc.); everywhere else the
+   * brand .m-pill-violet. */
+  .m-pill-gold:is(.is-active, [aria-pressed='true'], [aria-selected='true']) {
+    background-image: linear-gradient(#F5DA8F, #E8C063 55%, #B8901F);
+    color: var(--color-gold-ink);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 2px 0 #7A5C12;
+  }
+
+  /* Inline segmented control (Inbox tabs, EN/UR switch). */
+  .m-seg {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 99px;
+    background: var(--m-track);
+    box-shadow: inset 0 1px 2px var(--m-track-shade);
+  }
+  .m-seg > * {
+    min-height: 30px;
+    padding: 6px 11px;
+    border-radius: 99px;
     font-size: 11px;
     font-weight: 600;
-    box-shadow: 0 1px 2px rgb(var(--clay-ambient-rgb) / 0.08);
+    color: var(--color-ink-500);
+    transition: background-color 150ms, color 150ms;
+  }
+  :is(.m-hero, .bg-navy-bloom) .m-seg > * { color: rgba(255, 255, 255, 0.72); }
+  .m-seg > :is(.is-active, [aria-pressed='true'], [aria-selected='true']) {
+    background: var(--m-seg-on);
+    color: var(--m-seg-on-ink);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
   }
 
-  /* Corner badge — a count pinned to the tile's top inline-end, the old
-   * QuickTile shape. Layered on top of .clay-tile-badge, so it keeps the
-   * cream-card + ink-900 pairing and only changes placement.
-   *
-   * The 2px ring is painted in the tile's own surface colour AT ITS TOP
-   * EDGE, which is what lets the pill sit legibly on top of a floating icon
-   * instead of dissolving into it. Which rung that is depends on the theme
-   * (see --clay-grad-dir): the lighter -50 rung in light mode, the lighter
-   * -100 rung in dark. Hence the html.dark override below this block — the
-   * ring colour cannot be hoisted into a token for the same
-   * var()-resolves-at-:root reason the shadow layers cannot.
-   *
-   * It sits slightly OUTSIDE the tile's corner. Nothing in this system sets
-   * overflow:hidden, so it is not clipped by the tile — but the same rule
-   * that applies to a floating icon applies here: a grid needs `pt-5` (or
-   * `gap-y-6`) so an ancestor scroll container does not crop it. */
-  .clay-tile-badge-corner {
-    position: absolute;
-    inset-block-start: -6px;
-    inset-inline-end: -4px;
-    z-index: 1;
-    margin-block-start: 0;
+  .m-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 99px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+  .m-chip-caps { text-transform: uppercase; letter-spacing: 0.08em; }
+  .m-chip-receive { background: var(--color-receive-100); color: var(--color-receive-text); }
+  .m-chip-pay     { background: var(--color-pay-100);     color: var(--color-pay-text); }
+  .m-chip-gold    { background: var(--color-warn-50);     color: var(--color-warn-700); }  /* amber: attention / due / kameti */
+  .m-chip-violet  { background: var(--color-iris-100);    color: var(--color-iris-text); }
+  .m-chip-blue    { background: var(--color-cobalt-100);  color: var(--color-cobalt-text); }
+  .m-chip-pink    { background: var(--color-blush-100);   color: var(--color-blush-text); }
+  .m-chip-neutral { background: var(--m-track); color: var(--color-ink-600); box-shadow: inset 0 0 0 1px var(--m-track); }
+
+  /* Stat-card dot — the 26px gradient square that keys To Receive / To Pay.
+   * Carries a direction glyph so the meaning never rests on colour alone. */
+  .m-stat-dot {
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
-    min-width: 20px;
-    padding: 1px 6px;
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 9px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 2px 0 var(--m-wall-1);
+  }
+  .m-stat-dot-receive { background-image: linear-gradient(#6BE0B4, #0E8E6E); color: #04241B; }
+  .m-stat-dot-pay     { background-image: linear-gradient(#F9B69F, #B4452C); color: #2A0D06; }
+
+  /* Section micro-label: "YOUR MONEY", "PEOPLE OWE YOU". */
+  .m-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-ink-400);
+  }
+
+  /* ── Avatars ─────────────────────────────────────────────────────── */
+  .m-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background-image: linear-gradient(150deg, #3C4270, #212545);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    color: #FFFFFF;
+    font-weight: 600;
+  }
+  .m-avatar-self {
+    background-image: linear-gradient(150deg, #9A80FF, #4A36D6);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 6px 14px -6px rgba(124, 92, 255, 0.55);
+    color: #FFFFFF;
+  }
+
+  /* ── Switch (48×28) ─────────────────────────────────────────────────
+   * role="switch" + aria-checked drives it. The OFF track carries a 1px
+   * control-off ring so its boundary clears 3:1 (WCAG 1.4.11). */
+  .m-switch {
+    position: relative;
+    display: inline-block;
+    flex: none;
+    width: 48px;
+    height: 28px;
+    border-radius: 99px;
+    background-image: linear-gradient(var(--m-switch-off-top), var(--m-switch-off-bottom));
     box-shadow:
-      0 0 0 2px var(--clay-bottom),
-      0 1px 3px rgb(var(--clay-ambient-rgb) / 0.16);
+      inset 0 2px 4px var(--m-switch-off-shade),
+      inset 0 0 0 1px var(--color-control-off);
+    transition: box-shadow 160ms var(--m-ease);
   }
-
-  /* Icon sizes. The float offset is 35% of the icon's own height, rounded to
-   * a whole pixel — kept in lockstep with CLAY_ICON_SIZES in src/lib/clay.ts,
-   * which is what feeds the <img> width/height attributes. */
-  .clay-icon { display: block; }
-  .clay-icon-sm { width: 36px; height: 36px; }
-  .clay-icon-md { width: 48px; height: 48px; }
-  .clay-icon-lg { width: 64px; height: 64px; }
-  .clay-icon-sm.clay-icon-float { margin-block-start: -13px; }
-  .clay-icon-md.clay-icon-float { margin-block-start: -17px; }
-  .clay-icon-lg.clay-icon-float { margin-block-start: -22px; }
-
-  /* Stacked ("top") placement. Centred with inset-inline: 0 + margin-inline:
-   * auto rather than left:50% + translateX(-50%) — the inset pair is
-   * direction-agnostic, so it centres identically under RTL, whereas a
-   * translate anchored off one logical edge does not.
-   *
-   * A deeper overhang than the corner variant (40% vs 35%): with the title
-   * directly underneath rather than beside, the icon needs to clear the
-   * tile's top edge more decisively to read as floating. Icon3D is rendered
-   * WITHOUT `float` here — this class owns the offset, so the two negative
-   * margins can never both apply. */
-  .clay-tile-icon-top {
+  .m-switch::after {
+    content: '';
     position: absolute;
-    inset-block-start: 0;
-    inset-inline-start: 0;
-    inset-inline-end: 0;
-    margin-inline: auto;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    border-radius: 9999px;
+    background-image: linear-gradient(var(--m-knob-off-top), var(--m-knob-off-bottom));
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+    transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .clay-icon-sm.clay-tile-icon-top { margin-block-start: -14px; }
-  .clay-icon-md.clay-tile-icon-top { margin-block-start: -19px; }
-  .clay-icon-lg.clay-tile-icon-top { margin-block-start: -26px; }
+  .m-switch:is([aria-checked='true'], .is-on) {
+    background-image: linear-gradient(#3FD7A6, #0E8E6E);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 0 rgba(0, 0, 0, 0.25), 0 2px 0 #0A6650;
+  }
+  .m-switch:is([aria-checked='true'], .is-on)::after {
+    transform: translateX(20px);
+    background-image: linear-gradient(#FFFFFF, #E3E0D6);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+  }
+  .m-switch:disabled { opacity: 0.5; }
+
+  /* ── Skeleton, empty-state plate, badges ─────────────────────────── */
+  .m-skel {
+    background: var(--m-skel);
+    border-radius: 6px;
+    animation: m-pulse 1.6s ease-in-out infinite;
+    animation-delay: var(--m-skel-delay, 0s);
+  }
+  .m-plate {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 20px;
+    background-image: linear-gradient(var(--m-top), var(--m-bottom));
+    box-shadow: inset 0 1px 0 var(--m-hi-strong), var(--m-edge), 0 12px 20px -14px var(--m-shadow);
+  }
+  .m-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Coral count (bell). Stops deepened one step from the handoff so the
+   * white numeral clears 4.5:1 at the pill's middle (designTokens BELL_BADGE). */
+  .m-badge-coral {
+    background-image: linear-gradient(#DB6A50, #A3381F);
+    color: #FFFFFF;
+    box-shadow: 0 0 0 2px var(--m-badge-ring, #0D0E1C);
+  }
+  .m-badge-brand {
+    background-image: linear-gradient(#8E72FF, #4A36D6);
+    color: #FFFFFF;
+  }
+
+  /* Glyph "extrusion" retired for sharpness (2026-09-19): strokes render
+   * crisp, with no offset copy underneath. Kept as a no-op name. */
+  .m-glyph-extrude { filter: none; }
+
+  /* Focus: one violet ring for every material control. */
+  :is(.m-tile, .m-key, .m-ctl, .m-btn, .m-pill, .m-switch, .m-seg > *):focus-visible {
+    outline: 2px solid var(--color-accent-500);
+    outline-offset: 2px;
+  }
+
 }
 
-/* Corner-badge ring, dark mode. Non-layered so it beats the @layer rule
- * above. The dark ramps invert, so the tile's TOP edge is the -100 rung
- * here where in light mode it is the -50 one. See --clay-grad-dir. */
-html.dark .clay-tile-badge-corner {
-  box-shadow:
-    0 0 0 2px var(--clay-top),
-    0 1px 3px rgb(var(--clay-ambient-rgb) / 0.16);
+@keyframes m-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .m-tile, .m-key, .m-ctl, .m-btn, .m-pill, .m-switch, .m-switch::after, .m-fab,
+  .m-btn-primary, .m-btn-violet, .btn-gradient, .cta-primary, .m-btn-plain, .cta-secondary {
+    transition: none;
+  }
+  .m-skel { animation: none; opacity: 0.7; }
 }
 
 /* ╔══════════════════════════════════════════════════════════════════════╗
- * ║  3D CLAY — end of block                                              ║
+ * ║  1D MATERIAL — end of block                                          ║
  * ╚══════════════════════════════════════════════════════════════════════╝ */
+

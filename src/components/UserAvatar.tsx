@@ -4,39 +4,22 @@ interface Props {
   name: string;
   size?: number;
   onClick?: () => void;
+  /** The signed-in user: the 1d violet avatar (hero greeting, Settings). Everyone
+   *  else wears the navy person avatar — one calm colour for all people, so a
+   *  list reads as people rather than as a colour key. */
+  self?: boolean;
 }
 
-// Deterministic letter-circle avatar. Color is picked from the first letter so
-// the same user always renders the same tile, without storing anything.
-// Palettes derive from the Sukoon money/semantic families (accent / receive /
-// pay / info / warn). Every stop is a 600/700 shade so white initials clear
-// AA contrast on the gradient regardless of which palette a name lands on.
-const PALETTES = [
-  'from-accent-500 to-accent-600',
-  'from-receive-600 to-receive-700',
-  'from-pay-600 to-pay-700',
-  'from-warn-600 to-warn-700',
-  'from-info-600 to-accent-600',
-  'from-accent-500 to-info-600',
-];
-
-// Simple djb2 hash so different letters/names actually land on different
-// palettes — a plain charCode % N distributes poorly (lots of names collide
-// on violet because A/G/M/S/Y all map to the same bucket).
-function hashName(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-export function UserAvatar({ name, size = 40, onClick }: Props) {
+// Letter-circle avatar in the 1d material (.m-avatar / .m-avatar-self in
+// index.css): a lit gradient disc with an inset top highlight. Initials clear
+// AA on both faces (white on navy, white on the brand violet).
+export function UserAvatar({ name, size = 40, onClick, self = false }: Props) {
   const t = useT();
   const trimmed = name.trim();
   const letter = (trimmed[0] || 'U').toUpperCase();
-  const palette = PALETTES[hashName(trimmed || 'User') % PALETTES.length];
-  const fontSize = Math.round(size * 0.42);
+  const fontSize = Math.round(size * 0.4);
 
-  const className = `rounded-full bg-gradient-to-br ${palette} text-white font-bold flex items-center justify-center shadow-sm shadow-ink-900/10 active:scale-95 transition-all shrink-0`;
+  const className = `m-avatar ${self ? 'm-avatar-self' : ''} active:scale-95 transition-transform`;
   const style = { width: size, height: size, fontSize };
 
   if (onClick) {

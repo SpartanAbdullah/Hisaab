@@ -2,11 +2,18 @@ import { create } from 'zustand';
 
 // Appearance preference. Device-scoped (like language) — NOT cleared on logout,
 // and persisted to localStorage under hisaab_theme. The actual `.dark` class is
-// applied to <html>; an inline script in index.html applies it before first
-// paint to avoid a light flash, and this store keeps it in sync afterwards.
+// applied to <html>. public/theme-boot.js (a blocking <script src> in
+// index.html — an inline script would be refused by the CSP's script-src
+// 'self') applies it before first paint so there is no light flash, and this
+// store keeps it in sync afterwards. The two must agree on DEFAULT_THEME.
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 const KEY = 'hisaab_theme';
+
+/** What a device with NO stored choice gets. The 1d redesign (2026-09-18) is
+ *  dark-first; flip this one constant (and the mirror in public/theme-boot.js)
+ *  to revert. Any explicit Light/Dark/System pick is stored and always wins. */
+export const DEFAULT_THEME: ThemeMode = 'dark';
 
 function systemPrefersDark(): boolean {
   return typeof window !== 'undefined'
@@ -25,7 +32,7 @@ function applyThemeClass(mode: ThemeMode): void {
 
 function readStoredMode(): ThemeMode {
   const raw = (typeof localStorage !== 'undefined' && localStorage.getItem(KEY)) as ThemeMode | null;
-  return raw === 'dark' || raw === 'system' ? raw : 'light';
+  return raw === 'light' || raw === 'dark' || raw === 'system' ? raw : DEFAULT_THEME;
 }
 
 interface ThemeState {

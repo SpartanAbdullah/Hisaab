@@ -5,8 +5,8 @@
 // selection yet the list starts expanded, so first-time flows lose nothing.
 
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, Lock } from 'lucide-react';
 import { AccountGroupSections } from './AccountGroupSections';
+import { Glyph } from './Glyph';
 import { formatSignedMoney } from '../lib/constants';
 import { currencyMeta } from '../lib/design-tokens';
 import { orderAccountsForCurrency } from '../lib/accountCurrencyOrder';
@@ -55,14 +55,14 @@ export function AccountSelect({ accounts, selectedId, onSelect, locked = false, 
   const isMismatch = (a: Account) => Boolean(preferredCurrency && a.currency !== preferredCurrency);
 
   const rowLeft = (a: Account) => (
-    <div className="flex items-center gap-2 min-w-0">
+    <div className="flex items-center gap-2.5 min-w-0">
       <span className="text-sm">{currencyMeta[a.currency]?.flag}</span>
       <div className="min-w-0">
-        <p className="text-[13px] font-semibold text-ink-900 truncate">{a.name}</p>
-        <p className="text-[10px] text-ink-500 flex items-center gap-1">
+        <p className="text-[13.5px] font-semibold text-ink-900 truncate tracking-tight">{a.name}</p>
+        <p className="text-[10.5px] text-ink-500 flex items-center gap-1 mt-0.5">
           {t(TYPE_LABEL_KEY[a.type] ?? 'type_bank')}
           {isMismatch(a) && (
-            <span className="inline-flex items-center rounded-full bg-warn-50 text-warn-600 font-semibold px-1.5 py-px">
+            <span className="m-chip m-chip-gold">
               {a.currency} · {t('acct_rate_needed')}
             </span>
           )}
@@ -77,11 +77,11 @@ export function AccountSelect({ accounts, selectedId, onSelect, locked = false, 
 
   if (selected && locked) {
     return (
-      <div className="w-full p-3.5 rounded-2xl border-2 border-accent-500 bg-accent-50 flex items-center justify-between">
+      <div className="selector-base selector-selected cursor-default active:transform-none">
         {rowLeft(selected)}
         <div className="flex items-center gap-2 shrink-0 ml-2">
           <div className="text-right">{right(selected)}</div>
-          <Lock size={13} className="text-accent-600" />
+          <Glyph name="lock" size={14} className="text-accent-text" />
         </div>
       </div>
     );
@@ -92,13 +92,13 @@ export function AccountSelect({ accounts, selectedId, onSelect, locked = false, 
       <button
         type="button"
         onClick={() => setExpanded(true)}
-        className="w-full p-3.5 rounded-2xl border-2 border-accent-500 bg-accent-50 flex items-center justify-between text-left transition-all active:scale-[0.98]"
+        className="selector-base selector-selected"
       >
         {rowLeft(selected)}
         <div className="flex items-center gap-2 shrink-0 ml-2">
           <div className="text-right">{right(selected)}</div>
-          <div className="flex flex-col items-center text-accent-600">
-            <ChevronDown size={14} strokeWidth={2.2} />
+          <div className="flex flex-col items-center text-accent-text">
+            <Glyph name="chevron-down" size={14} strokeWidth={2.8} />
             <span className="text-[8.5px] font-semibold uppercase tracking-[0.08em]">{t('acct_select_change')}</span>
           </div>
         </div>
@@ -124,9 +124,8 @@ export function AccountSelect({ accounts, selectedId, onSelect, locked = false, 
               if (a.id !== selectedId) onSelect(a.id);
               setExpanded(false);
             }}
-            className={`w-full p-3.5 rounded-2xl border-2 flex items-center justify-between text-left transition-all active:scale-[0.98] ${
-              a.id === selectedId ? 'border-accent-500 bg-accent-50' : 'border-cream-border bg-cream-card'
-            }`}
+            aria-pressed={a.id === selectedId}
+            className={`selector-base ${a.id === selectedId ? 'selector-selected' : ''}`}
           >
             {rowLeft(a)}
             <div className="text-right shrink-0 ml-2">{right(a)}</div>

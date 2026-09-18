@@ -3,10 +3,15 @@
 // market chips → symbol → numbers → settlement. The sell preview shows the
 // realized P/L BEFORE saving and blocks overselling; the "held outside
 // Hisaab" toggle records the trade without touching any account.
+//
+// 1d (redesign 2026-09-18): toned kind pills (Buy green · Sell coral ·
+// Dividend violet), material market pills keyed by their colour dot, sunken
+// input wells, tinted preview cards, and the violet save — this is the
+// record-a-trade flow, the investments accent.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Plus } from 'lucide-react';
 import { Modal } from '../components/Modal';
+import { Glyph } from '../components/Glyph';
 import { AccountSelect } from '../components/AccountSelect';
 import { CurrencyConversionCard } from '../components/CurrencyConversionCard';
 import { ConfirmationSheet } from '../components/ConfirmationSheet';
@@ -285,13 +290,15 @@ export function RecordTradeModal({ open, onClose, preset }: Props) {
     }
   };
 
-  const inputClass =
-    'w-full border border-cream-border rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all';
+  // The sunken 1d well (index.css .input-field — field-border edge, violet focus).
+  const inputClass = 'input-field';
 
-  const KINDS: { value: InvestmentTradeKind; label: string; active: string }[] = [
-    { value: 'buy', label: t('inv_buy'), active: 'bg-emerald-700 border-transparent text-white shadow-sm' },
-    { value: 'sell', label: t('inv_sell'), active: 'bg-rose-600 border-transparent text-white shadow-sm' },
-    { value: 'dividend', label: t('inv_dividend'), active: 'bg-blue-600 border-transparent text-white shadow-sm' },
+  // Toned pills: tinted at rest, solid when pressed (the Loans-tab vocabulary).
+  // Buy / Sell keep the trading convention the old emerald / rose pills had.
+  const KINDS: { value: InvestmentTradeKind; label: string; tone: string }[] = [
+    { value: 'buy', label: t('inv_buy'), tone: 'm-pill-receive' },
+    { value: 'sell', label: t('inv_sell'), tone: 'm-pill-pay' },
+    { value: 'dividend', label: t('inv_dividend'), tone: 'm-pill-violet' },
   ];
 
   return (
@@ -305,7 +312,7 @@ export function RecordTradeModal({ open, onClose, preset }: Props) {
           <button
             onClick={handleSave}
             disabled={!canSave}
-            className="w-full bg-ink-900 text-white rounded-2xl py-3.5 text-sm font-semibold disabled:opacity-30 hover:enabled:opacity-90 hover:enabled:shadow-md active:scale-[0.98] transition-all"
+            className="m-btn m-btn-violet w-full py-3.5 text-[14px]"
           >
             {saving ? t('quick_processing') : `${t('quick_save')} ✓`}
           </button>
@@ -325,46 +332,38 @@ export function RecordTradeModal({ open, onClose, preset }: Props) {
                   // silently carry into the other.
                   setConversionRate('');
                 }}
-                className={`min-h-[44px] py-2.5 rounded-2xl border-2 text-[13px] font-semibold transition-all hover:scale-[1.02] active:scale-95 ${
-                  kind === k.value ? k.active : 'border-cream-border bg-cream-card text-ink-600 hover:bg-cream-soft'
-                }`}
+                aria-pressed={kind === k.value}
+                className={`m-pill ${k.tone} min-h-[44px] text-[13px]`}
               >
                 {k.label}
               </button>
             ))}
           </div>
 
-          {/* Market chips */}
+          {/* Market chips — the coloured dot keys each market. */}
           <div>
-            <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">
+            <label className="form-label">
               {t('inv_market_name')}
             </label>
             <div className="flex gap-2 flex-wrap">
-              {markets.map((m) => {
-                const color = marketColorFor(m.id);
-                const selected = marketId === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => { setMarketId(m.id); setConversionRate(''); }}
-                    className={`min-h-[40px] px-3.5 py-2 rounded-xl text-[12px] font-semibold border transition-all active:scale-95 flex items-center gap-1.5 ${
-                      selected
-                        ? `${color.solid} text-white border-transparent shadow-sm`
-                        : `${color.tint} ${color.text} ${color.border} hover:shadow-sm`
-                    }`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${selected ? 'bg-white/80' : color.dot}`} />
-                    {currencyMeta[m.currency]?.flag} {m.name} · {m.currency}
-                  </button>
-                );
-              })}
+              {markets.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => { setMarketId(m.id); setConversionRate(''); }}
+                  aria-pressed={marketId === m.id}
+                  className="m-pill min-h-[40px] text-[12px]"
+                >
+                  <span aria-hidden="true" className={`w-1.5 h-1.5 rounded-full shrink-0 ${marketColorFor(m.id).dot}`} />
+                  {currencyMeta[m.currency]?.flag} {m.name} · {m.currency}
+                </button>
+              ))}
               <button
                 type="button"
                 onClick={() => setShowCreateMarket(true)}
-                className="min-h-[40px] px-3.5 py-2 rounded-xl text-[12px] font-semibold border-2 border-dashed border-cream-border text-ink-600 flex items-center gap-1.5 hover:bg-accent-50 hover:text-accent-600 hover:border-accent-500/40 active:bg-cream-soft transition-colors"
+                className="m-pill min-h-[40px] text-[12px] text-iris-text"
               >
-                <Plus size={12} strokeWidth={2.4} /> {t('inv_new_market')}
+                <Glyph name="plus" size={12} strokeWidth={3} /> {t('inv_new_market')}
               </button>
             </div>
           </div>
@@ -372,11 +371,13 @@ export function RecordTradeModal({ open, onClose, preset }: Props) {
           {/* Symbol */}
           {market && (
             <div>
-              <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">
+              <label className="form-label">
                 {t('inv_symbol')}
               </label>
               {preset?.lockSymbol ? (
-                <div className="rounded-2xl border-2 border-accent-500 bg-accent-50 px-4 py-3">
+                // Locked by the holding page: a read-only well with a lock.
+                <div className="m-inset flex items-center gap-2.5 px-4 py-3">
+                  <Glyph name="lock" size={14} className="text-ink-400" />
                   <p className="text-[14px] font-semibold text-ink-900">{symbol}</p>
                 </div>
               ) : (
@@ -388,16 +389,16 @@ export function RecordTradeModal({ open, onClose, preset }: Props) {
                     className={`${inputClass} uppercase`}
                   />
                   {!symbolPicked && suggestions.length > 0 && (
-                    <div className="mt-2 rounded-2xl bg-cream-card border border-cream-border overflow-hidden divide-y divide-cream-hairline">
+                    <div className="m-card mt-2.5 overflow-hidden divide-y divide-cream-hairline">
                       {suggestions.map((h) => (
                         <button
                           key={`${h.marketId}:${h.symbol}`}
                           type="button"
                           onClick={() => { setSymbolText(h.symbol); setSymbolPicked(true); }}
-                          className="w-full flex items-center justify-between px-4 py-2.5 text-left active:bg-cream-soft transition-colors"
+                          className="row-base row-interactive w-full justify-between min-h-[44px] px-4 py-2.5"
                         >
                           <span className="text-[13px] font-semibold text-ink-900">{h.symbol}</span>
-                          <span className="text-[11px] text-ink-500 tabular-nums">
+                          <span className="text-[11px] text-ink-600 tabular-nums">
                             {h.position.quantity > 0
                               ? t('inv_you_hold')
                                   .replace('{qty}', String(h.position.quantity))
@@ -409,19 +410,19 @@ export function RecordTradeModal({ open, onClose, preset }: Props) {
                     </div>
                   )}
                   {kind === 'buy' && symbol && !symbolIsExisting && (
-                    <p className="text-[11px] text-accent-600 mt-1.5">
+                    <p className="text-[11px] text-iris-text mt-1.5">
                       {t('inv_new_symbol_hint').replace('{market}', market.name)}
                     </p>
                   )}
                   {kind !== 'buy' && symbol && !symbolIsExisting && (
-                    <p className="text-[11px] text-ink-500 mt-1.5">
+                    <p className="text-[11px] text-ink-600 mt-1.5">
                       {kind === 'sell' ? t('inv_sell_too_many').replace('{qty}', '0') : t('inv_holding_not_found')}
                     </p>
                   )}
                 </>
               )}
               {position && position.quantity > 0 && (
-                <p className="text-[11px] text-ink-500 mt-1.5 tabular-nums">
+                <p className="text-[11px] text-ink-600 mt-1.5 tabular-nums">
                   {t('inv_you_hold')
                     .replace('{qty}', String(position.quantity))
                     .replace('{price}', formatMoney(position.avgCost, market.currency))}
@@ -437,14 +438,14 @@ export function RecordTradeModal({ open, onClose, preset }: Props) {
                 <div>
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">
+                      <label className="form-label">
                         {t('inv_qty')}
                       </label>
                       <input type="number" inputMode="decimal" min="0" step="any" value={qty}
                         onChange={(e) => setQty(e.target.value)} placeholder="500" className={inputClass} />
                     </div>
                     <div>
-                      <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">
+                      <label className="form-label">
                         {t('inv_price_per_unit')}
                       </label>
                       <input type="number" inputMode="decimal" min="0" step="any" value={price}
@@ -452,14 +453,14 @@ export function RecordTradeModal({ open, onClose, preset }: Props) {
                     </div>
                   </div>
                   {qtyNum > 0 && priceNum > 0 && (
-                    <p className="text-[11.5px] text-ink-500 mt-2 tabular-nums">
+                    <p className="text-[11.5px] text-ink-600 mt-2 tabular-nums">
                       {qtyNum.toLocaleString()} × {priceNum.toLocaleString()} = {formatMoney(gross, market.currency)}
                     </p>
                   )}
                 </div>
               ) : (
                 <div>
-                  <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">
+                  <label className="form-label">
                     {t('inv_dividend_amount')} ({market.currency})
                   </label>
                   <input type="number" inputMode="decimal" min="0" step="any" value={dividendAmount}
@@ -469,14 +470,14 @@ export function RecordTradeModal({ open, onClose, preset }: Props) {
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">
+                  <label className="form-label">
                     {kind === 'dividend' ? t('inv_fees_dividend') : t('inv_fees')}
                   </label>
                   <input type="number" inputMode="decimal" min="0" step="any" value={fees}
                     onChange={(e) => setFees(e.target.value)} placeholder="0" className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">
+                  <label className="form-label">
                     {t('inv_trade_date')}
                   </label>
                   <input type="date" value={tradedAt} onChange={(e) => setTradedAt(e.target.value)} className={inputClass} />
@@ -484,18 +485,18 @@ export function RecordTradeModal({ open, onClose, preset }: Props) {
               </div>
 
               {validationMsg && (
-                <p className="text-[11px] text-pay-text font-semibold leading-relaxed bg-pay-50 border border-pay-100 rounded-xl px-3 py-2">
+                <p className="m-card m-coral px-3.5 py-2.5 text-[11.5px] font-semibold leading-relaxed text-pay-text">
                   {validationMsg}
                 </p>
               )}
 
               {/* Total line */}
               {cashAmount > 0 && !validationMsg && (
-                <div className="bg-cream-card rounded-2xl p-3.5 border border-cream-border flex items-baseline justify-between">
-                  <span className="text-[11px] font-semibold text-ink-500 uppercase tracking-[0.12em]">
+                <div className="m-card p-3.5 flex items-baseline justify-between gap-3">
+                  <span className="m-label">
                     {kind === 'buy' ? t('inv_total_cost') : t('inv_total_proceeds')}
                   </span>
-                  <span className="text-[17px] font-semibold text-ink-900 tabular-nums">
+                  <span className="text-[17px] font-semibold text-ink-900 tabular-nums tracking-[-0.02em]">
                     {formatMoney(cashAmount, market.currency)}
                   </span>
                 </div>
@@ -504,14 +505,19 @@ export function RecordTradeModal({ open, onClose, preset }: Props) {
               {/* Sell preview / oversell block */}
               {kind === 'sell' && sellPreview && (
                 sellPreview.oversell ? (
-                  <p className="text-[11.5px] text-pay-text font-semibold leading-relaxed bg-pay-50 border border-pay-100 rounded-xl px-3 py-2.5">
+                  <p className="m-card m-coral px-3.5 py-2.5 text-[11.5px] font-semibold leading-relaxed text-pay-text">
                     {t('inv_sell_too_many').replace('{qty}', String(sellPreview.held))}
                   </p>
                 ) : qtyNum > 0 && priceNum > 0 ? (
-                  <div className={`rounded-2xl p-3.5 border ${sellPreview.realized >= 0 ? 'bg-receive-50 border-receive-600/20' : 'bg-pay-50 border-pay-100'}`}>
-                    <p className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">{t('inv_realized_preview')}</p>
-                    <p className={`text-[17px] font-semibold tabular-nums mt-0.5 ${sellPreview.realized >= 0 ? 'text-receive-text' : 'text-pay-text'}`}>
-                      {sellPreview.realized >= 0 ? '+' : ''}{formatMoney(sellPreview.realized, market.currency)}
+                  // Tinted stat card (Home's recipe): the label wears the
+                  // tint, the figure stays ink; the sign is written out
+                  // because formatMoney prints the magnitude only.
+                  <div className={`m-card p-3.5 ${sellPreview.realized >= 0 ? 'm-mint' : 'm-coral'}`}>
+                    <p className={`m-label ${sellPreview.realized >= 0 ? 'text-receive-text' : 'text-pay-text'}`}>
+                      {t('inv_realized_preview')}
+                    </p>
+                    <p className="text-[17px] font-semibold text-ink-900 tabular-nums tracking-[-0.02em] mt-1">
+                      {sellPreview.realized >= 0 ? '+' : '−'}{formatMoney(sellPreview.realized, market.currency)}
                     </p>
                   </div>
                 ) : null
@@ -519,25 +525,22 @@ export function RecordTradeModal({ open, onClose, preset }: Props) {
 
               {/* Settlement */}
               <div>
-                <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">
+                <label className="form-label">
                   {kind === 'buy' ? t('inv_paid_from') : t('inv_received_into')}
                 </label>
+                {/* On/off, so it is a switch: the whole row toggles it. */}
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={outside}
                   onClick={() => setOutside(!outside)}
-                  className={`w-full p-3.5 rounded-2xl border-2 flex items-center justify-between text-left transition-all mb-2 ${
-                    outside ? 'border-accent-500 bg-accent-50' : 'border-cream-border bg-cream-card'
-                  }`}
+                  className="selector-base gap-3 mb-2.5"
                 >
-                  <p className="text-[12.5px] font-semibold text-ink-800">{t('inv_outside_toggle')}</p>
-                  <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                    outside ? 'bg-accent-500 border-accent-500 text-white' : 'border-cream-border text-transparent'
-                  }`}>
-                    <Check size={12} strokeWidth={3} />
-                  </span>
+                  <span className="text-[12.5px] font-semibold text-ink-800">{t('inv_outside_toggle')}</span>
+                  <span aria-hidden="true" className={`m-switch ${outside ? 'is-on' : ''}`} />
                 </button>
                 {!outside && accounts.length === 0 && (
-                  <p className="text-[11.5px] text-ink-500 bg-cream-soft border border-cream-hairline rounded-xl p-3 leading-relaxed">
+                  <p className="m-card px-3.5 py-3 text-[11.5px] text-ink-600 leading-relaxed">
                     {t('acct_need_for_tx')}
                   </p>
                 )}
@@ -564,7 +567,7 @@ export function RecordTradeModal({ open, onClose, preset }: Props) {
               )}
 
               <div>
-                <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">{t('quick_note')}</label>
+                <label className="form-label">{t('quick_note')}</label>
                 <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t('quick_note_placeholder')} className={inputClass} />
               </div>
             </>

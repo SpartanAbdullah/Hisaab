@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Shield, Check, Dices, Share2, Trash2, Crown, MessageCircle, Pencil, Lock, SlidersHorizontal, UserMinus, UserPlus } from 'lucide-react';
+// Crown (organiser), Dices (ballot) and UserMinus (remove from the kameti) have
+// no 3c glyph yet — kept as lucide at the glyph stroke weight (2.4).
+import { Crown, Dices, UserMinus } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCommitteeStore } from '../stores/committeeStore';
 import { CommitteeDrawError } from '../lib/supabaseDb';
@@ -11,8 +13,10 @@ import { PageHeader } from '../components/PageHeader';
 import { PageErrorState } from '../components/PageErrorState';
 import { CommitteeVerifyDraw } from '../components/CommitteeVerifyDraw';
 import { CommitteeWitnessLink } from '../components/CommitteeWitnessLink';
-import { Card3D } from '../components/Card3D';
-import { Icon3D } from '../components/Icon3D';
+import { Glyph } from '../components/Glyph';
+import { UserAvatar } from '../components/UserAvatar';
+import { MoneyDisplay } from '../components/MoneyDisplay';
+import { ListSkeleton } from '../components/ListSkeleton';
 import { useToast } from '../components/Toast';
 import { confirmDestructive } from '../components/ConfirmDestructiveSheet';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
@@ -120,13 +124,31 @@ export function KametiDetailPage() {
   const round = viewRound ?? liveRound;
 
   if (status === 'loading' && !committee) {
-    return <main className="min-h-dvh bg-cream-bg"><PageHeader title={t('kameti_title')} back /></main>;
+    // Skeleton in the loaded page's geometry: the gold pool card, then the
+    // member list.
+    return (
+      <main className="min-h-dvh bg-cream-bg pb-28">
+        <PageHeader title={t('kameti_title')} back />
+        <div className="px-5 pt-3 space-y-4" aria-hidden="true">
+          <div className="m-card m-gold m-card-feature p-5">
+            <div className="m-skel h-[10px] w-24" />
+            <div className="m-skel mt-3 h-8 w-44 rounded-lg" />
+            <div className="m-skel mt-3 h-[10px] w-36" />
+            <div className="mt-4 flex gap-1.5">
+              <div className="m-skel h-5 w-32 rounded-full" />
+              <div className="m-skel h-5 w-20 rounded-full" />
+            </div>
+          </div>
+          <ListSkeleton rows={4} />
+        </div>
+      </main>
+    );
   }
   if (!committee) {
     return (
       <main className="min-h-dvh bg-cream-bg">
         <PageHeader title={t('kameti_title')} back />
-        <div className="px-5 pt-8"><PageErrorState variant="inline" title={t('kameti_title')} message="Not found." /></div>
+        <div className="px-5 pt-8"><PageErrorState variant="inline" title={t('kameti_title')} message={t('kameti_not_found')} /></div>
       </main>
     );
   }
@@ -187,18 +209,21 @@ export function KametiDetailPage() {
     }
   });
 
-  // Pencil (name / WhatsApp number) + trash (remove from the kameti). The
-  // trash only appears where the server would actually accept it, so the
-  // organiser is never offered an action that comes back as a refusal.
+  // Edit (name / WhatsApp number) + remove (from the kameti). Remove only
+  // appears where the server would actually accept it, so the organiser is
+  // never offered an action that comes back as a refusal.
   const memberActions = (m: CommitteeMember) => (
     <>
-      <button onClick={() => openEditMember(m)} className="shrink-0 text-ink-400 active:opacity-60 p-1" aria-label={t('kameti_edit_member')}>
-        <Pencil size={13} />
+      <button onClick={() => openEditMember(m)}
+        className="w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0 text-ink-500 active:bg-cream-soft transition-colors"
+        aria-label={t('kameti_edit_member')}>
+        <Glyph name="edit" size={14} />
       </button>
       {removeCheckFor(m.id).ok && (
         <button onClick={() => handleRemoveMember(m)} disabled={rosterBusy}
-          className="shrink-0 text-ink-400 active:opacity-60 p-1 -mr-1 disabled:opacity-30" aria-label={t('kameti_remove_member')}>
-          <UserMinus size={13} />
+          className="w-8 h-8 -mr-1.5 rounded-[10px] flex items-center justify-center shrink-0 text-ink-500 active:bg-pay-50 active:text-pay-text disabled:opacity-30 transition-colors"
+          aria-label={t('kameti_remove_member')}>
+          <UserMinus size={14} strokeWidth={2.4} />
         </button>
       )}
     </>
@@ -209,11 +234,11 @@ export function KametiDetailPage() {
   // for a FIXED kameti the collection list IS the roster, and that is exactly
   // where a late joiner is remembered.
   const addMemberRow = (
-    <div className="mt-2">
+    <div className="mt-3">
       {addCheck.ok ? (
         <button type="button" onClick={() => setAddingMember(true)}
-          className="w-full py-2.5 rounded-2xl border border-dashed border-accent-500/50 text-accent-600 text-[12px] font-semibold flex items-center justify-center gap-1.5 active:bg-accent-50/60">
-          <UserPlus size={13} strokeWidth={2.4} /> {t('kameti_add_member')}
+          className="m-btn m-btn-plain w-full text-[12.5px] text-warn-700">
+          <Glyph name="user-plus" size={15} tone="gold" /> {t('kameti_add_member')}
         </button>
       ) : (
         <p className="text-[10.5px] text-ink-400 leading-relaxed px-1">{t(ADD_BLOCK_KEY[addCheck.reason])}</p>
@@ -299,55 +324,60 @@ export function KametiDetailPage() {
       {drawing && (
         <div className="fixed inset-0 z-[70] bg-navy-900/85 backdrop-blur-sm flex flex-col items-center justify-center px-8 text-center">
           <span className="text-[64px] leading-none animate-dice inline-block" aria-hidden>🎲</span>
-          <p className="text-white text-[15px] font-bold mt-7">{t('kameti_drawing')}</p>
-          <p className="text-white/55 text-[12px] mt-2 max-w-[280px] leading-relaxed">{t('kameti_draw_fair_note')}</p>
+          <p className="text-white text-[15px] font-semibold mt-7">{t('kameti_drawing')}</p>
+          <p className="text-white/70 text-[12px] mt-2 max-w-[280px] leading-relaxed">{t('kameti_draw_fair_note')}</p>
         </div>
       )}
 
-      <div className="px-5 pt-2 space-y-4">
-        {/* Pool + round + trust badges. 3D clay tier 2, gold — kameti's tint
-            (CLAY_TINT_BY_DOMAIN). Informational, so a card and never a tile. */}
-        <Card3D tint="gold" padding="md">
-          <div className="flex items-baseline justify-between gap-2">
-            <div>
-              <p className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">{t('kameti_pool')}</p>
-              <p className="text-[26px] font-bold text-ink-900 tabular-nums tracking-tight leading-tight">{formatMoney(pool, committee.currency)}</p>
+      <div className="px-5 pt-3 space-y-4">
+        {/* Pool + round + trust badges. Kameti's gold material; informational,
+            so a card and never a tile. The pool figure is the page's one
+            extruded numeral. */}
+        <div className="m-card m-gold m-card-feature p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="m-label">{t('kameti_pool')}</p>
+              <div className="mt-2">
+                <MoneyDisplay amount={pool} currency={committee.currency} size={30} extrude="gold" />
+              </div>
             </div>
-            <p className="text-[12px] text-ink-500 tabular-nums">{t('kameti_round_of').replace('{r}', String(liveRound)).replace('{n}', String(committee.totalRounds))}</p>
+            <p className="text-[12px] font-medium text-ink-600 tabular-nums shrink-0 mt-0.5">{t('kameti_round_of').replace('{r}', String(liveRound)).replace('{n}', String(committee.totalRounds))}</p>
           </div>
-          <p className="text-[11px] text-ink-500 mt-1 tabular-nums">
+          <p className="text-[11.5px] text-ink-600 mt-2.5 tabular-nums">
             {formatMoney(committee.contributionAmount, committee.currency)} × {members.length} {t(`kameti_cadence_${committee.cadence}` as 'kameti_cadence_monthly').toLowerCase()}
           </p>
           <div className="flex flex-wrap gap-1.5 mt-3">
-            <span className="inline-flex items-center gap-1 rounded-full bg-receive-50 text-receive-text px-2 py-1 text-[10px] font-semibold">
-              <Shield size={10} strokeWidth={2.4} /> {t('kameti_no_custody')}
+            <span className="m-chip m-chip-receive">
+              <Glyph name="shield" size={11} strokeWidth={2.6} /> {t('kameti_no_custody')}
             </span>
-            <span className="inline-flex items-center rounded-full bg-accent-50 text-accent-600 px-2 py-1 text-[10px] font-semibold">{t('kameti_sood_free')}</span>
+            <span className="m-chip m-chip-receive">{t('kameti_sood_free')}</span>
           </div>
-        </Card3D>
+        </div>
 
         {/* Undrawn ballot → draw CTA. Gated on hasDrawRecord (not isDrawn) so
             the button disappears the instant the server records a draw, even if
             the member slots haven't been re-read yet. */}
         {!hasDrawRecord && (
-          <Card3D tint="accent" padding="md" className="text-center">
-            <Dices size={26} className="text-accent-600 mx-auto" strokeWidth={1.8} />
-            <p className="text-[13px] font-semibold text-ink-900 mt-2">{t('kameti_undrawn')}</p>
-            <p className="text-[11px] text-ink-500 mt-1 leading-relaxed">{t('kameti_method_ballot_desc')}</p>
-            <button onClick={handleDraw} disabled={drawing} className="clay-depth clay-depth-ink mt-3 w-full py-3 rounded-2xl bg-ink-900 text-white text-[13px] font-bold disabled:opacity-50">
+          <div className="m-card p-5 text-center">
+            <Dices size={26} strokeWidth={2.4} className="text-glyph-gold mx-auto m-glyph-extrude" aria-hidden />
+            <p className="text-[14px] font-semibold text-ink-900 mt-2.5">{t('kameti_undrawn')}</p>
+            <p className="text-[11.5px] text-ink-600 mt-1 leading-relaxed">{t('kameti_method_ballot_desc')}</p>
+            <button onClick={handleDraw} disabled={drawing} className="m-btn m-btn-primary mt-4 w-full text-[13.5px]">
               {drawing ? t('kameti_drawing') : t('kameti_run_ballot')}
             </button>
-          </Card3D>
+          </div>
         )}
 
         {/* Draw recorded on the server but the slots aren't in this device's
             copy yet (stale tab, or a draw run elsewhere). Never offer a redraw
             here — say it's locked and let the refresh land. */}
         {hasDrawRecord && !isDrawn && (
-          <Card3D padding="md" className="flex items-start gap-2.5">
-            <Lock size={15} className="text-ink-400 shrink-0 mt-0.5" strokeWidth={2.2} />
-            <p className="text-[11.5px] text-ink-600 leading-relaxed">{t('kameti_draw_locked')}</p>
-          </Card3D>
+          <div className="m-card p-4 flex items-start gap-3">
+            <div className="m-ctl w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0" aria-hidden>
+              <Glyph name="lock" size={15} tone="neutral" />
+            </div>
+            <p className="text-[11.5px] text-ink-600 leading-relaxed self-center">{t('kameti_draw_locked')}</p>
+          </div>
         )}
 
         {/* The roster, BEFORE the ballot is drawn. Everything below this point
@@ -357,16 +387,19 @@ export function KametiDetailPage() {
             This is also the last moment adding or removing is free. */}
         {!hasDrawRecord && (
           <div>
-            <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2.5">{t('kameti_roster')}</h2>
-            <div className="rounded-2xl bg-cream-card border border-cream-border divide-y divide-cream-hairline overflow-hidden">
+            <h2 className="m-label mb-2.5">{t('kameti_roster')}</h2>
+            <div className="m-card overflow-hidden divide-y divide-cream-hairline">
               {members.map((m) => (
-                <div key={m.id} className="flex items-center gap-2.5 px-3.5 py-3">
+                <div key={m.id} className="flex items-center gap-3 px-3.5 py-3">
+                  {/* Only the organiser can open this page (owner-only rows),
+                      so the organiser row IS the signed-in user: violet avatar. */}
+                  <UserAvatar name={m.name} size={34} self={m.isOrganizer} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium text-ink-900 truncate flex items-center gap-1.5">
-                      {m.name}
-                      {m.isOrganizer && <Crown size={11} className="text-accent-600 shrink-0" aria-label={t('kameti_you_organizer')} />}
+                    <p className="text-[13.5px] font-medium text-ink-900 flex items-center gap-1.5 min-w-0">
+                      <span className="truncate">{m.name}</span>
+                      {m.isOrganizer && <Crown size={12} strokeWidth={2.4} className="text-glyph-gold shrink-0" aria-label={t('kameti_you_organizer')} />}
                     </p>
-                    {m.phone && <p className="text-[10.5px] text-ink-400 tabular-nums">{m.phone}</p>}
+                    {m.phone && <p className="text-[10.5px] text-ink-400 tabular-nums mt-0.5">{m.phone}</p>}
                   </div>
                   {memberActions(m)}
                 </div>
@@ -380,30 +413,30 @@ export function KametiDetailPage() {
         {isDrawn && (
           <div className="flex items-center justify-between">
             <button onClick={() => setViewRound(Math.max(1, round - 1))} disabled={round <= 1} className="nav-icon-button disabled:opacity-30" aria-label={t('a11y_prev_round')}>
-              <ChevronLeft size={16} className="text-ink-600" />
+              <Glyph name="chevron-left" size={16} className="text-ink-700" />
             </button>
             <div className="text-center">
-              <p className="text-[13px] font-bold text-ink-900">{t('kameti_round_of').replace('{r}', String(round)).replace('{n}', String(committee.totalRounds))}</p>
-              <p className="text-[10.5px] text-ink-500 tabular-nums">{format(roundDate(committee.startDate, committee.cadence, round), 'd MMM yyyy')}</p>
+              <p className="text-[14px] font-semibold text-ink-900 tabular-nums">{t('kameti_round_of').replace('{r}', String(round)).replace('{n}', String(committee.totalRounds))}</p>
+              <p className="text-[10.5px] text-ink-500 tabular-nums mt-0.5">{format(roundDate(committee.startDate, committee.cadence, round), 'd MMM yyyy')}</p>
             </div>
             <button onClick={() => setViewRound(Math.min(committee.totalRounds, round + 1))} disabled={round >= committee.totalRounds} className="nav-icon-button disabled:opacity-30" aria-label={t('a11y_next_round')}>
-              <ChevronRight size={16} className="text-ink-600" />
+              <Glyph name="chevron-right" size={16} className="text-ink-700" />
             </button>
           </div>
         )}
 
-        {/* This round's recipient (baari). The winner moment: gold clay + the
-            3D trophy — the one place in the kameti flow that should feel like
-            a prize. */}
+        {/* This round's recipient (baari). The winner moment: gold material +
+            the extruded trophy glyph — the one place in the kameti flow that
+            should feel like a prize. */}
         {isDrawn && recipient && (
-          <Card3D tint="gold" padding="md">
+          <div className="m-card m-gold p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                <Icon3D name="trophy" size="sm" />
+              <div className="w-10 h-10 flex items-center justify-center shrink-0" aria-hidden>
+                <Glyph name="trophy" tone="gold" size={26} extrude />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-semibold text-warn-700 uppercase tracking-wide">{t('kameti_baari_label')}</p>
-                <p className="text-[15px] font-bold text-ink-900 truncate">{recipient.name}{recipient.isOrganizer ? '' : ''}</p>
+                <p className="text-[10px] font-semibold text-warn-700 uppercase tracking-[0.1em]">{t('kameti_baari_label')}</p>
+                <p className="text-[15px] font-semibold text-ink-900 truncate mt-0.5">{recipient.name}</p>
               </div>
               <button
                 onClick={async () => {
@@ -421,12 +454,12 @@ export function KametiDetailPage() {
                   // link deliberately, from the Witness link card below.
                   if (next) setSlip({ recipient, round });
                 }}
-                className={`shrink-0 px-3 py-2 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition-all active:scale-95 ${recipient.payoutReceivedAt ? 'bg-receive-600 text-white' : 'bg-cream-card text-ink-900 border border-cream-border'}`}
+                className={`m-btn shrink-0 min-h-[38px] px-3.5 py-2 rounded-[12px] text-[11.5px] gap-1.5 ${recipient.payoutReceivedAt ? 'm-btn-green' : 'm-btn-primary'}`}
               >
-                <Check size={12} strokeWidth={2.8} /> {recipient.payoutReceivedAt ? t('kameti_received') : t('kameti_mark_received')}
+                <Glyph name="check" size={13} strokeWidth={3} /> {recipient.payoutReceivedAt ? t('kameti_received') : t('kameti_mark_received')}
               </button>
             </div>
-          </Card3D>
+          </div>
         )}
 
         {/* Provably-fair draw — verify the ballot wasn't rigged */}
@@ -435,12 +468,12 @@ export function KametiDetailPage() {
         {/* This round's collection list */}
         {isDrawn && (
           <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">{t('kameti_this_round')}</h2>
+            <div className="flex items-center justify-between mb-1.5">
+              <h2 className="m-label">{t('kameti_this_round')}</h2>
               <span className="text-[11px] font-semibold text-ink-700 tabular-nums">{t('kameti_collected').replace('{paid}', String(collected)).replace('{total}', String(members.length))}</span>
             </div>
-            <p className="text-[11px] text-ink-500 mb-2.5 -mt-1">{t('kameti_tap_mark_paid')}</p>
-            <div className="rounded-2xl bg-cream-card border border-cream-border divide-y divide-cream-hairline overflow-hidden">
+            <p className="text-[11px] text-ink-500 mb-2.5">{t('kameti_tap_mark_paid')}</p>
+            <div className="m-card overflow-hidden divide-y divide-cream-hairline">
               {members.map((m) => {
                 const paid = hasPaid(payments, m.id, round);
                 const kind = m.slot ? slotKind(m.slot, committee.totalRounds) : 'mid';
@@ -451,34 +484,42 @@ export function KametiDetailPage() {
                   : 0;
                 return (
                   <div key={m.id} className="flex items-center gap-2.5 px-3.5 py-3">
+                    {/* Paid toggle: a sunken empty well until paid, then the
+                        green gradient dot with a check. */}
                     <button
                       onClick={() => setPaid(committee.id, m.id, round, !paid)}
-                      className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 transition-all active:scale-95 ${paid ? 'bg-receive-600 border-receive-600 text-white' : 'bg-cream-card border-cream-border text-transparent'}`}
+                      className={`w-[26px] h-[26px] rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 ${paid ? 'm-stat-dot m-stat-dot-receive' : 'm-inset border border-field-border'}`}
                       aria-pressed={paid}
                       aria-label={paid ? t('kameti_paid_badge') : t('kameti_unpaid_badge')}
                     >
-                      <Check size={13} strokeWidth={3} />
+                      {paid && <Glyph name="check" size={13} strokeWidth={3} />}
                     </button>
+                    <UserAvatar name={m.name} size={34} self={m.isOrganizer} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium text-ink-900 truncate flex items-center gap-1.5">
-                        {m.name}
-                        {m.isOrganizer && <Crown size={11} className="text-accent-600 shrink-0" aria-label={t('kameti_you_organizer')} />}
-                        {m.slot != null && <span className="text-[9px] text-ink-400 font-semibold shrink-0">#{m.slot}</span>}
+                      <p className="text-[13.5px] font-medium text-ink-900 flex items-center gap-1.5 min-w-0">
+                        <span className="truncate">{m.name}</span>
+                        {m.isOrganizer && <Crown size={12} strokeWidth={2.4} className="text-glyph-gold shrink-0" aria-label={t('kameti_you_organizer')} />}
+                        {m.slot != null && <span className="text-[10px] text-ink-400 font-semibold shrink-0 tabular-nums">#{m.slot}</span>}
                       </p>
-                      {m.slot != null && (kind === 'early' || kind === 'late') && (
-                        <p className="text-[10px] text-ink-400">{t(kind === 'early' ? 'kameti_slot_early' : 'kameti_slot_late')}</p>
-                      )}
+                      <div className="flex items-center gap-1.5 mt-1 min-w-0">
+                        <span className={`m-chip shrink-0 ${paid ? 'm-chip-receive' : 'm-chip-pay'}`}>
+                          {paid ? t('kameti_paid_badge') : t('kameti_unpaid_badge')}
+                        </span>
+                        {m.slot != null && (kind === 'early' || kind === 'late') && (
+                          <span className="text-[10px] text-ink-400 truncate">{t(kind === 'early' ? 'kameti_slot_early' : 'kameti_slot_late')}</span>
+                        )}
+                      </div>
                       {missed > 0 && (
-                        <p className="text-[10px] font-semibold text-pay-text">
+                        <p className="text-[10.5px] font-semibold text-pay-text mt-1">
                           {t('kameti_arrears').replace('{amount}', formatMoney(missed * committee.contributionAmount, committee.currency)).replace('{n}', String(missed))}
                         </p>
                       )}
                     </div>
-                    {paid ? (
-                      <span className="text-[10px] font-semibold text-receive-text bg-receive-50 rounded-full px-2 py-0.5 shrink-0">{t('kameti_paid_badge')}</span>
-                    ) : (
-                      <button onClick={() => remind(m.name, m.phone)} className="text-[10.5px] font-semibold text-receive-600 flex items-center gap-1 shrink-0 active:opacity-70" style={{ color: '#1FA855' }}>
-                        <MessageCircle size={12} /> {t('kameti_remind')}
+                    {!paid && (
+                      <button onClick={() => remind(m.name, m.phone)}
+                        className="m-ctl w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0"
+                        aria-label={t('kameti_remind')}>
+                        <Glyph name="whatsapp" size={15} tone="green" />
                       </button>
                     )}
                     {memberActions(m)}
@@ -495,19 +536,19 @@ export function KametiDetailPage() {
             round at a time behind the chevrons. Mirrors the witness page. */}
         {isDrawn && (
           <div>
-            <h2 className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2.5">{t('kameti_schedule')}</h2>
-            <div className="rounded-2xl bg-cream-card border border-cream-border divide-y divide-cream-hairline overflow-hidden">
+            <h2 className="m-label mb-2.5">{t('kameti_schedule')}</h2>
+            <div className="m-card overflow-hidden divide-y divide-cream-hairline">
               {Array.from({ length: committee.totalRounds }, (_, i) => i + 1).map((r) => {
                 const rec = recipientForRound(members, r);
                 return (
                   <button
                     key={r}
                     onClick={() => setViewRound(r)}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors ${r === round ? 'bg-accent-50/60' : 'active:bg-cream-soft'}`}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors ${r === round ? 'bg-warn-50' : 'active:bg-cream-soft'}`}
                   >
-                    <span className="text-[11px] font-bold text-ink-400 tabular-nums w-5">{r}</span>
+                    <span className={`text-[11px] font-bold tabular-nums w-5 ${r === round ? 'text-warn-700' : 'text-ink-400'}`}>{r}</span>
                     <span className="flex-1 text-[12.5px] text-ink-900 truncate">{rec?.name ?? '—'}</span>
-                    {rec?.payoutReceivedAt && <Check size={12} className="text-receive-text shrink-0" strokeWidth={2.6} />}
+                    {rec?.payoutReceivedAt && <Glyph name="check" size={13} tone="green" strokeWidth={3} />}
                     <span className="text-[10.5px] text-ink-400 tabular-nums shrink-0">{format(roundDate(committee.startDate, committee.cadence, r), 'd MMM')}</span>
                   </button>
                 );
@@ -526,15 +567,15 @@ export function KametiDetailPage() {
             are owner-only rows (committees.sql RLS), so the only person who can
             open this page IS the organiser — and update_committee refuses
             anyone else with NOT_ORGANISER regardless. */}
-        <div className="flex gap-2">
-          <button onClick={() => setEditingCommittee(true)} className="flex-1 py-3 rounded-2xl bg-cream-card border border-cream-border text-ink-700 text-[12.5px] font-semibold flex items-center justify-center gap-2 active:bg-cream-soft">
-            <SlidersHorizontal size={14} /> {t('kameti_edit')}
+        <div className="flex gap-2.5">
+          <button onClick={() => setEditingCommittee(true)} className="m-btn m-btn-plain flex-1 px-3 text-[12.5px] leading-tight text-center">
+            <Glyph name="sliders" size={15} /> {t('kameti_edit')}
           </button>
-          <button onClick={shareStatement} className="flex-1 py-3 rounded-2xl bg-cream-card border border-cream-border text-ink-700 text-[12.5px] font-semibold flex items-center justify-center gap-2 active:bg-cream-soft">
-            <Share2 size={14} /> {t('kameti_share_statement')}
+          <button onClick={shareStatement} className="m-btn m-btn-plain flex-1 px-3 text-[12.5px] leading-tight text-center">
+            <Glyph name="share" size={15} /> {t('kameti_share_statement')}
           </button>
-          <button onClick={handleDelete} className="px-4 py-3 rounded-2xl bg-cream-card border border-cream-border text-pay-text flex items-center justify-center active:bg-pay-50" aria-label={t('kameti_delete')}>
-            <Trash2 size={15} />
+          <button onClick={handleDelete} className="m-btn m-btn-danger px-4" aria-label={t('kameti_delete')}>
+            <Glyph name="trash" size={16} />
           </button>
         </div>
       </div>
@@ -567,27 +608,28 @@ export function KametiDetailPage() {
           <button
             onClick={handleAddMember}
             disabled={rosterBusy || !newMemberName.trim()}
-            className="clay-depth clay-depth-ink w-full py-3 rounded-2xl bg-ink-900 text-white text-[13px] font-bold disabled:opacity-40"
+            className="cta-primary"
           >
             {t('kameti_add_member')}
           </button>
         }
       >
-        <div className="space-y-3">
+        <div className="space-y-4">
           {/* Adding a member adds a ROUND: say so before the tap, not after. */}
-          <p className="text-[11.5px] text-ink-600 leading-relaxed rounded-2xl bg-cream-card border border-cream-border p-3">
-            {t('kameti_member_add_note')}
-          </p>
-          <div>
-            <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('kameti_member_name')}</label>
+          <div className="m-card m-gold p-3.5 flex items-start gap-2.5">
+            <Glyph name="info" size={15} tone="gold" className="mt-0.5" />
+            <p className="text-[11.5px] text-ink-700 leading-relaxed">{t('kameti_member_add_note')}</p>
+          </div>
+          <label className="block">
+            <span className="form-label">{t('kameti_member_name')}</span>
             <input value={newMemberName} onChange={(e) => setNewMemberName(e.target.value)} maxLength={60}
-              className="w-full mt-1.5 border border-cream-border rounded-xl px-4 py-3 text-[14px] bg-cream-bg focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all" />
-          </div>
-          <div>
-            <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('kameti_member_phone')}</label>
+              autoCapitalize="words" className="input-field" />
+          </label>
+          <label className="block">
+            <span className="form-label">{t('kameti_member_phone')}</span>
             <input value={newMemberPhone} onChange={(e) => setNewMemberPhone(e.target.value)} inputMode="tel" placeholder="+92…"
-              className="w-full mt-1.5 border border-cream-border rounded-xl px-4 py-3 text-[14px] bg-cream-bg focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all" />
-          </div>
+              className="input-field tabular-nums" />
+          </label>
         </div>
       </Modal>
 
@@ -599,23 +641,23 @@ export function KametiDetailPage() {
           <button
             onClick={saveEditMember}
             disabled={!editName.trim()}
-            className="clay-depth clay-depth-ink w-full py-3 rounded-2xl bg-ink-900 text-white text-[13px] font-bold disabled:opacity-40"
+            className="cta-primary"
           >
             {t('cat_save')}
           </button>
         }
       >
-        <div className="space-y-3">
-          <div>
-            <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('kameti_member_name')}</label>
+        <div className="space-y-4">
+          <label className="block">
+            <span className="form-label">{t('kameti_member_name')}</span>
             <input value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus
-              className="w-full mt-1.5 border border-cream-border rounded-xl px-4 py-3 text-[14px] bg-cream-bg focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all" />
-          </div>
-          <div>
-            <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">{t('kameti_member_phone')}</label>
+              autoCapitalize="words" className="input-field" />
+          </label>
+          <label className="block">
+            <span className="form-label">{t('kameti_member_phone')}</span>
             <input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} inputMode="tel" placeholder="+92…"
-              className="w-full mt-1.5 border border-cream-border rounded-xl px-4 py-3 text-[14px] bg-cream-bg focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all" />
-          </div>
+              className="input-field tabular-nums" />
+          </label>
         </div>
       </Modal>
     </main>

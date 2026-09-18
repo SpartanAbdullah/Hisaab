@@ -1,5 +1,6 @@
-import { Globe, ArrowUpCircle } from 'lucide-react';
 import { useT, useI18nStore } from '../lib/i18n';
+import { Glyph } from './Glyph';
+import { LanguageToggle } from './LanguageToggle';
 import { isNativeRuntime } from '../lib/runtime';
 import { recoverFromStaleApp } from '../lib/appRecovery';
 import { PLAY_STORE_URL, updateMessageFor, type AppVersionConfig } from '../lib/versionGate';
@@ -27,7 +28,7 @@ export function UpdateRequiredScreen({
   version: string;
 }) {
   const t = useT();
-  const { lang, setLang } = useI18nStore();
+  const lang = useI18nStore((s) => s.lang);
 
   // Server copy wins when an operator wrote one for this incident; otherwise
   // the bundled translation. Derived on every render so the language toggle
@@ -47,36 +48,33 @@ export function UpdateRequiredScreen({
     void recoverFromStaleApp();
   };
 
+  // 1d: the full-screen hero ground, a violet plate with the extruded arrow-up
+  // glyph, and the brand-violet primary — the one action this dead end offers.
   return (
-    <div className="min-h-dvh relative flex flex-col items-center justify-center bg-navy-bloom text-white px-8 text-center">
-      <button
-        onClick={() => setLang(lang === 'ur' ? 'en' : 'ur')}
-        className="absolute top-[max(20px,env(safe-area-inset-top))] right-5 z-50 bg-white/10 text-white/80 rounded-xl px-3 py-1.5 text-[10px] font-bold flex items-center gap-1.5 active:scale-95 transition-all backdrop-blur-sm border border-white/10 min-h-[44px]"
-      >
-        <Globe size={11} /> {lang === 'ur' ? 'EN' : 'UR'}
-      </button>
+    <div className="auth-ink-dark min-h-dvh relative flex flex-col items-center justify-center bg-navy-bloom text-white px-8 text-center">
+      <LanguageToggle className="absolute top-[max(20px,env(safe-area-inset-top))] right-5 z-50" />
 
-      <div className="w-20 h-20 rounded-3xl bg-white/10 flex items-center justify-center mb-6 backdrop-blur-sm border border-white/15">
-        <ArrowUpCircle size={34} className="text-white" />
+      <div className="m-plate m-violet mb-6" aria-hidden>
+        <Glyph name="arrow-up" tone="violet" size={26} extrude />
       </div>
 
-      <h1 className="text-2xl font-bold tracking-tight mb-3">{t('upd_required_title')}</h1>
-      <p className="text-white/60 text-[13px] max-w-[300px] leading-relaxed">
+      <h1 className="text-[24px] font-semibold tracking-[-0.02em] mb-3">{t('upd_required_title')}</h1>
+      <p className="text-white/70 text-[13px] max-w-[300px] leading-relaxed">
         {serverMessage ?? t('upd_required_body')}
       </p>
-      <p className="text-white/45 text-[12px] max-w-[290px] leading-relaxed mt-4">
+      <p className="text-white/60 text-[12px] max-w-[290px] leading-relaxed mt-4">
         {t('upd_required_safe')}
       </p>
 
       <div className="w-full max-w-[300px] mt-8">
         <button
           onClick={onUpdate}
-          className="w-full bg-white text-navy-900 rounded-2xl py-4 text-[14px] font-semibold active:scale-[0.98] transition-all shadow-lg shadow-white/10 min-h-[44px]"
+          className="m-btn m-btn-primary w-full py-4 text-[14px]"
         >
           {native ? t('upd_required_store') : t('upd_required_reload')}
         </button>
         {!native && (
-          <p className="text-white/35 text-[11px] leading-relaxed mt-3">
+          <p className="text-white/60 text-[11px] leading-relaxed mt-3">
             {t('upd_required_reload_hint')}
           </p>
         )}
@@ -84,7 +82,7 @@ export function UpdateRequiredScreen({
 
       {/* Version string so a support conversation can start with a fact rather
           than "the app says update". */}
-      <p className="text-white/30 text-[11px] mt-8">
+      <p className="text-white/60 text-[11px] mt-8">
         {t('upd_required_version').replace('{version}', version)}
       </p>
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { MessageCircle, Mail, MessageSquare } from 'lucide-react';
 import { useT } from '../lib/i18n';
+import { Glyph } from './Glyph';
 import { buildWhatsAppUrl } from '../lib/whatsappReminder';
 import { track } from '../lib/telemetry';
 
@@ -70,38 +70,40 @@ export function FeedbackCard() {
     window.location.href = `mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${encodeURIComponent(body)}`;
   };
 
+  // 1d settings card: the standard row header (36px raised square + toned
+  // glyph), two key-material actions, and the sunken .input-field note well.
   return (
-    <div className="rounded-[18px] bg-cream-card border border-cream-border overflow-hidden">
-      <div className="flex items-center gap-3 p-4">
-        <div className="w-9 h-9 rounded-xl bg-accent-100 flex items-center justify-center shrink-0">
-          <MessageSquare size={16} className="text-accent-600" />
+    <div className="m-card overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-3.5">
+        <div className="m-ctl w-9 h-9 flex items-center justify-center shrink-0" aria-hidden>
+          <Glyph name="chat" tone="violet" size={18} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold text-ink-900">{t('fbk_title')}</p>
-          <p className="text-[11px] text-ink-500">{t('fbk_sub')}</p>
+          <p className="text-[13.5px] font-semibold text-ink-900">{t('fbk_title')}</p>
+          <p className="text-[11px] text-ink-600 mt-0.5">{t('fbk_sub')}</p>
         </div>
       </div>
 
-      <div className="px-4 pb-4 space-y-3">
-        <div className="flex gap-2">
+      <div className="px-4 pb-4 space-y-3.5">
+        <div className="flex gap-2.5">
           <button
             onClick={openWhatsApp}
-            className="flex-1 min-h-[44px] rounded-2xl bg-receive-50 border border-receive-100 text-receive-text text-[12.5px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+            className="m-btn m-btn-plain flex-1 px-3 py-2.5 text-[12.5px]"
           >
-            <MessageCircle size={15} />
+            <Glyph name="whatsapp" tone="green" size={16} />
             {t('fbk_whatsapp')}
           </button>
           <button
             onClick={openEmail}
-            className="flex-1 min-h-[44px] rounded-2xl bg-cream-soft border border-cream-border text-ink-700 text-[12.5px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+            className="m-btn m-btn-plain flex-1 px-3 py-2.5 text-[12.5px]"
           >
-            <Mail size={15} />
+            <Glyph name="mail" tone="blue" size={16} />
             {t('fbk_email')}
           </button>
         </div>
 
         <div>
-          <label htmlFor="feedback-note" className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">
+          <label htmlFor="feedback-note" className="form-label">
             {t('fbk_note_label')}
           </label>
           <textarea
@@ -111,7 +113,7 @@ export function FeedbackCard() {
             rows={3}
             maxLength={1000}
             placeholder={t('fbk_note_ph')}
-            className="w-full mt-1.5 border border-cream-border rounded-2xl px-4 py-3 text-sm bg-cream-card focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 transition-all resize-none"
+            className="input-field resize-none leading-relaxed"
           />
           <p className="text-[10.5px] text-ink-400 mt-1.5 leading-relaxed">
             {savedAt > 0 ? `${t('fbk_note_saved')} · ` : ''}

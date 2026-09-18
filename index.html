@@ -32,7 +32,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#0B0E2A" />
+    <meta name="theme-color" content="#0A0A14" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -53,6 +53,10 @@
          to preload — see the @font-face block at the top of src/index.css
          and docs/performance.md for the before/after and the source URL. -->
     <link rel="preload" href="/fonts/geist-latin-variable.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Applies the stored (or default dark) theme class to <html> before first
+         paint — no light flash. A blocking external script because the CSP's
+         script-src 'self' refuses inline ones. Mirrors src/stores/themeStore.ts. -->
+    <script src="/theme-boot.js"></script>
   </head>
   <body>
     <div id="root"></div>

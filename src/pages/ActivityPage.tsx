@@ -1,11 +1,6 @@
 import { useCallback, useState } from 'react';
 import { format, isToday, isYesterday } from 'date-fns';
-import {
-  PlusCircle, ArrowLeftRight, HandCoins, CheckCircle,
-  Target, CreditCard, Clock, Landmark, Pencil, Trash2,
-  Users, ArrowRightLeft, BellRing,
-  type LucideIcon,
-} from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { useActivityStore } from '../stores/activityStore';
 import { useNotificationStore } from '../stores/notificationStore';
 import { NavyHero, TopBar } from '../components/NavyHero';
@@ -13,47 +8,33 @@ import { LanguageToggle } from '../components/LanguageToggle';
 import { EmptyState } from '../components/EmptyState';
 import { PageErrorState } from '../components/PageErrorState';
 import { ListSkeleton } from '../components/ListSkeleton';
+import { Glyph } from '../components/Glyph';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
 import { useT } from '../lib/i18n';
+import type { GlyphName, GlyphTone } from '../lib/glyphs';
 import { renderNotificationContent } from '../lib/notificationContent';
 
-const iconMap: Record<string, LucideIcon> = {
-  account_created: PlusCircle,
-  account_deleted: Trash2,
-  transaction_created: ArrowLeftRight,
-  loan_created: HandCoins,
-  loan_settled: CheckCircle,
-  emi_paid: CreditCard,
-  goal_created: Target,
-  goal_contribution: Target,
-  opening_balance: Landmark,
-  transaction_modified: Pencil,
-  transaction_deleted: Trash2,
-  transfer: ArrowRightLeft,
-  group_created: Users,
-  group_expense: Users,
-  group_settlement: CheckCircle,
+// 1d row icon per activity kind: a 40px tinted square + 3c glyph. The tint
+// keeps the old colour semantics (new = violet, money in/settled = mint,
+// removals and group spends = coral, moves = blue, edits = neutral).
+const ACTIVITY_ICON: Record<string, { square: string; glyph: GlyphName; tone: GlyphTone }> = {
+  account_created: { square: 'm-card m-blue', glyph: 'bank', tone: 'blue' },
+  account_deleted: { square: 'm-card m-coral', glyph: 'trash', tone: 'coral' },
+  transaction_created: { square: 'm-card m-violet', glyph: 'plus', tone: 'violet' },
+  opening_balance: { square: 'm-card m-violet', glyph: 'bank', tone: 'violet' },
+  loan_created: { square: 'm-card m-violet', glyph: 'coins', tone: 'violet' },
+  emi_paid: { square: 'm-card m-mint', glyph: 'card', tone: 'green' },
+  loan_settled: { square: 'm-card m-mint', glyph: 'check', tone: 'green' },
+  group_settlement: { square: 'm-card m-mint', glyph: 'check', tone: 'green' },
+  goal_created: { square: 'm-card m-mint', glyph: 'savings', tone: 'green' },
+  goal_contribution: { square: 'm-card m-mint', glyph: 'savings', tone: 'green' },
+  transaction_modified: { square: 'm-ctl', glyph: 'edit', tone: 'neutral' },
+  transaction_deleted: { square: 'm-card m-coral', glyph: 'trash', tone: 'coral' },
+  transfer: { square: 'm-card m-blue', glyph: 'swap', tone: 'blue' },
+  group_created: { square: 'm-card m-blue', glyph: 'groups', tone: 'blue' },
+  group_expense: { square: 'm-card m-blue', glyph: 'split', tone: 'blue' },
 };
-
-const styleMap: Record<string, { icon: string; card: string }> = {
-  account_created: { icon: 'text-info-600 bg-gradient-to-br from-info-50 to-info-50/50', card: 'border-l-4 border-l-info-600' },
-  account_deleted: { icon: 'text-pay-600 bg-gradient-to-br from-pay-50 to-pay-100/50', card: 'border-l-4 border-l-pay-600' },
-  transaction_created: { icon: 'text-accent-600 bg-gradient-to-br from-accent-50 to-accent-100/50', card: 'border-l-4 border-l-accent-500' },
-  opening_balance: { icon: 'text-accent-600 bg-gradient-to-br from-accent-50 to-accent-100/50', card: 'border-l-4 border-l-accent-500' },
-  loan_created: { icon: 'text-warn-600 bg-gradient-to-br from-warn-50 to-warn-50/50', card: 'border-l-4 border-l-warn-600' },
-  emi_paid: { icon: 'text-receive-600 bg-gradient-to-br from-receive-50 to-receive-100/50', card: 'border-l-4 border-l-receive-600' },
-  loan_settled: { icon: 'text-receive-600 bg-gradient-to-br from-receive-50 to-receive-100/50', card: 'border-l-4 border-l-receive-600' },
-  group_settlement: { icon: 'text-receive-600 bg-gradient-to-br from-receive-50 to-receive-100/50', card: 'border-l-4 border-l-receive-600' },
-  goal_created: { icon: 'text-accent-600 bg-gradient-to-br from-accent-50 to-accent-100/50', card: 'border-l-4 border-l-accent-500' },
-  goal_contribution: { icon: 'text-accent-600 bg-gradient-to-br from-accent-50 to-accent-100/50', card: 'border-l-4 border-l-accent-500' },
-  transaction_modified: { icon: 'text-warn-600 bg-gradient-to-br from-warn-50 to-warn-50/50', card: 'border-l-4 border-l-warn-600' },
-  transaction_deleted: { icon: 'text-pay-600 bg-gradient-to-br from-pay-50 to-pay-100/50', card: 'border-l-4 border-l-pay-600' },
-  transfer: { icon: 'text-info-600 bg-gradient-to-br from-info-50 to-info-50/50', card: 'border-l-4 border-l-info-600' },
-  group_created: { icon: 'text-pay-600 bg-gradient-to-br from-pay-50 to-pay-100/50', card: 'border-l-4 border-l-pay-600' },
-  group_expense: { icon: 'text-pay-600 bg-gradient-to-br from-pay-50 to-pay-100/50', card: 'border-l-4 border-l-pay-600' },
-};
-
-const defaultStyle = { icon: 'text-ink-500 bg-cream-soft', card: 'border-l-4 border-l-cream-border' };
+const DEFAULT_ICON = { square: 'm-ctl', glyph: 'activity', tone: 'neutral' } as const;
 
 type Tab = 'shared' | 'personal';
 
@@ -106,9 +87,10 @@ export function ActivityPage() {
               {tab === 'shared' && unreadCount > 0 && (
                 <button
                   onClick={() => void markAllRead()}
-                  className="h-9 px-3 rounded-xl bg-white/10 active:bg-white/15 flex items-center gap-1.5 text-[11.5px] font-semibold text-white transition-colors"
+                  className="m-ctl h-9 px-3 flex items-center gap-1.5 text-[11.5px] font-semibold text-white/90"
                   aria-label={t('a11y_mark_all_read')}
                 >
+                  <Glyph name="check" size={13} strokeWidth={3} />
                   {t('act_mark_read_short')}
                 </button>
               )}
@@ -117,28 +99,31 @@ export function ActivityPage() {
           }
         />
         <div className="px-5 pb-7">
-          <p className="text-[10.5px] font-semibold text-white/55 tracking-[0.12em] uppercase">
+          <p className="text-[10.5px] font-semibold text-white/70 tracking-[0.12em] uppercase">
             {tab === 'shared'
-              ? `${notifications.length} shared${unreadCount > 0 ? ` · ${unreadCount} unread` : ''}`
-              : `${activities.length} personal ${activities.length === 1 ? 'event' : 'events'}`}
+              ? t('mv_act_hero_shared').replace('{n}', String(notifications.length)) +
+                (unreadCount > 0 ? ` · ${t('mv_act_hero_unread').replace('{n}', String(unreadCount))}` : '')
+              : activities.length === 1
+                ? t('mv_act_hero_personal_one')
+                : t('mv_act_hero_personal_many').replace('{n}', String(activities.length))}
           </p>
         </div>
       </NavyHero>
 
       <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-4">
-        {/* Tab pills — Shared / Personal. The red dot on Shared signals
+        {/* Tab pills — Shared / Personal. The coral dot on Shared signals
             unread shared notifications regardless of which tab is active,
             so unread state lives at the tab level only (per the spec) and
             not on individual notification rows. */}
         <div className="flex gap-2">
           <TabPill
-            label="Shared"
+            label={t('mv_act_tab_shared')}
             active={tab === 'shared'}
             onClick={() => setTab('shared')}
             showDot={unreadCount > 0}
           />
           <TabPill
-            label="Personal"
+            label={t('mv_act_tab_personal')}
             active={tab === 'personal'}
             onClick={() => setTab('personal')}
           />
@@ -154,12 +139,13 @@ export function ActivityPage() {
         )}
 
         {loadStatus === 'loading' && !hasAnyItems ? (
-          <ListSkeleton rows={4} withAvatar={false} />
+          <ListSkeleton rows={4} />
         ) : !hasAnyItems ? (
           loadStatus === 'ready' ? (
             <EmptyState
               icon={Clock}
-              tone="indigo"
+              clayIcon="activity"
+              tone="violet"
               title={t('empty_activity_title')}
               description={t('empty_activity_desc')}
               subhint={t('empty_activity_subhint')}
@@ -167,11 +153,12 @@ export function ActivityPage() {
           ) : null
         ) : tab === 'shared' ? (
           notifications.length === 0 ? (
-            <div className="rounded-2xl bg-cream-card border border-cream-border p-4 text-[12px] text-ink-500 text-center">
+            <div className="m-inset p-4 text-[12px] text-ink-500 text-center">
               {t('ntf_no_shared_yet')}
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2.5">
+              <div className="m-card overflow-hidden divide-y divide-cream-hairline">
               {notifications.map((notification, index) => {
                 // Group notifications are template+params rows written by the
                 // server now, so this renders in the reader's language instead
@@ -181,26 +168,27 @@ export function ActivityPage() {
                 return (
                   <div
                     key={notification.id}
-                    className="rounded-2xl bg-cream-card border border-cream-border p-4 flex items-start gap-3 animate-fade-in"
-                    style={{ animationDelay: `${index * 30}ms` }}
+                    className="px-4 py-3.5 flex items-start gap-3 animate-fade-in"
+                    style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
                   >
-                    <div className="w-9 h-9 rounded-xl bg-warn-50 text-warn-600 flex items-center justify-center shrink-0 mt-0.5">
-                      <BellRing size={15} strokeWidth={1.8} />
+                    <div className="m-card m-violet w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0">
+                      <Glyph name="bell" tone="violet" size={19} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-ink-800 leading-snug tracking-tight">
+                      <p className="text-[13.5px] font-semibold text-ink-900 leading-snug tracking-tight">
                         {content.title}
                       </p>
-                      <p className="text-[12px] text-ink-500 mt-1">
+                      <p className="text-[12px] text-ink-600 mt-1 leading-relaxed">
                         {content.body}
                       </p>
-                      <p className="text-[10px] text-ink-500 mt-1">
+                      <p className="text-[10.5px] text-ink-400 mt-1 tabular-nums">
                         {format(new Date(notification.createdAt), 'dd MMM, h:mm a')}
                       </p>
                     </div>
                   </div>
                 );
               })}
+              </div>
 
               {/* Honest footer. "N of M" is the rows this device holds against
                   the exact server-side count that rode along free with the
@@ -219,7 +207,7 @@ export function ActivityPage() {
                   type="button"
                   onClick={() => void loadMoreNotifications()}
                   disabled={loadingMoreNotifications}
-                  className="w-full min-h-[44px] rounded-2xl bg-cream-card border border-cream-border text-[12px] font-semibold text-ink-700 disabled:opacity-60"
+                  className="m-btn m-btn-plain w-full text-[12.5px]"
                 >
                   {loadingMoreNotifications ? t('list_loading_more') : t('list_load_more')}
                 </button>
@@ -227,34 +215,33 @@ export function ActivityPage() {
             </div>
           )
         ) : activities.length === 0 ? (
-          <div className="rounded-2xl bg-cream-card border border-cream-border p-4 text-[12px] text-ink-500 text-center">
+          <div className="m-inset p-4 text-[12px] text-ink-500 text-center">
             {t('act_no_personal_yet')}
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-5">
             {Object.entries(grouped).map(([dateLabel, items]) => (
               <div key={dateLabel}>
                 <p className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2.5 px-1">
                   {dateLabel}
                 </p>
-                <div className="space-y-2">
+                <div className="m-card overflow-hidden divide-y divide-cream-hairline">
                   {items.map((activity, index) => {
-                    const Icon = iconMap[activity.type] ?? ArrowLeftRight;
-                    const style = styleMap[activity.type] ?? defaultStyle;
+                    const icon = ACTIVITY_ICON[activity.type] ?? DEFAULT_ICON;
                     return (
                       <div
                         key={activity.id}
-                        className={`rounded-2xl bg-cream-card border border-cream-border p-4 flex items-start gap-3 animate-fade-in ${style.card}`}
-                        style={{ animationDelay: `${index * 30}ms` }}
+                        className="px-4 py-3.5 flex items-start gap-3 animate-fade-in"
+                        style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
                       >
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${style.icon}`}>
-                          <Icon size={15} strokeWidth={1.8} />
+                        <div className={`${icon.square} w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0`}>
+                          <Glyph name={icon.glyph} tone={icon.tone} size={19} />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] text-ink-800 leading-snug tracking-tight">
+                        <div className="flex-1 min-w-0 pt-0.5">
+                          <p className="text-[13.5px] text-ink-900 leading-snug tracking-tight">
                             {activity.description}
                           </p>
-                          <p className="text-[10px] text-ink-500 mt-1">
+                          <p className="text-[10.5px] text-ink-400 mt-1 tabular-nums">
                             {format(new Date(activity.timestamp), 'h:mm a')}
                           </p>
                         </div>
@@ -271,6 +258,8 @@ export function ActivityPage() {
   );
 }
 
+// Shared / Personal tab — the 1d pill (light-faced when active). The coral
+// dot rides on the Shared tab while anything there is unread.
 function TabPill({
   label,
   active,
@@ -285,22 +274,19 @@ function TabPill({
   const t = useT();
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`shrink-0 px-3.5 py-1.5 rounded-full text-[11.5px] font-semibold whitespace-nowrap transition-colors relative ${
-        active
-          ? 'bg-ink-900 text-white'
-          : 'bg-cream-card text-ink-500 border border-cream-border'
-      }`}
+      aria-pressed={active}
+      className="m-pill shrink-0"
     >
-      <span className="inline-flex items-center gap-1.5">
-        {label}
-        {showDot && (
-          <span
-            className="w-1.5 h-1.5 rounded-full bg-pay-600 shrink-0"
-            aria-label={t('a11y_unread')}
-          />
-        )}
-      </span>
+      {label}
+      {showDot && (
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-pay-600 shrink-0"
+          role="img"
+          aria-label={t('a11y_unread')}
+        />
+      )}
     </button>
   );
 }

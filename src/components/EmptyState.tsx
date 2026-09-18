@@ -1,78 +1,47 @@
 import { Button } from './Button';
-import { Icon3D } from './Icon3D';
-import { CLAY_ICONS } from '../lib/clayIcons.generated';
-import { normalizeClayIconRegistry, resolveClayIcon } from '../lib/clay';
+import { Glyph } from './Glyph';
+import { GLYPH_TONE_CLASS, resolveGlyph, type GlyphTone } from '../lib/glyphs';
 import type { LucideIcon } from 'lucide-react';
 
-type Tone = 'indigo' | 'accent' | 'receive' | 'pay' | 'warn';
+type Tone = 'indigo' | 'accent' | 'receive' | 'pay' | 'warn' | 'violet' | 'blue' | 'pink' | 'gold';
 
 interface Props {
-  icon: LucideIcon;
-  /**
-   * 3D clay: name of an asset in public/3d (see src/lib/clayIcons.generated).
-   * When given AND the asset exists, the rendered icon replaces the flat
-   * lucide glyph inside the halo — the halo, bloom and tone are unchanged, so
-   * every call site that does not pass this keeps exactly the visual it had.
-   * An unknown name falls through to `icon`, so a tile never loses its picture.
-   */
+  /** Fallback line icon, used only when `clayIcon` doesn't resolve. */
+  icon?: LucideIcon;
+  /** A 3c glyph name (or a retired clay icon name) — preferred. */
   clayIcon?: string;
   title: string;
   description: string;
-  // Tiny italic line below description. Use for personality copy in Roman Urdu
-  // / English that explains why the empty state isn't a bug — e.g.
-  // "Abhi koi qarz nahi — sukoon hai 🌙". Optional.
   subhint?: string;
   actionLabel?: string;
   onAction?: () => void;
-  // Optional second CTA rendered as a ghost button under the primary.
-  // Use when the empty state has a "create new" + "join existing" duality.
   secondaryActionLabel?: string;
   onSecondaryAction?: () => void;
-  // Visual tone of the icon halo. Defaults to indigo to match existing call
-  // sites. accent = Sukoon violet, receive = forest green, pay = warm coral.
   tone?: Tone;
-  // Compact variant for inline-in-card empty states (e.g. an account with
-  // zero transactions inside its detail page). Reduces vertical padding
-  // and icon size.
   size?: 'default' | 'compact';
+  /** The CTA's button variant. Violet `primary` by default; `hero` (same
+   *  violet) on AI / Investments empty states, per the handoff. */
+  actionVariant?: 'primary' | 'hero';
 }
 
-const TONES: Record<Tone, { halo: string; ring: string; icon: string; bloom: string }> = {
-  indigo: {
-    halo: 'from-accent-50 to-accent-100',
-    ring: 'ring-accent-100',
-    icon: 'text-accent-600',
-    bloom: 'before:bg-accent-500/20',
-  },
-  accent: {
-    halo: 'from-accent-50 to-accent-100',
-    ring: 'ring-accent-100',
-    icon: 'text-accent-600',
-    bloom: 'before:bg-accent-500/20',
-  },
-  receive: {
-    halo: 'from-receive-50 to-receive-100',
-    ring: 'ring-receive-100',
-    icon: 'text-receive-600',
-    bloom: 'before:bg-receive-600/15',
-  },
-  pay: {
-    halo: 'from-pay-50 to-pay-100',
-    ring: 'ring-pay-100',
-    icon: 'text-pay-600',
-    bloom: 'before:bg-pay-600/15',
-  },
-  warn: {
-    halo: 'from-warn-50 to-warn-50',
-    ring: 'ring-warn-50',
-    icon: 'text-warn-600',
-    bloom: 'before:bg-warn-600/15',
-  },
+// Tone → the plate's tint scope + the glyph's accent. `indigo`/`accent` are the
+// historical names for the primary tone: the brand violet.
+const TONES: Record<Tone, { plate: string; glyph: GlyphTone }> = {
+  indigo: { plate: 'm-violet', glyph: 'violet' },
+  accent: { plate: 'm-violet', glyph: 'violet' },
+  gold: { plate: 'm-gold', glyph: 'gold' },
+  receive: { plate: 'm-mint', glyph: 'green' },
+  pay: { plate: 'm-coral', glyph: 'coral' },
+  warn: { plate: 'm-gold', glyph: 'gold' },
+  violet: { plate: 'm-violet', glyph: 'violet' },
+  blue: { plate: 'm-blue', glyph: 'blue' },
+  pink: { plate: 'm-pink', glyph: 'pink' },
 };
 
-// Resolved once at module scope — the registry is a build-time constant.
-const CLAY_REGISTRY = normalizeClayIconRegistry(CLAY_ICONS);
-
+// The 1d empty state: a 56px tinted plate holding a 26px extruded glyph, a
+// 15px title, a short body (≤270px) and an optional primary (violet) CTA. The one place a
+// glyph sits on a plate. The plate floats gently (empty screens only — see
+// .animate-float-idle in index.css).
 export function EmptyState({
   icon: Icon,
   clayIcon,
@@ -85,54 +54,34 @@ export function EmptyState({
   onSecondaryAction,
   tone = 'indigo',
   size = 'default',
+  actionVariant = 'primary',
 }: Props) {
-  const t = TONES[tone];
+  const tn = TONES[tone];
   const isCompact = size === 'compact';
-  // Fall back to the lucide glyph when the 3D asset has not been produced —
-  // an empty state must never end up with no picture at all.
-  const has3d = !!resolveClayIcon(clayIcon, CLAY_REGISTRY);
-  // The bloom is a soft blurred circle behind the icon container, sized
-  // larger than the container so the edges feather out. Pure decoration —
-  // does not capture pointer events.
-  const iconBoxSize = isCompact ? 'w-14 h-14' : 'w-20 h-20';
-  const iconSize = isCompact ? 26 : 32;
-  const containerPadding = isCompact ? 'py-10 px-6' : 'py-16 px-8';
+  const resolved = resolveGlyph(clayIcon);
 
   return (
-    <div className={`flex flex-col items-center justify-center text-center ${containerPadding}`}>
-      <div
-        className={`relative ${iconBoxSize} rounded-[28px] bg-gradient-to-br ${t.halo} ${t.icon} flex items-center justify-center mb-5 shadow-sm ring-1 ${t.ring} before:absolute before:inset-0 before:-z-10 before:rounded-[40px] before:blur-2xl before:opacity-70 ${t.bloom}`}
-      >
-        {has3d ? (
-          isCompact ? (
-            // Compact = inline inside a screen that HAS content (Home's splits
-            // section, an account's empty ledger next to its balance). Nothing
-            // may loop beside content the user is reading, so no float here —
-            // and no standing compositor cost on a low-end WebView.
-            <Icon3D name={clayIcon!} size="sm" />
-          ) : (
-            // Idle float: the icon drifts inside its halo box, the one loop the
-            // motion system allows, because a FULL-PAGE empty state has nothing
-            // else moving and a perfectly still render reads as frozen. The
-            // loop exists for the absence of content, which is why only this
-            // variant gets it.
-            <span aria-hidden="true" className="inline-flex animate-float-idle">
-              <Icon3D name={clayIcon!} size="md" />
-            </span>
-          )
-        ) : (
-          <Icon size={iconSize} strokeWidth={1.5} />
-        )}
+    <div
+      className={`flex flex-col items-center justify-center text-center ${
+        isCompact ? 'py-10 px-6' : 'pt-12 pb-10 px-7'
+      }`}
+    >
+      <div className={`m-plate ${tn.plate} mb-[18px] ${isCompact ? '' : 'animate-float-idle'}`} aria-hidden>
+        {resolved ? (
+          <Glyph name={resolved.glyph} tone={tn.glyph} size={26} extrude />
+        ) : Icon ? (
+          <Icon size={24} strokeWidth={2.4} className={GLYPH_TONE_CLASS[tn.glyph]} />
+        ) : null}
       </div>
-      <h3 className="font-bold text-[15px] text-ink-800 tracking-tight">{title}</h3>
-      <p className="text-[13px] text-ink-500 mt-1.5 max-w-[260px] leading-relaxed">{description}</p>
+      <h3 className="font-semibold text-[15px] text-ink-900 tracking-tight">{title}</h3>
+      <p className="text-[12px] text-ink-600 mt-1.5 max-w-[270px] leading-relaxed">{description}</p>
       {subhint && (
-        <p className="text-[11.5px] text-ink-400 italic mt-2 max-w-[240px]">{subhint}</p>
+        <p className="text-[11.5px] text-ink-400 italic mt-2 max-w-[250px]">{subhint}</p>
       )}
       {(actionLabel && onAction) || (secondaryActionLabel && onSecondaryAction) ? (
-        <div className="mt-6 flex flex-col items-stretch gap-2 min-w-[200px]">
+        <div className="mt-5 flex flex-col items-stretch gap-2 min-w-[200px]">
           {actionLabel && onAction && (
-            <Button variant="gradient" size="md" onClick={onAction}>
+            <Button variant={actionVariant} size="md" onClick={onAction} className="justify-center">
               {actionLabel}
             </Button>
           )}

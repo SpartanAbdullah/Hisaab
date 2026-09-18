@@ -84,7 +84,7 @@ export function UpdatePricesSheet({ open, onClose, marketId }: Props) {
         <button
           onClick={handleSave}
           disabled={dirtyEntries.length === 0 || saving}
-          className="w-full bg-ink-900 text-white rounded-2xl py-3.5 text-sm font-semibold disabled:opacity-30 hover:enabled:opacity-90 hover:enabled:shadow-md active:scale-[0.98] transition-all"
+          className="m-btn m-btn-primary w-full py-3.5 text-[14px]"
         >
           {saving ? t('quick_processing') : `${t('quick_save')}${dirtyEntries.length > 0 ? ` (${dirtyEntries.length})` : ''}`}
         </button>
@@ -95,16 +95,16 @@ export function UpdatePricesSheet({ open, onClose, marketId }: Props) {
           const market = marketById.get(h.marketId);
           if (!market) return null;
           const key = `${h.marketId}:${h.symbol}`;
+          const color = marketColorFor(market.id);
           return (
-            <div key={key} className="rounded-2xl bg-cream-card border border-cream-border p-3.5 flex items-center gap-3">
+            <div key={key} className="m-card p-3.5 flex items-center gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-semibold text-ink-900 truncate">
-                  {h.symbol}{' '}
-                  <span className={`text-[9px] font-semibold rounded-full px-1.5 py-0.5 ${marketColorFor(market.id).tint} ${marketColorFor(market.id).text}`}>
-                    {market.name}
-                  </span>
+                <p className="flex items-center gap-1.5 min-w-0 text-[13px] font-semibold text-ink-900">
+                  <span className="truncate">{h.symbol}</span>
+                  {/* Market tag in the market's own hue (m-chip pairing). */}
+                  <span className={`m-chip shrink-0 ${color.tint} ${color.text}`}>{market.name}</span>
                 </p>
-                <p className="text-[10.5px] text-ink-500 mt-0.5 tabular-nums">
+                <p className="text-[10.5px] text-ink-600 mt-1 tabular-nums">
                   {h.position.quantity.toLocaleString()} @ {formatMoney(h.position.avgCost, market.currency)}
                 </p>
               </div>
@@ -117,15 +117,15 @@ export function UpdatePricesSheet({ open, onClose, marketId }: Props) {
                   value={texts[key] ?? ''}
                   onChange={(e) => setTexts((s) => ({ ...s, [key]: e.target.value }))}
                   placeholder="—"
-                  className="w-24 border border-cream-border rounded-xl px-3 py-2 text-[14px] font-semibold tabular-nums text-right bg-cream-bg focus:outline-none focus:border-accent-500"
+                  className="input-field w-24 px-3 py-2 font-semibold tabular-nums text-right"
                 />
-                <span className="text-[10.5px] font-semibold text-ink-500">{market.currency}</span>
+                <span className="text-[10.5px] font-semibold text-ink-600">{market.currency}</span>
               </div>
             </div>
           );
         })}
         {holdings.length === 0 && (
-          <p className="text-[12px] text-ink-500 text-center py-4">{t('inv_position_closed')}</p>
+          <p className="text-[12px] text-ink-600 text-center py-4">{t('inv_position_closed')}</p>
         )}
       </div>
     </Modal>

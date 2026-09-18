@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Repeat, CheckCircle, Pause, SkipForward } from 'lucide-react';
+import { Pause, SkipForward } from 'lucide-react';
 import { Modal } from '../components/Modal';
+import { Glyph } from './Glyph';
 import { useRecurringStore } from '../stores/recurringStore';
 import { useTransactionStore } from '../stores/transactionStore';
 import { useAccountStore } from '../stores/accountStore';
@@ -71,7 +72,7 @@ export function RecurringDuePrompt({ initialTemplates }: Props = {}) {
   if (!current) return null;
 
   const accountName = (id: string | null) =>
-    accounts.find((a) => a.id === id)?.name ?? 'Unknown';
+    accounts.find((a) => a.id === id)?.name ?? t('mv_unknown_account');
 
   const pop = () => setQueue((prev) => prev.slice(1));
 
@@ -192,7 +193,7 @@ export function RecurringDuePrompt({ initialTemplates }: Props = {}) {
       // happened and offer the way back.
       toast.show({
         type: 'success',
-        title: `${current.label || current.category}: skipped`,
+        title: t('mv_rec_skipped').replace('{name}', current.label || current.category),
         action: {
           label: t('undo'),
           onPress: () => {
@@ -222,13 +223,13 @@ export function RecurringDuePrompt({ initialTemplates }: Props = {}) {
   return (
     <Modal open={!!current} onClose={pop} title={t('rec_due_title')}>
       <div className="space-y-4">
-        <div className="rounded-2xl bg-cream-soft border border-cream-border p-4 flex items-start gap-3">
-          {/* Brand/category glyph when we can infer one ("Netflix" → 🎬,
-              "Salary" → 💰); generic Repeat icon otherwise. */}
-          <div className="w-11 h-11 rounded-2xl bg-accent-100 text-accent-600 flex items-center justify-center shrink-0 text-lg">
+        <div className="m-card p-4 flex items-start gap-3">
+          {/* Brand/category mark when we can infer one ("Netflix" → 🎬,
+              "Salary" → 💰); the recurring glyph otherwise. */}
+          <div className="m-card m-blue w-11 h-11 rounded-[14px] flex items-center justify-center shrink-0 text-lg">
             {(() => {
               const icon = brandIconFor(current.label, current.category);
-              return icon.matched === 'none' ? <Repeat size={18} strokeWidth={1.8} /> : icon.emoji;
+              return icon.matched === 'none' ? <Glyph name="recurring" size={20} tone="blue" /> : icon.emoji;
             })()}
           </div>
           <div className="min-w-0 flex-1">
@@ -236,14 +237,14 @@ export function RecurringDuePrompt({ initialTemplates }: Props = {}) {
               {current.label || current.category}
             </p>
             <p
-              className={`text-[13px] font-semibold tabular-nums mt-0.5 ${
+              className={`text-[15px] font-semibold tabular-nums mt-0.5 ${
                 current.type === 'income' ? 'text-receive-text' : 'text-pay-text'
               }`}
             >
               {current.type === 'income' ? '+ ' : '− '}
               {formatMoney(current.amount, current.currency)}
             </p>
-            <p className="text-[11px] text-ink-500 mt-1">
+            <p className="text-[11.5px] text-ink-600 mt-1">
               {t('rec_due_on').replace('{date}', current.nextDueDate)} ·{' '}
               {current.type === 'income'
                 ? t('rec_to_account').replace('{account}', accountName(current.destinationAccountId))
@@ -252,23 +253,23 @@ export function RecurringDuePrompt({ initialTemplates }: Props = {}) {
           </div>
         </div>
 
-        <button onClick={handleConfirm} disabled={working} className="cta-primary flex items-center justify-center gap-2">
-          <CheckCircle size={14} /> {working ? t('rec_posting') : t('rec_confirm_post')}
+        <button onClick={handleConfirm} disabled={working} className="cta-primary">
+          <Glyph name="check" size={16} strokeWidth={3} /> {working ? t('rec_posting') : t('rec_confirm_post')}
         </button>
-        <div className="flex gap-2">
+        <div className="flex gap-2.5">
           <button
             onClick={handleSkip}
             disabled={working}
-            className="cta-secondary flex-1 flex items-center justify-center gap-1"
+            className="cta-secondary flex-1 py-3.5 text-[13px]"
           >
-            <SkipForward size={12} /> {t('rec_skip_one')}
+            <SkipForward size={14} strokeWidth={2.4} /> {t('rec_skip_one')}
           </button>
           <button
             onClick={handlePause}
             disabled={working}
-            className="cta-secondary flex-1 flex items-center justify-center gap-1"
+            className="cta-secondary flex-1 py-3.5 text-[13px]"
           >
-            <Pause size={12} /> {t('rec_pause')}
+            <Pause size={14} strokeWidth={2.4} /> {t('rec_pause')}
           </button>
         </div>
         {queue.length > 1 && (

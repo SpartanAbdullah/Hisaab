@@ -287,7 +287,7 @@ export function RepaymentModal({
       toast.show({
         type: 'error',
         title: t('error'),
-        subtitle: err instanceof Error ? err.message : 'Failed',
+        subtitle: err instanceof Error ? err.message : t('toast_error_generic'),
       });
     } finally {
       setSaving(false);
@@ -327,24 +327,26 @@ export function RepaymentModal({
         }
       >
         <div className="space-y-4">
-          <div className={`rounded-2xl p-4 border ${isGiven ? 'bg-receive-50/50 border-receive-100' : 'bg-pay-50 border-pay-100'}`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-ink-500 uppercase tracking-widest">
+          {/* Tinted stat card: mint when the money comes back to you, coral
+              when you're the one paying. */}
+          <div className={`m-card ${isGiven ? 'm-mint' : 'm-coral'} p-4`}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className={`text-[10.5px] font-semibold uppercase tracking-[0.12em] ${isGiven ? 'text-receive-text' : 'text-pay-text'}`}>
                   {isGiven ? t('loan_receivable') : t('loan_payable')}
                 </p>
                 {installmentNumber ? (
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500 mt-1">
+                  <p className="m-label text-[10px] mt-1">
                     {t('repay_emi_number').replace('{n}', String(installmentNumber))}
                   </p>
                 ) : null}
-                <p className="text-lg font-bold tabular-nums tracking-tight mt-1 text-ink-900">
+                <p className="text-[21px] font-semibold tabular-nums tracking-[-0.03em] mt-1.5 text-ink-900">
                   {formatMoney(loan.remainingAmount, loan.currency)}
                 </p>
               </div>
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <p className="text-[10px] text-ink-500">{t('label_total')}</p>
-                <p className="text-[13px] font-semibold text-ink-500 tabular-nums">
+                <p className="text-[13px] font-semibold text-ink-600 tabular-nums">
                   {formatMoney(loan.totalAmount, loan.currency)}
                 </p>
               </div>
@@ -358,12 +360,12 @@ export function RepaymentModal({
             <button
               type="button"
               onClick={() => setShowAllocateOverflow(true)}
-              className="w-full rounded-2xl border border-accent-100 bg-accent-50 py-3 px-4 flex items-center justify-between gap-2 press"
+              className="m-tile m-violet py-3 px-4 flex items-center justify-between gap-2"
             >
-              <span className="text-[12px] font-semibold text-accent-600 text-left">
+              <span className="text-[12px] font-semibold text-accent-text text-left">
                 {t('repay_pay_all_cta').replace('{n}', String(siblingLoans.length + 1))}
               </span>
-              <span className="text-[12px] font-bold text-accent-600 tabular-nums shrink-0">
+              <span className="text-[12px] font-bold text-accent-text tabular-nums shrink-0">
                 {formatMoney(totalRemaining([loan, ...siblingLoans]), loan.currency)}
               </span>
             </button>
@@ -373,23 +375,23 @@ export function RepaymentModal({
             <label className="form-label">
               {(lockAmount ? t('loan_installment_amount') : t('repay_amount'))} ({loan.currency})
             </label>
-            {/* Quick-fill chips — Full / Half / (when an EMI instalment is
+            {/* Quick-fill pills — Full / Half / (when an EMI instalment is
                 known) Next instalment. Each is a >=44px tap target so a
                 thumb can hit it cleanly. Hidden when the amount is locked
                 to a specific EMI. */}
             {!lockAmount ? (
-              <div className="flex gap-2 mb-2">
+              <div className="flex gap-2 mb-3">
                 <button
                   type="button"
                   onClick={() => setAmount(String(loan.remainingAmount))}
-                  className="flex-1 min-h-[44px] rounded-xl bg-cream-soft border border-cream-border text-[12px] font-semibold text-ink-700 press"
+                  className="m-pill flex-1 min-h-[44px] text-[12px]"
                 >
                   {t('repay_full')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setAmount(String(Math.round((loan.remainingAmount / 2) * 100) / 100))}
-                  className="flex-1 min-h-[44px] rounded-xl bg-cream-soft border border-cream-border text-[12px] font-semibold text-ink-700 press"
+                  className="m-pill flex-1 min-h-[44px] text-[12px]"
                 >
                   {t('repay_half')}
                 </button>
@@ -397,7 +399,7 @@ export function RepaymentModal({
                   <button
                     type="button"
                     onClick={() => setAmount(String(installmentAmount))}
-                    className="flex-1 min-h-[44px] rounded-xl bg-accent-50 border border-accent-100 text-[12px] font-semibold text-accent-600 press"
+                    className="m-pill flex-1 min-h-[44px] text-[12px] text-accent-text"
                   >
                     {t('repay_next')}
                   </button>
@@ -411,14 +413,17 @@ export function RepaymentModal({
               onChange={(event) => setAmount(event.target.value)}
               placeholder="0.00"
               disabled={lockAmount}
-              className="input-field text-center text-xl font-bold tabular-nums disabled:bg-cream-soft disabled:text-ink-500 disabled:cursor-not-allowed"
+              className="input-field text-center font-semibold tabular-nums tracking-[-0.02em] disabled:opacity-70 disabled:cursor-not-allowed"
+              // Inline on purpose: index.css pins every <input> to 16px (iOS
+              // focus-zoom guard), which beats any font-size utility.
+              style={{ fontSize: 22 }}
               autoFocus
             />
             {!lockAmount ? (
               <button
                 type="button"
                 onClick={() => setAmount(String(loan.remainingAmount))}
-                className="mt-2 text-[11px] text-accent-600 font-bold active:opacity-70"
+                className="mt-2 min-h-[32px] text-[11.5px] text-accent-600 font-semibold active:opacity-70"
               >
                 {t('repay_full_amount').replace('{amount}', formatMoney(loan.remainingAmount, loan.currency))}
               </button>
@@ -429,8 +434,8 @@ export function RepaymentModal({
               </p>
             )}
             {amountValidationMsg && canOfferOverflow && (
-              <div className="mt-2 rounded-2xl bg-accent-50 border border-accent-100 p-3 space-y-2.5">
-                <p className="text-[11px] text-accent-600 leading-relaxed">
+              <div className="m-card m-violet mt-2.5 p-3.5 space-y-3">
+                <p className="text-[11.5px] text-accent-text leading-relaxed">
                   {t('repay_overflow_body')
                     .replace('{person}', resolvePersonName({ personId: loan.personId, fallback: loan.personName }))
                     .replace('{n}', String(siblingLoans.length))
@@ -439,7 +444,7 @@ export function RepaymentModal({
                 <button
                   type="button"
                   onClick={() => setShowAllocateOverflow(true)}
-                  className="w-full rounded-xl bg-ink-900 text-white py-2.5 text-[12px] font-semibold press"
+                  className="m-btn m-btn-primary w-full py-2.5 text-[12.5px]"
                 >
                   {t('repay_overflow_cta')}
                 </button>
@@ -474,8 +479,8 @@ export function RepaymentModal({
             const preview = clampCardCredit(cashAdvanceCard, parseFloat(amount));
             if (preview.skipped <= 0) return null;
             return (
-              <div className="rounded-2xl bg-warn-50 border border-warn-100 p-3">
-                <p className="text-[11.5px] text-warn-600 leading-relaxed font-medium">
+              <div className="m-card m-violet p-3.5">
+                <p className="text-[11.5px] text-accent-text leading-relaxed font-medium">
                   {preview.credited <= 0
                     ? t('repay_card_covered_full').replace('{card}', cashAdvanceCard.name)
                     : t('repay_card_covered_partial')
@@ -515,7 +520,7 @@ export function RepaymentModal({
           </div>
 
           {!isLedgerOnlyMode && (
-            <p className="text-[12px] text-ink-500 bg-cream-soft/80 border border-cream-hairline rounded-2xl p-3 leading-relaxed">
+            <p className="m-inset text-[12px] text-ink-600 p-3 leading-relaxed">
               {t('money_not_moved_notice')}
             </p>
           )}

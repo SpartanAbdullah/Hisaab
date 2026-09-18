@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Link2, Info, AlertTriangle, Search, KeyRound, ArrowLeft, Users, Archive } from 'lucide-react';
 import { Modal } from '../components/Modal';
+import { Glyph } from '../components/Glyph';
 import { useSplitStore } from '../stores/splitStore';
 import { useToast } from '../components/Toast';
 import { useT } from '../lib/i18n';
@@ -225,10 +225,8 @@ export function JoinGroupModal({ open, onClose }: Props) {
   const confirmTarget = confirming && confirming.kind !== 'invalid'
     ? confirming.kind === 'group_code'
       ? confirming.code.trim()
-      : 'Invite link'
+      : t('grp_invite_link_label')
     : '';
-
-  const inputClass = "w-full border border-cream-border rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all";
 
   return (
     <Modal
@@ -240,9 +238,9 @@ export function JoinGroupModal({ open, onClose }: Props) {
           {submitError && (
             <div
               role="alert"
-              className="flex items-start gap-2 bg-pay-50 border border-pay-100 rounded-xl px-3 py-2.5"
+              className="flex items-start gap-2 rounded-[14px] bg-pay-50 border border-pay-100 px-3 py-2.5"
             >
-              <AlertTriangle size={14} className="text-pay-text shrink-0 mt-0.5" />
+              <Glyph name="alert" size={14} tone="coral" className="mt-0.5" />
               <p className="text-[12px] font-medium text-pay-text leading-snug">{submitError}</p>
             </div>
           )}
@@ -253,9 +251,9 @@ export function JoinGroupModal({ open, onClose }: Props) {
               <button
                 onClick={handleJoin}
                 disabled={loading}
-                className="w-full bg-accent-600 text-white rounded-2xl py-3.5 text-sm font-bold disabled:opacity-30 flex items-center justify-center gap-2 shadow-md shadow-accent-600/20 min-h-[44px]"
+                className="cta-primary"
               >
-                <Link2 size={16} />
+                <Glyph name="link" size={16} strokeWidth={2.6} />
                 {loading ? t('join_modal_joining') : t('join_confirm_cta')}
               </button>
             )
@@ -263,9 +261,9 @@ export function JoinGroupModal({ open, onClose }: Props) {
             <button
               onClick={handleFind}
               disabled={loading || finding || !input.trim()}
-              className="w-full bg-accent-600 text-white rounded-2xl py-3.5 text-sm font-bold disabled:opacity-30 flex items-center justify-center gap-2 shadow-md shadow-accent-600/20 min-h-[44px]"
+              className="cta-primary"
             >
-              <Search size={16} />
+              <Glyph name="search" size={16} strokeWidth={2.6} />
               {finding ? t('join_finding') : t('join_find_cta')}
             </button>
           )}
@@ -275,19 +273,20 @@ export function JoinGroupModal({ open, onClose }: Props) {
       {confirming ? (
         // Step 2 — confirm card. UX-18: when the preview RPC answered, this
         // shows the actual group (name, emoji, members, currency, owner)
-        // instead of echoing back the code the user just typed.
+        // instead of echoing back the code the user just typed. Blue — the
+        // splits accent — while joinable; plain once archived.
         <div className="space-y-4">
           {preview ? (
-            <div className={`rounded-2xl border p-4 ${preview.isArchived ? 'bg-cream-soft border-cream-border' : 'bg-accent-50 border-accent-100'}`}>
+            <div className={`m-card p-4 ${preview.isArchived ? '' : 'm-blue'}`}>
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-cream-card flex items-center justify-center shrink-0 text-[20px] leading-none">
-                  {preview.emoji || <Users size={18} className="text-accent-600" />}
+                <div className="m-ctl w-11 h-11 rounded-[15px] flex items-center justify-center shrink-0 text-[20px] leading-none">
+                  {preview.emoji || <Glyph name="groups" size={19} tone="blue" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold text-ink-500 uppercase tracking-widest">
+                  <p className="m-label">
                     {preview.isArchived ? t('join_preview_archived_label') : t('join_preview_label')}
                   </p>
-                  <p className="text-[16px] font-bold text-ink-900 tracking-tight truncate mt-0.5">
+                  <p className="text-[16px] font-semibold text-ink-900 tracking-[-0.01em] truncate mt-0.5">
                     {preview.name}
                   </p>
                 </div>
@@ -304,7 +303,7 @@ export function JoinGroupModal({ open, onClose }: Props) {
               </div>
               {preview.isArchived && (
                 <p className="mt-3 flex items-start gap-1.5 text-[11.5px] font-semibold text-ink-600 leading-snug">
-                  <Archive size={13} className="shrink-0 mt-0.5" />
+                  <Glyph name="archive" size={13} className="mt-0.5" />
                   {t('join_preview_archived_body')}
                 </p>
               )}
@@ -313,27 +312,27 @@ export function JoinGroupModal({ open, onClose }: Props) {
             // Fallback for invite links (no preview RPC) and for a database
             // where supabase-migration-p1-group-preview.sql hasn't been applied
             // yet: the pre-UX-18 echo, plus an honest line saying so.
-            <div className="rounded-2xl bg-accent-50 border border-accent-100 p-4 flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-cream-card flex items-center justify-center shrink-0">
+            <div className="m-card m-blue p-4 flex items-center gap-3">
+              <div className="m-ctl w-11 h-11 rounded-[15px] flex items-center justify-center shrink-0">
                 {confirming.kind === 'group_code'
-                  ? <KeyRound size={18} className="text-accent-600" />
-                  : <Link2 size={18} className="text-accent-600" />}
+                  ? <Glyph name="key" size={19} tone="blue" />
+                  : <Glyph name="link" size={19} tone="blue" />}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold text-ink-500 uppercase tracking-widest">{t('join_ready')}</p>
-                <p className="text-[15px] font-bold text-ink-900 font-mono tracking-tight truncate mt-0.5">
+                <p className="m-label">{t('join_ready')}</p>
+                <p className="text-[15px] font-semibold text-ink-900 font-mono tracking-tight truncate mt-0.5">
                   {confirmTarget}
                 </p>
               </div>
             </div>
           )}
-          <p className="text-[12px] text-ink-500 leading-relaxed px-1">
+          <p className="text-[12px] text-ink-600 leading-relaxed px-1">
             {preview
               ? preview.isArchived ? t('join_preview_archived_help') : t('join_preview_double_check')
               : t('join_double_check')}
           </p>
           {!preview && confirming.kind === 'group_code' && (
-            <p className="text-[11px] text-ink-400 leading-relaxed px-1">
+            <p className="text-[11px] text-ink-500 leading-relaxed px-1">
               {t('join_preview_unavailable')}
             </p>
           )}
@@ -341,29 +340,29 @@ export function JoinGroupModal({ open, onClose }: Props) {
             type="button"
             onClick={() => { resetConfirm(); setSubmitError(null); }}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink-500 active:opacity-60 disabled:opacity-40 min-h-[44px]"
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink-600 active:opacity-60 disabled:opacity-40 min-h-[44px]"
           >
-            <ArrowLeft size={14} />
+            <Glyph name="arrow-left" size={14} />
             {t('join_use_different')}
           </button>
         </div>
       ) : (
         // Step 1 — lookup.
         <div className="space-y-4">
-          <div className="rounded-2xl bg-accent-100/60 border border-cream-border px-4 py-3 flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl bg-cream-card flex items-center justify-center shrink-0">
-              <Info size={14} className="text-accent-600" />
+          <div className="m-card m-blue px-4 py-3.5 flex items-start gap-3">
+            <div className="m-ctl w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0">
+              <Glyph name="info" size={15} tone="blue" />
             </div>
             <div className="min-w-0">
-              <p className="text-[13px] font-semibold text-accent-600">{t('join_modal_hint_title')}</p>
-              <p className="text-[12px] text-accent-600/80 mt-1 leading-relaxed">
+              <p className="text-[13px] font-semibold text-cobalt-text">{t('join_modal_hint_title')}</p>
+              <p className="text-[12px] text-ink-600 mt-1 leading-relaxed">
                 {t('join_modal_hint_body')}
               </p>
             </div>
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-ink-500 uppercase tracking-widest">
+            <label className="form-label">
               {t('join_modal_label')}
             </label>
             <input
@@ -383,7 +382,7 @@ export function JoinGroupModal({ open, onClose }: Props) {
               autoCapitalize="characters"
               autoCorrect="off"
               spellCheck={false}
-              className={inputClass + ' mt-1.5 font-mono text-[12px]'}
+              className="input-field font-mono text-[12px]"
             />
           </div>
         </div>

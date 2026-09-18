@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { X, Users, Wallet } from 'lucide-react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
 import { ContactPicker, type ContactValue } from './ContactPicker';
 import { useDiscardGuard } from '../lib/useDiscardGuard';
 import { computeShares, type ShareMethod } from '../lib/splitMath';
@@ -171,8 +171,6 @@ function SplitWithSheetForm({ open, onClose, total, currency, initial, ledgerOnl
     onClose();
   };
 
-  const inputClass = 'w-full border border-cream-border rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 bg-cream-card transition-all';
-
   return (
     <Modal
       open={open}
@@ -182,7 +180,7 @@ function SplitWithSheetForm({ open, onClose, total, currency, initial, ledgerOnl
       footer={
         <div className="space-y-2.5">
           {error && (
-            <p role="alert" className="text-[12px] font-medium text-pay-text bg-pay-50 border border-pay-100 rounded-xl px-3 py-2 leading-snug">
+            <p role="alert" className="text-[12px] font-medium text-pay-text bg-pay-50 border border-pay-100 rounded-[12px] px-3 py-2 leading-snug">
               {error}
             </p>
           )}
@@ -190,7 +188,7 @@ function SplitWithSheetForm({ open, onClose, total, currency, initial, ledgerOnl
             {t('split_apply')}
           </button>
           {initial && (
-            <button onClick={clearSplit} className="w-full text-[12px] font-semibold text-ink-500 py-2">
+            <button onClick={clearSplit} className="w-full min-h-[40px] text-[12px] font-semibold text-ink-500 py-2">
               {t('split_remove')}
             </button>
           )}
@@ -200,16 +198,16 @@ function SplitWithSheetForm({ open, onClose, total, currency, initial, ledgerOnl
       <div className="space-y-5 p-5">
         <div>
           <label className="form-label">{t('split_who_paid')}</label>
-          <div className="flex gap-2.5 mt-1.5">
+          {/* The fork of the flow: two big selectors, the chosen one violet-lit. */}
+          <div className="flex gap-2.5">
             {(['i_paid', 'they_paid'] as const).map((d) => (
               <button
                 key={d}
                 type="button"
                 onClick={() => { setDirection(d); setError(''); }}
-                className={`flex-1 py-3 rounded-2xl text-[13px] font-bold border-2 transition-all active:scale-[0.97] ${
-                  direction === d
-                    ? 'bg-ink-900 text-white border-transparent shadow-md'
-                    : 'bg-cream-card text-ink-500 border-cream-border'
+                aria-pressed={direction === d}
+                className={`selector-base flex-1 justify-center py-3 text-[13px] font-semibold text-ink-800 ${
+                  direction === d ? 'selector-selected' : ''
                 }`}
               >
                 {d === 'i_paid' ? t('split_i_paid') : t('split_they_paid')}
@@ -220,20 +218,20 @@ function SplitWithSheetForm({ open, onClose, total, currency, initial, ledgerOnl
 
         <div>
           <label className="form-label">{t('split_between')}</label>
-          <div className="flex flex-wrap gap-2 mt-1.5 mb-2.5">
-            <span className="inline-flex items-center px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-accent-100 text-accent-600">
+          <div className="flex flex-wrap gap-2 mb-3">
+            <span className="m-chip m-chip-violet px-3.5 py-2 text-[12px]">
               {t('split_you')}
             </span>
             {rows.map((r) => (
-              <span key={r.key} className="inline-flex items-center gap-1.5 pl-3.5 pr-2 py-2 rounded-xl text-[12px] font-semibold bg-cream-soft text-ink-700 border border-cream-border">
+              <span key={r.key} className="m-chip m-chip-neutral ps-3.5 pe-1 py-1 text-[12px] text-ink-800">
                 {r.name}
                 <button
                   type="button"
                   onClick={() => removeRow(r.key)}
                   aria-label={t('split_remove_person').replace('{name}', r.name)}
-                  className="w-5 h-5 rounded-full flex items-center justify-center text-ink-400 active:bg-cream-border transition-colors"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-ink-500 active:bg-cream-border transition-colors"
                 >
-                  <X size={12} strokeWidth={2.5} />
+                  <Glyph name="close" size={12} strokeWidth={2.8} />
                 </button>
               </span>
             ))}
@@ -247,14 +245,15 @@ function SplitWithSheetForm({ open, onClose, total, currency, initial, ledgerOnl
               if (next.id) addRow(next);
             }}
             placeholder={t('split_add_placeholder')}
-            className={inputClass}
+            className="input-field"
           />
           {picker.name.trim() && !picker.id && (
             <button
               type="button"
               onClick={() => addRow(picker)}
-              className="mt-2 w-full py-2.5 rounded-xl text-[12px] font-bold text-accent-600 bg-accent-50 border border-accent-100 active:scale-[0.98] transition-transform"
+              className="m-btn m-btn-plain mt-2.5 w-full min-h-[42px] py-2.5 text-[12.5px] text-accent-600"
             >
+              <Glyph name="user-plus" size={15} tone="violet" />
               {t('split_add_named').replace('{name}', picker.name.trim())}
             </button>
           )}
@@ -263,16 +262,18 @@ function SplitWithSheetForm({ open, onClose, total, currency, initial, ledgerOnl
         {needsPayer && rows.length > 0 && (
           <div>
             <label className="form-label">{t('split_payer_label')}</label>
-            <div className="flex flex-wrap gap-2 mt-1.5">
+            <div className="flex flex-wrap gap-2.5">
               {rows.map((r) => (
                 <button
                   key={r.key}
                   type="button"
                   onClick={() => { setPayerKey(r.key); setError(''); }}
-                  className={`min-h-[44px] inline-flex items-center px-3.5 py-2 rounded-xl text-[12px] font-semibold transition-all ${
-                    payerKey === r.key ? 'bg-ink-900 text-white' : 'bg-cream-soft text-ink-700'
+                  aria-pressed={payerKey === r.key}
+                  className={`selector-base w-auto justify-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-[14px] text-[12px] font-semibold text-ink-800 ${
+                    payerKey === r.key ? 'selector-selected' : ''
                   }`}
                 >
+                  {payerKey === r.key && <Glyph name="check" size={12} strokeWidth={3} tone="violet" />}
                   {r.name}
                 </button>
               ))}
@@ -282,15 +283,15 @@ function SplitWithSheetForm({ open, onClose, total, currency, initial, ledgerOnl
 
         <div>
           <label className="form-label">{t('group_split_type')}</label>
-          <div className="grid grid-cols-4 gap-1.5 mt-1.5">
+          {/* One mode at a time — the segmented track, active face lit. */}
+          <div className="m-seg flex w-full">
             {(['equal', 'exact', 'percentage', 'shares'] as ShareMethod[]).map((m) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => { setMethod(m); setError(''); }}
-                className={`min-h-[44px] inline-flex items-center justify-center py-2 rounded-xl text-[11px] font-bold transition-all ${
-                  method === m ? 'bg-ink-900 text-white' : 'bg-cream-soft text-ink-500'
-                }`}
+                aria-pressed={method === m}
+                className="flex-1 min-w-0 min-h-[44px] px-1 text-[11.5px] leading-tight"
               >
                 {m === 'equal' ? t('group_split_equal') : m === 'exact' ? t('group_split_exact') : m === 'percentage' ? t('group_split_pct') : t('group_split_shares')}
               </button>
@@ -299,12 +300,12 @@ function SplitWithSheetForm({ open, onClose, total, currency, initial, ledgerOnl
         </div>
 
         {method !== 'equal' && rows.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {participantKeys.map((key) => (
-              <div key={key} className="flex items-center gap-2">
-                <span className="text-[12px] text-ink-700 font-medium w-20 truncate">{nameFor(key)}</span>
+              <div key={key} className="flex items-center gap-2.5">
+                <span className="text-[12px] text-ink-800 font-medium w-20 truncate">{nameFor(key)}</span>
                 <input
-                  className="flex-1 min-h-[44px] border border-cream-border rounded-xl px-3 py-2 text-sm bg-cream-card"
+                  className="input-field flex-1 min-h-[44px] px-3 py-2"
                   type="number"
                   inputMode="decimal"
                   placeholder={method === 'shares' ? '1' : method === 'percentage' ? '%' : '0'}
@@ -330,20 +331,20 @@ function SplitWithSheetForm({ open, onClose, total, currency, initial, ledgerOnl
         )}
 
         {rows.length > 0 && (
-          <div className="rounded-2xl border border-cream-border bg-cream-soft/70 p-3.5 space-y-2">
+          <div className="m-card p-3.5 space-y-2">
             {participantKeys.map((key) => (
-              <div key={key} className="flex items-center justify-between">
-                <span className={`text-[12px] ${key === ME ? 'font-bold text-ink-900' : 'font-medium text-ink-700'}`}>
+              <div key={key} className="flex items-center justify-between gap-3">
+                <span className={`text-[12.5px] min-w-0 truncate ${key === ME ? 'font-semibold text-ink-900' : 'font-medium text-ink-800'}`}>
                   {nameFor(key)}
                 </span>
-                <span className="text-[12px] font-semibold tabular-nums text-ink-900">
+                <span className="text-[12.5px] font-semibold tabular-nums text-ink-900 shrink-0">
                   {formatMoney(shareFor(key), currency)}
                 </span>
               </div>
             ))}
-            <div className="pt-2 border-t border-cream-border flex items-start gap-2">
-              {direction === 'i_paid' ? <Wallet size={13} className="text-accent-600 shrink-0 mt-0.5" /> : <Users size={13} className="text-accent-600 shrink-0 mt-0.5" />}
-              <p className="text-[11px] font-semibold text-accent-600 leading-snug">
+            <div className="pt-2.5 border-t border-cream-hairline flex items-start gap-2">
+              <Glyph name={direction === 'i_paid' ? 'wallet' : 'groups'} size={14} tone="violet" className="mt-px" />
+              <p className="text-[11.5px] font-semibold text-accent-600 leading-snug">
                 {direction === 'i_paid'
                   ? t(ledgerOnly ? 'split_summary_i_paid_ledger' : 'split_summary_i_paid')
                       .replace('{total}', formatMoney(total, currency))
@@ -357,7 +358,7 @@ function SplitWithSheetForm({ open, onClose, total, currency, initial, ledgerOnl
           </div>
         )}
 
-        <p className="text-[11px] text-ink-500 bg-cream-soft/80 border border-cream-hairline rounded-2xl p-3 leading-relaxed">
+        <p className="m-inset text-[11.5px] text-ink-600 px-3.5 py-3 leading-relaxed">
           {t('split_no_group_hint')}
         </p>
       </div>

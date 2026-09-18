@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
-import { CreditCard, CalendarClock, Ghost, Pause, Play, Trash2, Plus, Repeat, Pencil, Layers, PauseCircle } from 'lucide-react';
+import { CreditCard, Pause, Play, PauseCircle } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Card3D } from '../components/Card3D';
+import { Glyph } from '../components/Glyph';
 import { PageErrorState } from '../components/PageErrorState';
 import { ListSkeleton } from '../components/ListSkeleton';
 import { AddRecurringModal } from '../components/AddRecurringModal';
@@ -25,15 +26,15 @@ import {
 import { brandIconFor } from '../lib/brandIcon';
 import type { RecurringTransaction } from '../db';
 
-// Brand/category glyph tile for a recurring entry, in the app's group-emoji
-// avatar style. Falls back to a first-letter avatar when nothing matches
-// (custom category + unknown name).
+// Brand/category mark for a recurring entry on a raised control, in the app's
+// group-emoji avatar style. Falls back to a first-letter mark when nothing
+// matches (custom category + unknown name).
 function EntryIconTile({ label, category }: { label: string; category: string }) {
   const icon = brandIconFor(label, category);
   return (
-    <div className="w-9 h-9 rounded-xl bg-cream-soft border border-cream-hairline flex items-center justify-center text-base shrink-0">
+    <div className="m-ctl w-10 h-10 rounded-[14px] flex items-center justify-center text-[17px] shrink-0">
       {icon.matched === 'none' ? (
-        <span className="text-[13px] font-semibold text-ink-500">
+        <span className="text-[14px] font-semibold text-cobalt-text">
           {((label || category).trim()[0] ?? '?').toUpperCase()}
         </span>
       ) : (
@@ -42,6 +43,10 @@ function EntryIconTile({ label, category }: { label: string; category: string })
     </div>
   );
 }
+
+// Row actions: plain key-material buttons, the remove one coral-tinted.
+const ROW_ACTION = 'm-btn m-btn-plain min-h-[40px] px-3 py-1.5 rounded-xl text-[11.5px] gap-1.5';
+const ROW_ACTION_DANGER = 'm-btn m-btn-danger min-h-[40px] px-3 py-1.5 rounded-xl text-[11.5px] gap-1.5';
 
 export function SubscriptionsPage() {
   const templates = useRecurringStore((s) => s.templates);
@@ -117,7 +122,7 @@ export function SubscriptionsPage() {
             aria-label={tr('subs_a11y_add')}
             className="nav-icon-button"
           >
-            <Plus size={16} className="text-ink-600" />
+            <Glyph name="plus" size={16} strokeWidth={3} className="text-accent-text" />
           </button>
         }
       />
@@ -133,13 +138,13 @@ export function SubscriptionsPage() {
         )}
 
         {loadStatus === 'loading' && subs.length === 0 ? (
-          <ListSkeleton rows={3} withAvatar={false} />
+          <ListSkeleton rows={3} />
         ) : subs.length === 0 ? (
           loadStatus === 'ready' ? (
             <EmptyState
               icon={CreditCard}
-              clayIcon="calendar"
-              tone="accent"
+              clayIcon="card"
+              tone="blue"
               title={tr('subs_empty_title')}
               description={tr('subs_empty_desc')}
               subhint={tr('subs_empty_subhint')}
@@ -155,32 +160,32 @@ export function SubscriptionsPage() {
                 "AED 0" cards for a calm, reassuring banner instead. */}
             {totals.activeCount === 0 ? (
               <Card3D padding="sm" className="flex items-center gap-2.5">
-                <PauseCircle size={18} className="text-ink-400 shrink-0" />
+                <PauseCircle size={18} strokeWidth={2.4} className="text-glyph-neutral shrink-0" />
                 <p className="text-[12.5px] font-semibold text-ink-700">
                   {tr('subs_paused')}
                 </p>
               </Card3D>
             ) : (
               totals.byCurrency.map((c) => (
-                // 3D clay tier 2. Coral is the money-OUT tint (§10.2) and a
+                // Tinted stat cards. Coral is the money-OUT tint and a
                 // subscription burn is money leaving every month.
-                <div key={c.currency} className="grid grid-cols-2 gap-3">
+                <div key={c.currency} className="grid grid-cols-2 gap-2.5">
                   <Card3D tint="coral" padding="sm">
-                    <p className="text-[11px] text-ink-500">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-pay-text">
                       {tr('subs_per_month')}{totals.mixed ? ` · ${c.currency}` : ''}
                     </p>
-                    <p className="text-[20px] font-bold text-ink-900 tabular-nums mt-1">
+                    <p className="text-[21px] font-semibold tracking-[-0.03em] text-ink-900 tabular-nums mt-2 leading-tight">
                       {formatMoney(c.monthly, c.currency)}
                     </p>
-                    <p className="text-[10px] text-ink-500 mt-0.5 tabular-nums">
+                    <p className="text-[11px] text-ink-600 mt-1 tabular-nums">
                       {tr('subs_active_count').replace('{c}', String(c.count))}
                     </p>
                   </Card3D>
                   <Card3D tint="coral" padding="sm">
-                    <p className="text-[11px] text-ink-500">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-pay-text">
                       {tr('subs_per_year')}{totals.mixed ? ` · ${c.currency}` : ''}
                     </p>
-                    <p className="text-[20px] font-bold text-ink-900 tabular-nums mt-1">
+                    <p className="text-[21px] font-semibold tracking-[-0.03em] text-ink-900 tabular-nums mt-2 leading-tight">
                       {formatMoney(c.yearly, c.currency)}
                     </p>
                   </Card3D>
@@ -192,38 +197,37 @@ export function SubscriptionsPage() {
             {renewals.slice(0, 2).map((r) => (
               <div
                 key={`renewal-${r.template.id}`}
-                className="flex items-center gap-2.5 rounded-xl bg-info-50 px-3 py-2.5"
+                className="m-card m-blue flex items-center gap-2.5 px-3.5 py-3"
               >
-                <CalendarClock size={16} className="text-info-600 shrink-0" />
-                <p className="text-[12px] text-info-600">
+                <Glyph name="calendar" size={17} tone="blue" />
+                <p className="text-[12px] text-cobalt-text leading-snug">
                   <span className="font-semibold">{r.template.label || tr('subs_a_subscription')}</span>{' '}
                   {r.daysUntil === 0
                     ? tr('subs_renews_today')
                     : tr('subs_renews_in').replace('{n}', String(r.daysUntil))}{' '}·{' '}
-                  {formatMoney(r.template.amount, r.template.currency)}
+                  <span className="tabular-nums">{formatMoney(r.template.amount, r.template.currency)}</span>
                 </p>
               </div>
             ))}
 
             {/* Ghost / forgotten alert */}
             {ghosts.length > 0 && (
-              <div className="rounded-2xl bg-pay-50 border border-pay-100 p-4">
+              <div className="m-card m-coral p-4">
                 <div className="flex items-center gap-2">
-                  <Ghost size={15} className="text-pay-text" />
+                  <Glyph name="eye-off" size={16} tone="coral" />
                   <p className="text-[12.5px] font-semibold text-pay-text">
                     {ghosts.length === 1
                       ? tr('subs_ghost_one')
                       : tr('subs_ghost_many').replace('{n}', String(ghosts.length))}
                   </p>
                 </div>
-                <div className="mt-2.5 space-y-1.5">
+                <div className="mt-3 space-y-2">
                   {ghosts.map((g) => {
                     const isDuplicate = g.reasons.includes('duplicate');
-                    const ReasonIcon = isDuplicate ? Layers : Ghost;
                     return (
                       <div key={`ghost-${g.template.id}`} className="flex items-baseline justify-between gap-2">
-                        <p className="text-[12px] text-ink-700 truncate flex items-center gap-1.5 min-w-0">
-                          <ReasonIcon size={12} className="text-pay-text shrink-0 self-center" />
+                        <p className="text-[12px] text-ink-800 truncate flex items-center gap-1.5 min-w-0">
+                          <Glyph name={isDuplicate ? 'copy' : 'eye-off'} size={12} tone="coral" className="self-center" />
                           <span className="truncate">{g.template.label || g.template.category}</span>
                         </p>
                         <p className="text-[11px] text-pay-text shrink-0 text-right">
@@ -243,51 +247,40 @@ export function SubscriptionsPage() {
               {ordered.map((t) => (
                 <div
                   key={t.id}
-                  className={`rounded-2xl bg-cream-card border border-cream-border p-4 ${
-                    !t.active ? 'opacity-60' : ''
-                  }`}
+                  className={`m-card p-4 ${!t.active ? 'opacity-60' : ''}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0">
                       <EntryIconTile label={t.label} category={t.category} />
                       <p className="text-[14px] font-semibold text-ink-900 tracking-tight truncate">
                         {t.label || t.category}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-[12px] font-semibold text-pay-text tabular-nums">
+                      <p className="text-[13px] font-semibold text-pay-text tabular-nums">
                         {formatMoney(t.amount, t.currency)}
                       </p>
                       {t.cadence !== 'monthly' && (
-                        <p className="text-[10px] text-ink-400 tabular-nums mt-0.5">
+                        <p className="text-[10.5px] text-ink-500 tabular-nums mt-0.5">
                           {tr('subs_per_mo').replace('{amount}', formatMoney(monthlyAmount(t.amount, t.cadence), t.currency))}
                         </p>
                       )}
                     </div>
                   </div>
-                  <p className="text-[11px] text-ink-500 mt-1">
-                    {cadenceLabel(t)} ·{' '}
-                    {statusText(t, ghostIds.has(t.id), todayIso)}
+                  <p className="text-[11.5px] text-ink-600 mt-1.5">
+                    {cadenceLabel(t, tr)} ·{' '}
+                    {statusText(t, ghostIds.has(t.id), todayIso, tr)}
                   </p>
-                  <div className="flex items-center gap-2 mt-3">
-                    <button
-                      onClick={() => setEditing(t)}
-                      className="min-h-[40px] text-[11px] font-semibold text-ink-700 bg-cream-soft rounded-lg px-3 py-1 flex items-center gap-1 press-sm"
-                    >
-                      <Pencil size={11} /> {tr('subs_edit')}
+                  <div className="flex items-center gap-2 mt-3.5">
+                    <button onClick={() => setEditing(t)} className={ROW_ACTION}>
+                      <Glyph name="edit" size={13} /> {tr('subs_edit')}
                     </button>
-                    <button
-                      onClick={() => togglePause(t)}
-                      className="min-h-[40px] text-[11px] font-semibold text-ink-700 bg-cream-soft rounded-lg px-3 py-1 flex items-center gap-1 press-sm"
-                    >
-                      {t.active ? <Pause size={11} /> : <Play size={11} />}
+                    <button onClick={() => togglePause(t)} className={ROW_ACTION}>
+                      {t.active ? <Pause size={12} strokeWidth={2.4} /> : <Play size={12} strokeWidth={2.4} />}
                       {t.active ? tr('subs_pause') : tr('subs_resume')}
                     </button>
-                    <button
-                      onClick={() => handleDelete(t)}
-                      className="min-h-[40px] text-[11px] font-semibold text-pay-text bg-pay-50 rounded-lg px-3 py-1 flex items-center gap-1 press-sm"
-                    >
-                      <Trash2 size={11} /> {tr('subs_remove_cta')}
+                    <button onClick={() => handleDelete(t)} className={ROW_ACTION_DANGER}>
+                      <Glyph name="trash" size={13} /> {tr('subs_remove_cta')}
                     </button>
                   </div>
                 </div>
@@ -300,25 +293,25 @@ export function SubscriptionsPage() {
             subscription lives here too, so this is the one recurring home. */}
         {others.length > 0 && (
           <div>
-            <div className="flex items-center gap-1.5 pt-1">
-              <Repeat size={13} className="text-ink-400" />
-              <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-ink-500">{tr('subs_other_recurring')}</p>
+            <div className="flex items-center gap-1.5 pt-1 px-1">
+              <Glyph name="recurring" size={13} tone="blue" />
+              <p className="text-[10.5px] font-semibold tracking-[0.12em] uppercase text-ink-500">{tr('subs_other_recurring')}</p>
             </div>
-            <div className="space-y-2.5 mt-2">
+            <div className="space-y-2.5 mt-2.5">
               {others.map((t) => (
                 <div
                   key={t.id}
-                  className={`rounded-2xl bg-cream-card border border-cream-border p-4 ${!t.active ? 'opacity-60' : ''}`}
+                  className={`m-card p-4 ${!t.active ? 'opacity-60' : ''}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0">
                       <EntryIconTile label={t.label} category={t.category} />
                       <p className="text-[14px] font-semibold text-ink-900 tracking-tight truncate">
                         {t.label || t.category}
                       </p>
                     </div>
                     <p
-                      className={`text-[12px] font-semibold tabular-nums shrink-0 ${
+                      className={`text-[13px] font-semibold tabular-nums shrink-0 ${
                         t.type === 'income' ? 'text-receive-text' : 'text-pay-text'
                       }`}
                     >
@@ -326,28 +319,19 @@ export function SubscriptionsPage() {
                       {formatMoney(t.amount, t.currency)}
                     </p>
                   </div>
-                  <p className="text-[11px] text-ink-500 mt-1">
-                    {t.category} · {cadenceLabel(t)} · {statusText(t, false, todayIso)}
+                  <p className="text-[11.5px] text-ink-600 mt-1.5">
+                    {t.category} · {cadenceLabel(t, tr)} · {statusText(t, false, todayIso, tr)}
                   </p>
-                  <div className="flex items-center gap-2 mt-3">
-                    <button
-                      onClick={() => setEditing(t)}
-                      className="min-h-[40px] text-[11px] font-semibold text-ink-700 bg-cream-soft rounded-lg px-3 py-1 flex items-center gap-1 press-sm"
-                    >
-                      <Pencil size={11} /> {tr('subs_edit')}
+                  <div className="flex items-center gap-2 mt-3.5">
+                    <button onClick={() => setEditing(t)} className={ROW_ACTION}>
+                      <Glyph name="edit" size={13} /> {tr('subs_edit')}
                     </button>
-                    <button
-                      onClick={() => togglePause(t)}
-                      className="min-h-[40px] text-[11px] font-semibold text-ink-700 bg-cream-soft rounded-lg px-3 py-1 flex items-center gap-1 press-sm"
-                    >
-                      {t.active ? <Pause size={11} /> : <Play size={11} />}
-                      {t.active ? 'Pause' : 'Resume'}
+                    <button onClick={() => togglePause(t)} className={ROW_ACTION}>
+                      {t.active ? <Pause size={12} strokeWidth={2.4} /> : <Play size={12} strokeWidth={2.4} />}
+                      {t.active ? tr('subs_pause') : tr('subs_resume')}
                     </button>
-                    <button
-                      onClick={() => handleDelete(t)}
-                      className="min-h-[40px] text-[11px] font-semibold text-pay-text bg-pay-50 rounded-lg px-3 py-1 flex items-center gap-1 press-sm"
-                    >
-                      <Trash2 size={11} /> {tr('subs_remove_cta')}
+                    <button onClick={() => handleDelete(t)} className={ROW_ACTION_DANGER}>
+                      <Glyph name="trash" size={13} /> {tr('subs_remove_cta')}
                     </button>
                   </div>
                 </div>
@@ -368,24 +352,26 @@ export function SubscriptionsPage() {
   );
 }
 
-function cadenceLabel(t: RecurringTransaction): string {
+type Translate = ReturnType<typeof useT>;
+
+function cadenceLabel(t: RecurringTransaction, tr: Translate): string {
   switch (t.cadence) {
     case 'daily':
-      return 'Daily';
+      return tr('tw_cad_daily');
     case 'weekly':
-      return 'Weekly';
+      return tr('tw_cad_weekly');
     case 'monthly':
-      return 'Monthly';
+      return tr('tw_cad_monthly');
     case 'yearly':
-      return 'Yearly';
+      return tr('tw_cad_yearly');
   }
 }
 
-function statusText(t: RecurringTransaction, isGhost: boolean, todayIso: string): string {
-  if (!t.active) return 'paused';
+function statusText(t: RecurringTransaction, isGhost: boolean, todayIso: string, tr: Translate): string {
+  if (!t.active) return tr('mv_subs_status_paused');
   const d = daysUntil(todayIso, t.nextDueDate);
-  if (isGhost && d < 0) return `overdue ${Math.abs(d)}d`;
-  if (d < 0) return `due ${Math.abs(d)}d ago`;
-  if (d === 0) return 'renews today';
-  return `next in ${d}d`;
+  if (isGhost && d < 0) return tr('mv_subs_status_overdue').replace('{n}', String(Math.abs(d)));
+  if (d < 0) return tr('mv_subs_status_due_ago').replace('{n}', String(Math.abs(d)));
+  if (d === 0) return tr('subs_renews_today');
+  return tr('mv_subs_status_next_in').replace('{n}', String(d));
 }

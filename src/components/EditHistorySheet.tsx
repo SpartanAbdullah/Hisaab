@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { format, isToday, isYesterday } from 'date-fns';
-import { History, ShieldCheck } from 'lucide-react';
+import { History } from 'lucide-react';
 import { Modal } from './Modal';
+import { Glyph } from './Glyph';
+import { EmptyState } from './EmptyState';
+import { skeletonDelay } from '../lib/material';
 import { useT, useI18nStore } from '../lib/i18n';
 import { formatMoney } from '../lib/constants';
 import { useSupabaseAuthStore } from '../stores/supabaseAuthStore';
@@ -118,22 +121,35 @@ export function EditHistorySheet({
   return (
     <Modal open={open} onClose={onClose} title={t('eh_title')}>
       <div className="space-y-4">
-        <div className="flex items-start gap-2.5 rounded-2xl bg-cream-soft border border-cream-hairline p-3">
-          <ShieldCheck size={15} className="text-receive-text shrink-0 mt-0.5" strokeWidth={2.1} />
+        <div className="m-inset flex items-start gap-2.5 p-3">
+          <Glyph name="shield-check" size={16} tone="green" className="mt-0.5" />
           <p className="text-[11.5px] text-ink-600 leading-relaxed">{t('eh_subtitle')}</p>
         </div>
 
+        {/* Loading in the final geometry: timestamped entry cards. */}
         {status === 'loading' && (
-          <p className="text-[12px] text-ink-400 text-center py-6">{t('loading')}</p>
+          <div className="space-y-3" role="status">
+            <span className="sr-only">{t('loading')}</span>
+            {[76, 60, 76].map((h, i) => (
+              <div
+                key={i}
+                aria-hidden
+                className="m-skel rounded-[18px]"
+                style={{ height: h, '--m-skel-delay': skeletonDelay(i) } as React.CSSProperties}
+              />
+            ))}
+          </div>
         )}
 
         {status === 'unavailable' && (
-          <div className="text-center py-6 px-2">
-            <p className="text-[13px] font-semibold text-ink-900">{t('eh_unavailable')}</p>
-            <p className="text-[11.5px] text-ink-500 mt-1.5 leading-relaxed">
-              {t('eh_unavailable_sub')}
-            </p>
-          </div>
+          <EmptyState
+            icon={History}
+            clayIcon="clock"
+            tone="violet"
+            size="compact"
+            title={t('eh_unavailable')}
+            description={t('eh_unavailable_sub')}
+          />
         )}
 
         {status === 'error' && (
@@ -142,22 +158,25 @@ export function EditHistorySheet({
             <button
               type="button"
               onClick={() => void load()}
-              className="mt-3 text-[12px] font-semibold text-accent-600 active:opacity-70"
+              className="m-btn m-btn-plain mt-3 px-4 py-2 text-[12px]"
             >
-              {t('err_retry')}
+              <Glyph name="refresh" size={14} /> {t('err_retry')}
             </button>
           </div>
         )}
 
         {status === 'ready' && rendered.length === 0 && (
-          <p className="text-[12px] text-ink-400 text-center py-6">{t('eh_empty')}</p>
+          <div className="flex flex-col items-center gap-2 py-6 text-center">
+            <Glyph name="clock" size={20} className="text-ink-400" />
+            <p className="text-[12px] text-ink-500">{t('eh_empty')}</p>
+          </div>
         )}
 
         {status === 'ready' && rendered.length > 0 && (
           <ol className="relative space-y-3">
             {rendered.map(({ entry, lines }) => (
-              <li key={entry.id} className="rounded-[18px] bg-cream-card border border-cream-border p-3.5">
-                <p className="text-[10px] font-semibold text-ink-400 uppercase tracking-[0.1em]">
+              <li key={entry.id} className="m-card p-3.5">
+                <p className="m-label text-[10px] tabular-nums">
                   {stampLabel(entry.createdAt, t)}
                 </p>
                 <ul className="mt-1.5 space-y-1">
@@ -186,15 +205,16 @@ export function EditHistoryRow({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-[18px] bg-cream-card border border-cream-border px-4 py-3.5 flex items-center gap-3 active:bg-cream-soft transition-colors"
+      className="m-tile rounded-[18px] px-4 py-3.5 flex items-center gap-3"
     >
-      <div className="w-9 h-9 rounded-xl bg-cream-soft flex items-center justify-center shrink-0">
-        <History size={15} className="text-ink-500" strokeWidth={2} />
+      <div className="m-ctl w-9 h-9 rounded-[11px] flex items-center justify-center shrink-0" aria-hidden>
+        <Glyph name="clock" size={16} tone="neutral" />
       </div>
       <div className="flex-1 min-w-0 text-left">
-        <p className="text-[13px] font-medium text-ink-900 tracking-tight">{t('eh_row_title')}</p>
-        <p className="text-[10.5px] text-ink-500 mt-0.5">{t('eh_row_sub')}</p>
+        <p className="text-[13.5px] font-medium text-ink-900 tracking-[-0.01em]">{t('eh_row_title')}</p>
+        <p className="text-[10.5px] text-ink-600 mt-0.5">{t('eh_row_sub')}</p>
       </div>
+      <Glyph name="chevron-right" size={15} className="text-ink-400" />
     </button>
   );
 }

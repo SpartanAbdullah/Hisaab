@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, Share2, Smartphone, X } from 'lucide-react';
 import { useT } from '../lib/i18n';
+import { Glyph } from './Glyph';
+import type { GlyphName } from '../lib/glyphs';
 import { isStandaloneRuntime, shouldShowPwaInstallPrompts } from '../lib/runtime';
 import { useToast } from './Toast';
 
@@ -149,7 +150,7 @@ export function PWAInstallPrompt() {
 
   if (!installMode) return null;
 
-  const PromptIcon = installMode === 'ios' ? Share2 : installMode === 'android' ? Smartphone : Download;
+  const promptGlyph: GlyphName = installMode === 'ios' ? 'share' : installMode === 'android' ? 'phone' : 'download';
   const subtitle =
     installMode === 'native'
       ? t('pwa_install_native_sub')
@@ -163,25 +164,32 @@ export function PWAInstallPrompt() {
         ? t('pwa_install_android_steps')
         : '';
 
+  // 1d: a violet-tinted feature card floating over the hero — the install ask is
+  // an invitation, so it wears the primary accent: glyph on a raised square,
+  // copy on the ink ramp, and a compact brand-violet primary.
   return (
     <div className="fixed top-4 left-4 right-4 z-[60] animate-fade-in max-w-[448px] mx-auto">
-      <div className="bg-gradient-to-r from-accent-500 to-accent-600 rounded-2xl p-4 flex items-start gap-3 text-white shadow-xl shadow-accent-600/30">
-        <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 backdrop-blur-sm mt-0.5">
-          <PromptIcon size={18} />
+      <div className="m-card m-card-feature m-violet p-3.5 flex items-start gap-3">
+        <div className="m-ctl w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0 mt-0.5" aria-hidden>
+          <Glyph name={promptGlyph} tone="violet" size={19} />
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-bold">{t('pwa_install_title')}</p>
-          <p className="text-[10px] text-white/75 mt-0.5">{subtitle}</p>
-          {steps && showManualSteps ? <p className="text-[10px] text-white/85 mt-2 leading-relaxed">{steps}</p> : null}
+        <div className="flex-1 min-w-0 pt-0.5">
+          <p className="text-[13.5px] font-semibold tracking-tight text-ink-900">{t('pwa_install_title')}</p>
+          <p className="text-[11px] text-ink-600 mt-0.5 leading-relaxed">{subtitle}</p>
+          {steps && showManualSteps ? <p className="text-[11px] text-ink-700 mt-2 leading-relaxed">{steps}</p> : null}
         </div>
         <button
           onClick={handleInstall}
-          className="px-4 py-2 rounded-xl bg-white text-accent-600 text-[12px] font-bold active:scale-95 transition-all shrink-0"
+          className="m-btn m-btn-primary shrink-0 min-h-[36px] rounded-xl px-3.5 py-2 text-[12px]"
         >
           {installMode === 'native' ? t('pwa_install_cta') : t('pwa_install_show_steps')}
         </button>
-        <button onClick={handleDismiss} className="text-white/60 active:text-white/90 shrink-0">
-          <X size={16} />
+        <button
+          onClick={handleDismiss}
+          aria-label={t('a11y_dismiss')}
+          className="relative shrink-0 mt-2 text-ink-400 active:text-ink-800 transition-colors before:absolute before:-inset-3 before:content-['']"
+        >
+          <Glyph name="close" size={15} />
         </button>
       </div>
     </div>

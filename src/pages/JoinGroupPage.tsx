@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, Link2, Users } from 'lucide-react';
+import { Glyph } from '../components/Glyph';
 import { useSplitStore } from '../stores/splitStore';
 import { useToast } from '../components/Toast';
 import { clearPendingInvite } from '../lib/pendingInvite';
@@ -86,27 +86,26 @@ export function JoinGroupPage() {
     navigate(failure && !failure.canRetry ? '/' : '/groups', { replace: true });
   };
 
+  // The plate + glyph say which of the three states this is — joined (green
+  // check), failed (coral alert) or the invitation itself (the splits blue) —
+  // each alongside its own title, so colour is never the only cue.
+  const plate = joined
+    ? { tint: 'm-mint', glyph: 'check' as const, tone: 'green' as const }
+    : failure
+      ? { tint: 'm-coral', glyph: 'alert' as const, tone: 'coral' as const }
+      : { tint: 'm-blue', glyph: 'groups' as const, tone: 'blue' as const };
+
   return (
-    <div className="min-h-dvh bg-mesh flex items-center justify-center px-5">
-      <div className="w-full max-w-md rounded-2xl bg-cream-card border border-cream-border p-6 text-center">
-        <div className={`mx-auto w-16 h-16 rounded-3xl flex items-center justify-center ${
-          joined
-            ? 'bg-receive-50 text-receive-text'
-            : failure
-              ? 'bg-pay-50 text-pay-text'
-              : 'bg-accent-100 text-accent-600'
-        }`}>
-          {joined
-            ? <CheckCircle2 size={28} />
-            : failure
-              ? <AlertTriangle size={28} />
-              : <Users size={28} />}
+    <div className="min-h-dvh bg-cream-bg flex items-center justify-center px-5">
+      <div className="m-card m-card-feature w-full max-w-md p-6 text-center">
+        <div className={`m-plate ${plate.tint} mx-auto`} aria-hidden="true">
+          <Glyph name={plate.glyph} size={26} tone={plate.tone} extrude />
         </div>
 
-        <h1 className="text-xl font-bold tracking-tight text-ink-900 mt-4">
+        <h1 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900 mt-[18px]">
           {joined ? t('invite_page_joined_title') : failure ? failureTitle : t('invite_page_title')}
         </h1>
-        <p className="text-sm text-ink-500 mt-2 leading-relaxed">
+        <p className="text-[12.5px] text-ink-600 mt-2 leading-relaxed">
           {joined
             ? t('invite_page_joined_body')
             : failure
@@ -115,14 +114,14 @@ export function JoinGroupPage() {
         </p>
 
         {!joined && !failure && (
-          <div className="rounded-2xl bg-cream-soft border border-cream-border/70 px-4 py-3 mt-5 text-left">
+          <div className="m-inset px-4 py-3 mt-5 text-left">
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-cream-card border border-cream-border/70 flex items-center justify-center shrink-0">
-                <Link2 size={16} className="text-ink-500" />
+              <div className="m-ctl w-9 h-9 rounded-[11px] flex items-center justify-center shrink-0">
+                <Glyph name="link" size={16} tone="blue" />
               </div>
               <div>
-                <p className="text-[13px] font-semibold text-ink-800">{t('invite_page_next_title')}</p>
-                <p className="text-[12px] text-ink-500 mt-1">
+                <p className="text-[13px] font-semibold text-ink-900">{t('invite_page_next_title')}</p>
+                <p className="text-[12px] text-ink-600 mt-1 leading-relaxed">
                   {t('invite_page_next_body')}
                 </p>
               </div>
@@ -130,10 +129,10 @@ export function JoinGroupPage() {
           </div>
         )}
 
-        <div className="mt-6 flex gap-2">
+        <div className="mt-6 mb-1 flex gap-2.5">
           <button
             onClick={dismissInvite}
-            className="flex-1 rounded-2xl py-3 text-sm font-semibold bg-cream-soft text-ink-700"
+            className="m-btn m-btn-plain flex-1 text-[13.5px]"
           >
             {failure && !failure.canRetry ? t('invite_page_go_home') : t('not_now')}
           </button>
@@ -141,7 +140,7 @@ export function JoinGroupPage() {
             <button
               onClick={handleJoin}
               disabled={loading || !token || joined}
-              className="flex-1 rounded-2xl py-3 text-sm font-bold bg-ink-900 text-white disabled:opacity-40"
+              className="m-btn m-btn-primary flex-1 text-[13.5px]"
             >
               {loading
                 ? t('invite_page_joining')

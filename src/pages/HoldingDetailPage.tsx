@@ -1,16 +1,21 @@
 // One holding: position summary with the avg-cost math visible, trade
 // history (buys/sells/dividends with fees), replay-guarded delete, and the
 // manual price update entry point.
+//
+// 1d (redesign 2026-09-18): violet hero with the value figure extruded, the
+// breakdown on a card, extruded Buy / Sell / Dividend buttons, and history
+// rows keyed by a tinted glyph square (coral = cash out, green = cash in).
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Plus, ArrowUpRight, HandCoins, Trash2, TrendingUp } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import { NavyHero, TopBar } from '../components/NavyHero';
 import { LanguageToggle } from '../components/LanguageToggle';
-import { ListSkeleton } from '../components/ListSkeleton';
 import { PageErrorState } from '../components/PageErrorState';
 import { EmptyState } from '../components/EmptyState';
+import { Glyph } from '../components/Glyph';
+import { MoneyDisplay } from '../components/MoneyDisplay';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
 import { useInvestmentStore } from '../stores/investmentStore';
 import { useAccountStore } from '../stores/accountStore';
@@ -20,11 +25,23 @@ import { RecordTradeModal, type RecordTradePreset } from './RecordTradeModal';
 import { UpdatePriceModal } from './UpdatePriceModal';
 import { computePosition, sortTrades, unrealizedPnl, marketValue } from '../lib/investmentMath';
 import { marketColorFor } from '../lib/marketColors';
+import { skeletonDelay } from '../lib/material';
 import { formatMoney } from '../lib/constants';
 import { useT } from '../lib/i18n';
 import type { InvestmentTrade } from '../db';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// formatMoney() prints the magnitude only, so the sign is written here — a
+// loss must never rest on colour alone (WCAG 1.4.1). A value that rounds to
+// zero carries no sign.
+function signedMoney(amount: number, currency: string): string {
+  const text = formatMoney(amount, currency);
+  if (text === formatMoney(0, currency)) return text;
+  return `${amount < 0 ? '−' : '+'}${text}`;
+}
+
+const skelDelay = (i: number) => ({ '--m-skel-delay': skeletonDelay(i) }) as CSSProperties;
 
 export function HoldingDetailPage() {
   // React Router already percent-decodes params — decoding again would
@@ -98,13 +115,38 @@ export function HoldingDetailPage() {
     id ? accounts.find((a) => a.id === id)?.name ?? '' : '';
 
   if (status === 'loading' && markets.length === 0) {
+    // Skeleton in the loaded geometry: market chip + figure in the hero, then
+    // the breakdown card, the action row and the history rows.
     return (
       <main className="min-h-dvh bg-cream-bg pb-28">
-        <NavyHero>
+        <NavyHero accent="violet">
           <TopBar title={t('inv_title')} back showInbox={false} />
-          <div className="px-5 pb-7" />
+          <div className="px-5 pb-7" aria-hidden="true">
+            <div className="m-skel h-6 w-28 rounded-full" />
+            <div className="m-skel mt-3 h-[34px] w-48 rounded-xl" style={skelDelay(1)} />
+            <div className="m-skel mt-3 h-3 w-40" style={skelDelay(2)} />
+          </div>
         </NavyHero>
-        <div className="sukoon-body px-5 pt-5"><ListSkeleton rows={3} /></div>
+        <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-4" aria-hidden="true">
+          <div className="m-skel h-[176px] rounded-[18px]" />
+          <div className="flex gap-2.5">
+            <div className="m-skel h-11 flex-1 rounded-[16px]" style={skelDelay(1)} />
+            <div className="m-skel h-11 flex-1 rounded-[16px]" style={skelDelay(1)} />
+            <div className="m-skel h-11 w-24 rounded-[16px]" style={skelDelay(1)} />
+          </div>
+          <div className="space-y-2.5">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="m-card p-3.5 flex items-center gap-3">
+                <div className="m-skel w-9 h-9 rounded-[12px] shrink-0" style={skelDelay(i + 2)} />
+                <div className="flex-1 min-w-0">
+                  <div className="m-skel h-[11px] w-[48%]" style={skelDelay(i + 2)} />
+                  <div className="m-skel h-[9px] w-[34%] mt-2" style={skelDelay(i + 2)} />
+                </div>
+                <div className="m-skel h-3 w-16 shrink-0" style={skelDelay(i + 2)} />
+              </div>
+            ))}
+          </div>
+        </div>
       </main>
     );
   }
@@ -112,7 +154,7 @@ export function HoldingDetailPage() {
   if (status === 'error') {
     return (
       <main className="min-h-dvh bg-cream-bg pb-28">
-        <NavyHero>
+        <NavyHero accent="violet">
           <TopBar title={t('inv_title')} back showInbox={false} />
           <div className="px-5 pb-7" />
         </NavyHero>
@@ -126,14 +168,15 @@ export function HoldingDetailPage() {
   if (status === 'ready' && (!market || holdingTrades.length === 0)) {
     return (
       <main className="min-h-dvh bg-cream-bg pb-28">
-        <NavyHero>
+        <NavyHero accent="violet">
           <TopBar title={t('inv_title')} back showInbox={false} />
           <div className="px-5 pb-7" />
         </NavyHero>
         <div className="sukoon-body px-5 pt-5">
           <EmptyState
             icon={TrendingUp}
-            tone="accent"
+            clayIcon="analytics"
+            tone="violet"
             title={t('inv_holding_not_found')}
             description=""
             actionLabel={t('inv_title')}
@@ -146,55 +189,84 @@ export function HoldingDetailPage() {
 
   if (!market) return null;
 
+  const staleTone = priceAge !== null && priceAge > 30 ? 'text-pay-text' : 'text-warn-700';
+
   return (
     <main className="min-h-dvh bg-cream-bg pb-28">
-      <NavyHero>
+      <NavyHero accent="violet">
         <TopBar
           title={symbol}
           back
           action={<LanguageToggle />}
         />
-        <div className="px-5 pb-7 space-y-2">
-          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10.5px] font-semibold text-white ${marketColorFor(market.id).solid}`}>
-            <span className="w-1.5 h-1.5 rounded-full bg-white/70" />
-            {market.name} · {market.currency}
-          </span>
+        <div className="px-5 pb-7">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 ring-1 ring-inset ring-white/10 px-3 py-1 text-[10.5px] font-semibold text-white/90">
+              <span aria-hidden="true" className={`w-1.5 h-1.5 rounded-full ${marketColorFor(market.id).dot}`} />
+              {market.name} · {market.currency}
+            </span>
+            {!isOpen && (
+              <span className="inline-flex rounded-full bg-white/10 ring-1 ring-inset ring-white/10 px-2.5 py-1 text-[10.5px] font-semibold text-white/80">
+                {t('inv_position_closed')}
+              </span>
+            )}
+          </div>
           {isOpen ? (
             <>
-              <p className="text-[32px] font-semibold text-white tabular-nums tracking-tight">
-                {value !== null ? formatMoney(value, market.currency) : formatMoney(position.costBasis, market.currency)}
-              </p>
-              <p className="text-[12px] text-white/70 tabular-nums">
+              <div className="mt-3.5">
+                <MoneyDisplay
+                  amount={value !== null ? value : position.costBasis}
+                  currency={market.currency}
+                  size={34}
+                  tone="on-navy"
+                  extrude="violet"
+                />
+              </div>
+              <p className="text-[12px] text-white/70 tabular-nums mt-2.5">
                 {t('inv_you_hold')
                   .replace('{qty}', position.quantity.toLocaleString())
                   .replace('{price}', formatMoney(position.avgCost, market.currency))}
               </p>
               {pnl !== null && (
-                <span className={`inline-flex text-[12px] font-semibold tabular-nums rounded-full px-2 py-0.5 ${
-                  pnl >= 0 ? 'bg-receive-50 text-receive-text' : 'bg-pay-50 text-pay-text'
-                }`}>
-                  {pnl >= 0 ? '+' : ''}{formatMoney(pnl, market.currency)} {t('inv_unrealized')}
-                </span>
+                <div className="mt-2.5">
+                  {/* Tint re-drawn from the hero-scoped -text token so the
+                      pill reads the same in both themes. */}
+                  <span
+                    className={`m-chip px-[9px] py-[3px] text-[12px] tabular-nums ${
+                      pnl >= 0 ? 'm-chip-receive' : 'm-chip-pay'
+                    }`}
+                  >
+                    {signedMoney(pnl, market.currency)} {t('inv_unrealized')}
+                  </span>
+                </div>
               )}
               <button
                 type="button"
                 onClick={() => setShowPrice(true)}
-                className="block text-[11.5px] text-white/70 underline underline-offset-2 active:text-white"
+                className="relative mt-3 flex w-fit max-w-full items-center gap-2 rounded-[12px] bg-white/10 ring-1 ring-inset ring-white/10 min-h-[36px] px-3 py-2 text-left text-[11.5px] active:bg-white/15 transition-colors before:absolute before:-inset-1 before:content-['']"
               >
-                {lastPrice !== null
-                  ? `${formatMoney(lastPrice, market.currency)}${priceAge !== null && priceAge >= 7 ? ` · ${t('inv_price_asof_days').replace('{days}', String(priceAge))}` : ''} — ${t('inv_update_price')}`
-                  : t('inv_price_never')}
+                <Glyph name="edit" size={12} className="text-white/70" />
+                {lastPrice !== null ? (
+                  <span className="min-w-0">
+                    <span className="font-semibold text-white tabular-nums">{formatMoney(lastPrice, market.currency)}</span>
+                    {priceAge !== null && priceAge >= 7 && (
+                      <span className={staleTone}> · {t('inv_price_asof_days').replace('{days}', String(priceAge))}</span>
+                    )}
+                    <span className="text-white/70"> — {t('inv_update_price')}</span>
+                  </span>
+                ) : (
+                  <span className="text-warn-700">{t('inv_price_never')}</span>
+                )}
               </button>
             </>
           ) : (
             <>
-              <span className="inline-flex rounded-full bg-white/10 px-2.5 py-1 text-[10.5px] text-white/80 font-semibold">
-                {t('inv_position_closed')}
-              </span>
-              <p className={`text-[28px] font-semibold tabular-nums tracking-tight ${position.realizedPnl >= 0 ? 'text-receive-400' : 'text-red-300'}`}>
-                {position.realizedPnl >= 0 ? '+' : ''}{formatMoney(position.realizedPnl, market.currency)}
+              <p
+                className={`m-num text-[28px] mt-3.5 ${position.realizedPnl >= 0 ? 'text-receive-text' : 'text-pay-text'}`}
+              >
+                {signedMoney(position.realizedPnl, market.currency)}
               </p>
-              <p className="text-[12px] text-white/70">{t('inv_realized')}</p>
+              <p className="text-[12px] text-white/70 mt-2">{t('inv_realized')}</p>
             </>
           )}
         </div>
@@ -202,60 +274,68 @@ export function HoldingDetailPage() {
 
       <div className="sukoon-body min-h-[60dvh] px-5 pt-5 space-y-4">
         {/* Breakdown — auditable, not a black box. */}
-        <div className="rounded-[18px] bg-cream-card border border-cream-border p-4 space-y-2">
-          {([
-            [t('inv_invested'), position.costBasis, 'neutral'],
-            [t('inv_current_value'), value, 'neutral'],
-            [t('inv_unrealized'), pnl, 'signed'],
-            [t('inv_realized'), position.realizedPnl, 'signed'],
-            [t('inv_dividends'), position.dividends, 'neutral'],
-            [t('inv_fees_total'), position.feesPaid, 'neutral'],
-          ] as const).map(([label, amount, tone]) => (
-            <div key={label} className="flex items-baseline justify-between">
-              <span className="text-[12px] text-ink-500">{label}</span>
-              <span className={`text-[13px] font-semibold tabular-nums ${
-                tone === 'signed' && amount !== null
-                  ? amount >= 0 ? 'text-receive-text' : 'text-pay-text'
-                  : 'text-ink-900'
-              }`}>
-                {amount === null ? '—' : `${tone === 'signed' && amount > 0 ? '+' : ''}${formatMoney(amount, market.currency)}`}
-              </span>
-            </div>
-          ))}
-          <p className="text-[10px] text-ink-400 pt-1 border-t border-cream-hairline">{t('inv_avg_cost_note')}</p>
+        <div className="m-card p-4">
+          <div className="space-y-2.5">
+            {([
+              [t('inv_invested'), position.costBasis, 'neutral'],
+              [t('inv_current_value'), value, 'neutral'],
+              [t('inv_unrealized'), pnl, 'signed'],
+              [t('inv_realized'), position.realizedPnl, 'signed'],
+              [t('inv_dividends'), position.dividends, 'neutral'],
+              [t('inv_fees_total'), position.feesPaid, 'neutral'],
+            ] as const).map(([label, amount, tone]) => (
+              <div key={label} className="flex items-baseline justify-between gap-3">
+                <span className="text-[12px] text-ink-600">{label}</span>
+                <span className={`text-[13px] font-semibold tabular-nums ${
+                  tone === 'signed' && amount !== null
+                    ? amount >= 0 ? 'text-receive-text' : 'text-pay-text'
+                    : 'text-ink-900'
+                }`}>
+                  {amount === null
+                    ? '—'
+                    : tone === 'signed'
+                      ? signedMoney(amount, market.currency)
+                      : formatMoney(amount, market.currency)}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10.5px] text-ink-400 mt-3 pt-2.5 border-t border-cream-hairline">{t('inv_avg_cost_note')}</p>
         </div>
 
-        {/* Actions */}
-        <div className="flex gap-2">
+        {/* Actions — Buy is the solid one (green, as the trade sheet keys it). */}
+        <div className="flex gap-2.5">
           <button
             onClick={() => openRecord('buy')}
-            className="flex-1 min-h-[44px] rounded-2xl bg-emerald-700 text-white text-[12.5px] font-semibold shadow-sm hover:bg-emerald-600 active:scale-[0.98] transition-all"
+            className="m-btn m-btn-green flex-1 text-[12.5px]"
           >
             {isOpen ? t('inv_buy_more') : t('inv_buy')}
           </button>
           {isOpen && (
             <button
               onClick={() => openRecord('sell')}
-              className="flex-1 min-h-[44px] rounded-2xl bg-cream-card border border-cream-border text-ink-700 text-[12.5px] font-semibold hover:bg-pay-50 hover:text-pay-text hover:border-pay-100 active:bg-cream-soft transition-colors"
+              className="m-btn m-btn-plain flex-1 text-[12.5px]"
             >
               {t('inv_sell')}
             </button>
           )}
           <button
             onClick={() => openRecord('dividend')}
-            className="min-h-[44px] px-4 rounded-2xl bg-cream-card border border-cream-border text-ink-700 text-[12.5px] font-semibold hover:bg-receive-50 hover:text-receive-text hover:border-receive-100 active:bg-cream-soft transition-colors"
+            className="m-btn m-btn-plain px-4 text-[12.5px]"
           >
             {t('inv_dividend')}
           </button>
         </div>
 
         {/* History */}
-        <div>
-          <p className="text-[11px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">{t('inv_history')}</p>
-          <div className="space-y-2">
+        <div className="pt-1">
+          <p className="m-label mb-2.5 px-1">{t('inv_history')}</p>
+          <div className="space-y-2.5">
             {history.map((tr) => {
-              const Icon = tr.kind === 'buy' ? Plus : tr.kind === 'sell' ? ArrowUpRight : HandCoins;
-              const iconTone = tr.kind === 'buy' ? 'bg-pay-50 text-pay-text' : 'bg-receive-50 text-receive-text';
+              // Cash direction keys the row: a buy spends (coral), a sell or
+              // a dividend brings money in (green).
+              const cashOut = tr.kind === 'buy';
+              const glyph = tr.kind === 'buy' ? 'plus' : tr.kind === 'sell' ? 'arrow-up' : 'coins';
               const cash = tr.kind === 'dividend'
                 ? Math.round((tr.amount - tr.fees) * 100) / 100
                 : tr.kind === 'buy'
@@ -265,13 +345,16 @@ export function HoldingDetailPage() {
                 ? t('inv_dividend')
                 : `${t(tr.kind === 'buy' ? 'inv_buy' : 'inv_sell')} ${tr.quantity.toLocaleString()} @ ${tr.pricePerUnit}`;
               return (
-                <div key={tr.id} className="rounded-[18px] bg-cream-card border border-cream-border p-3.5 flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconTone}`}>
-                    <Icon size={15} strokeWidth={2} />
-                  </div>
+                <div key={tr.id} className="m-card p-3.5 flex items-center gap-3">
+                  <span
+                    aria-hidden="true"
+                    className={`m-card ${cashOut ? 'm-coral' : 'm-mint'} w-9 h-9 rounded-[12px] flex items-center justify-center shrink-0`}
+                  >
+                    <Glyph name={glyph} size={16} tone={cashOut ? 'coral' : 'green'} />
+                  </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-[12.5px] font-semibold text-ink-900 tabular-nums">{label}</p>
-                    <p className="text-[10.5px] text-ink-500 mt-0.5">
+                    <p className="text-[10.5px] text-ink-600 mt-0.5">
                       {format(new Date(tr.tradedAt), 'MMM d, yyyy')}
                       {tr.fees > 0 ? ` · ${t('inv_fees')}: ${formatMoney(tr.fees, market.currency)}` : ''}
                       {tr.accountId
@@ -279,17 +362,17 @@ export function HoldingDetailPage() {
                         : ` · ${t('inv_outside_chip')}`}
                     </p>
                   </div>
-                  <p className={`text-[12.5px] font-semibold tabular-nums shrink-0 ${tr.kind === 'buy' ? 'text-pay-text' : 'text-receive-text'}`}>
-                    {tr.kind === 'buy' ? '−' : '+'}{formatMoney(cash, market.currency)}
+                  <p className={`text-[12.5px] font-semibold tabular-nums shrink-0 ${cashOut ? 'text-pay-text' : 'text-receive-text'}`}>
+                    {cashOut ? '−' : '+'}{formatMoney(cash, market.currency)}
                   </p>
                   <button
                     type="button"
                     onClick={() => handleDelete(tr)}
                     disabled={busyTradeId === tr.id}
                     aria-label={t('inv_delete_trade')}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-400 hover:text-pay-text hover:bg-pay-50 active:text-pay-text active:bg-pay-50 transition-colors shrink-0 disabled:opacity-40"
+                    className="m-ctl relative w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0 text-ink-500 hover:text-pay-text active:text-pay-text transition-colors disabled:opacity-40 before:absolute before:-inset-1.5 before:content-['']"
                   >
-                    <Trash2 size={14} />
+                    <Glyph name="trash" size={14} />
                   </button>
                 </div>
               );

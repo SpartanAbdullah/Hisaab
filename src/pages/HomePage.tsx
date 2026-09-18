@@ -1,17 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowUpRight,
-  ArrowDownLeft,
-  TrendingUp,
-  Plus,
-  Users,
-  ChevronRight,
-  ChevronDown,
-  Landmark,
-  Search,
-  CheckCircle2,
-} from "lucide-react";
+import { Users } from "lucide-react";
 import { useAccountStore } from "../stores/accountStore";
 import { useTransactionStore } from "../stores/transactionStore";
 import { useLoanStore } from "../stores/loanStore";
@@ -44,7 +33,6 @@ import {
 import { CHECK_STAMP_KEY, daysSince, type CheckStamp } from "../lib/hisaabCheck";
 import { buildInboxActionItems } from "../lib/inboxInfo";
 import { HisaabCheckModal } from "../components/HisaabCheckModal";
-import { CalendarClock, Scale } from "lucide-react";
 import { useSupabaseAuthStore } from "../stores/supabaseAuthStore";
 import { SettlementNudgeBanner } from "../components/SettlementNudgeBanner";
 import { BudgetWarningBanner } from "../components/BudgetWarningBanner";
@@ -54,14 +42,15 @@ import { EditTransactionModal } from "../components/EditTransactionModal";
 import type { Transaction } from "../db";
 import { EmptyState } from "../components/EmptyState";
 import { PageErrorState } from "../components/PageErrorState";
-// 3D clay (docs/design-system.md §10). Tier 1 `Tile3D` for anything the user
-// can press, tier 2 `Card3D` for surfaces that only tell them something, and
-// `Icon3D` for the rendered icon that floats over both. The radius gap
-// between the tiers (16px vs 24px) is what makes "tappable" legible before
-// the tap, so nothing here uses a Card3D as a button.
+// 1d material (docs/design-system.md §3). `Tile3D` / `.m-tile` for anything
+// the user can press (hard wall that sinks under the finger), `Card3D` /
+// `.m-card` for surfaces that only tell them something (lit face, no wall),
+// and 3c glyphs for icons (`Icon3D` still maps the retired clay names onto
+// glyphs). Nothing here uses a Card3D as a button.
 import { Card3D } from "../components/Card3D";
 import { Tile3D } from "../components/Tile3D";
 import { Icon3D } from "../components/Icon3D";
+import { Glyph } from "../components/Glyph";
 import { Button } from "../components/Button";
 import { UserAvatar } from "../components/UserAvatar";
 import { NavyHero } from "../components/NavyHero";
@@ -558,9 +547,9 @@ export function HomePage() {
               className="flex items-center gap-3 min-w-0 active:opacity-70"
               aria-label={t('a11y_open_settings')}
             >
-              <UserAvatar name={userName} size={36} />
+              <UserAvatar name={userName} size={36} self />
               <div className="text-left min-w-0">
-                <p className="text-[11px] text-white/55 truncate">
+                <p className="text-[11px] text-white/70 truncate">
                   {t('home_greeting_pre')}
                 </p>
                 <p className="text-[15px] font-semibold text-white tracking-tight truncate pr-1">
@@ -574,10 +563,10 @@ export function HomePage() {
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => setShowGlobalSearch(true)}
-                className="w-9 h-9 rounded-xl bg-white/10 active:bg-white/15 flex items-center justify-center transition-colors"
+                className="m-ctl relative w-9 h-9 flex items-center justify-center before:absolute before:-inset-1 before:content-['']"
                 aria-label={t('a11y_search')}
               >
-                <Search size={16} className="text-white" />
+                <Glyph name="search" size={15} className="text-white/90" />
               </button>
               <InboxAction />
             </div>
@@ -591,7 +580,7 @@ export function HomePage() {
             }
             className="block w-full text-left px-5 pb-7 active:opacity-80 transition-opacity"
           >
-            <p className="text-[10.5px] font-semibold text-white/50 tracking-[0.12em] uppercase">
+            <p className="text-[10.5px] font-semibold text-white/70 tracking-[0.12em] uppercase">
               {t('home_splits_badge')}
             </p>
             <p className="text-white text-[22px] font-semibold tracking-tight mt-1.5 leading-tight">
@@ -600,7 +589,7 @@ export function HomePage() {
             {/* Live summary from active loans + groups carrying a balance.
                 Falls back to the static blurb when nothing is outstanding. */}
             {splitsPeopleCount > 0 || activeGroupCount > 0 ? (
-              <p className="text-[12px] text-white/70 mt-2 max-w-[280px] leading-relaxed">
+              <p className="text-[12px] text-white/75 mt-2 max-w-[280px] leading-relaxed">
                 {splitsPeopleCount > 0 &&
                   t('home_people_to_settle').replace('{n}', String(splitsPeopleCount))}
                 {splitsPeopleCount > 0 && activeGroupCount > 0 && " · "}
@@ -608,7 +597,7 @@ export function HomePage() {
                   t('home_groups_active').replace('{n}', String(activeGroupCount))}
               </p>
             ) : (
-              <p className="text-[12px] text-white/55 mt-2 max-w-[280px] leading-relaxed">
+              <p className="text-[12px] text-white/70 mt-2 max-w-[280px] leading-relaxed">
                 {t('home_splits_blurb')}
               </p>
             )}
@@ -622,31 +611,26 @@ export function HomePage() {
               onRetry={retryLoad}
             />
           ) : isInitialLoading ? (
-            // Skeletons wear the clay radii so the first real paint does not
-            // visibly re-corner every surface. Written by hand (rounded-2xl =
-            // 16px tile, rounded-3xl = 24px card) rather than borrowing
-            // .clay-tile, which §10.4 reserves for real buttons and links.
+            // Skeletons in the final geometry (16px stat cards, 15px tiles,
+            // 22px feature card) so the first real paint doesn't re-corner
+            // anything; .m-skel breathes rather than shimmers.
             <div className="space-y-4" aria-hidden="true">
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-cream-card h-24 animate-pulse" />
-                <div className="rounded-2xl bg-cream-card h-24 animate-pulse" />
+                <div className="m-skel rounded-[16px] h-[104px]" />
+                <div className="m-skel rounded-[16px] h-[104px]" style={{ '--m-skel-delay': '0.15s' } as React.CSSProperties} />
               </div>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-6 pt-5">
-                <div className="rounded-2xl bg-cream-card h-[104px] animate-pulse" />
-                <div className="rounded-2xl bg-cream-card h-[104px] animate-pulse" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="m-skel rounded-[15px] h-[88px]" style={{ '--m-skel-delay': '0.3s' } as React.CSSProperties} />
+                <div className="m-skel rounded-[15px] h-[88px]" style={{ '--m-skel-delay': '0.3s' } as React.CSSProperties} />
               </div>
-              <div className="rounded-3xl bg-cream-card h-32 animate-pulse" />
+              <div className="m-skel rounded-[22px] h-32" style={{ '--m-skel-delay': '0.45s' } as React.CSSProperties} />
             </div>
           ) : (
             <>
               {receivableEntries.length === 0 && payableEntries.length === 0 ? (
-                // The one place this mode gets an illustration. `tick` —
-                // a checkmark is the plainest picture of "nothing
-                // outstanding" (the asset named `handshake` is a thumbs-up,
-                // which reads as praise for something you did, not as a
-                // settled ledger): a blush card (blush is the khata /
-                // "diya aur liya" tint) with the record-an-IOU CTA on the
-                // clay depth button.
+                // Nothing outstanding: a check glyph (the plainest picture of
+                // "settled") on a pink card — pink is the khata / "diya aur
+                // liya" tint — with the record-an-IOU CTA.
                 <Card3D tint="blush" padding="lg" className="text-center">
                   <Icon3D name="tick" size="lg" float className="mx-auto" />
                   <p className="font-semibold text-ink-900 mt-2">
@@ -659,39 +643,37 @@ export function HomePage() {
                     depth
                     size="sm"
                     onClick={() => setShowQuickEntry(true)}
-                    icon={<Plus size={15} strokeWidth={2.4} />}
+                    icon={<Glyph name="plus" size={15} strokeWidth={3} />}
                     className="mt-4 min-h-[44px]"
                   >
                     {t('home_record_iou_cta')}
                   </Button>
                 </Card3D>
               ) : (
-                // Both halves are tappable, so they are TILES wearing a tint,
-                // not Card3Ds (§10.1: "if a card needs a tap, it is not a
-                // card"). No floating icon here — the money number is the
-                // point and a 64px icon gutter would squeeze it on a 360px
-                // phone; the arrow chip stays as the non-colour direction cue.
+                // Both halves are tappable, so they are tinted TILES (hard
+                // walls), not cards. The gradient dot carries a direction
+                // arrow so the meaning never rests on colour alone.
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => navigate("/loans?tab=receivables")}
-                    className="clay-tile clay-mint p-4 text-left"
+                    className="m-tile m-mint p-4 text-left"
                   >
                     <div className="flex items-center gap-2 mb-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-cream-card/70 flex items-center justify-center">
-                        <ArrowDownLeft size={14} className="text-receive-text" />
-                      </div>
-                      <p className="text-[10.5px] font-semibold text-ink-600 uppercase tracking-[0.1em]">
+                      <span className="m-stat-dot m-stat-dot-receive" aria-hidden>
+                        <Glyph name="arrow-down" size={14} strokeWidth={3} />
+                      </span>
+                      <p className="text-[10.5px] font-semibold text-receive-text uppercase tracking-[0.1em]">
                         {t('check_receivable')}
                       </p>
                     </div>
                     {recvLoanCount === 0 ? (
                       <>
-                        <p className="text-[20px] font-semibold text-ink-600 tabular-nums">—</p>
+                        <p className="text-[21px] font-semibold text-ink-600 tabular-nums">—</p>
                         <p className="text-[11px] text-ink-600 mt-1">{t('home_no_one')}</p>
                       </>
                     ) : (
                       <>
-                        <p className="text-[20px] font-semibold text-receive-text tabular-nums tracking-tight">
+                        <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em]">
                           {formatMoney(recvPrimary, recvPrimaryCur)}
                         </p>
                         <p className="text-[11px] text-ink-600 mt-1">
@@ -706,24 +688,24 @@ export function HomePage() {
                   </button>
                   <button
                     onClick={() => navigate("/loans?tab=payables")}
-                    className="clay-tile clay-coral p-4 text-left"
+                    className="m-tile m-coral p-4 text-left"
                   >
                     <div className="flex items-center gap-2 mb-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-cream-card/70 flex items-center justify-center">
-                        <ArrowUpRight size={14} className="text-pay-text" />
-                      </div>
-                      <p className="text-[10.5px] font-semibold text-ink-600 uppercase tracking-[0.1em]">
+                      <span className="m-stat-dot m-stat-dot-pay" aria-hidden>
+                        <Glyph name="arrow-up" size={14} strokeWidth={3} />
+                      </span>
+                      <p className="text-[10.5px] font-semibold text-pay-text uppercase tracking-[0.1em]">
                         {t('check_payable')}
                       </p>
                     </div>
                     {payLoanCount === 0 ? (
                       <>
-                        <p className="text-[20px] font-semibold text-ink-600 tabular-nums">—</p>
+                        <p className="text-[21px] font-semibold text-ink-600 tabular-nums">—</p>
                         <p className="text-[11px] text-ink-600 mt-1">{t('home_no_one')}</p>
                       </>
                     ) : (
                       <>
-                        <p className="text-[20px] font-semibold text-pay-text tabular-nums tracking-tight">
+                        <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em]">
                           {formatMoney(payPrimary, payPrimaryCur)}
                         </p>
                         <p className="text-[11px] text-ink-600 mt-1">
@@ -743,11 +725,10 @@ export function HomePage() {
                   accounts/transactions surfaces, surface the remaining
                   browse destinations (Contacts, Activity) directly on home
                   so they're not buried in Settings. */}
-              {/* Same 2-up shortcuts, now clay tiles. Stacked placement, not
-                  corner: these labels are two words each ("Aap ke Contacts",
-                  "Recent Activity") and the corner layout's 64px gutter would
-                  leave a 154px tile only 76px of copy. */}
-              <div className="grid grid-cols-2 gap-x-3 gap-y-6 pt-5">
+              {/* Same 2-up shortcuts as tiles, glyph stacked over the label:
+                  the labels are two words each ("Aap ke Contacts", "Recent
+                  Activity") and need the tile's full width. */}
+              <div className="grid grid-cols-2 gap-3">
                 <Tile3D
                   tint="blush"
                   icon="person"
@@ -797,7 +778,7 @@ export function HomePage() {
                           onClick={() => navigate(`/group/${group.id}`)}
                           className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-cream-soft transition-colors"
                         >
-                          <div className="w-9 h-9 rounded-xl bg-cream-soft border border-cream-hairline flex items-center justify-center shrink-0 text-base">
+                          <div className="m-ctl w-9 h-9 flex items-center justify-center shrink-0 text-base">
                             {group.emoji}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -939,9 +920,8 @@ export function HomePage() {
   const collapsedBanners = activeBanners.slice(ATTENTION_CAP);
   const collapsedReminderHref = collapsedBanners[0]?.href ?? "/";
 
-  // The calm "nothing needs you" status card. Same three conditions as
-  // before — only the copy moved into i18n (it was two hardcoded English
-  // sentences) and the surface became a clay card.
+  // The calm "nothing needs you" status card (copy in i18n, surface a tinted
+  // card). Same three conditions as ever.
   const showCalmStatus =
     // The Getting Started card covers the no-account and no-transaction cases.
     accountCount > 0 &&
@@ -961,9 +941,9 @@ export function HomePage() {
             className="flex items-center gap-3 min-w-0 active:opacity-70"
             aria-label={t('a11y_open_settings')}
           >
-            <UserAvatar name={userName} size={36} />
+            <UserAvatar name={userName} size={36} self />
             <div className="text-left min-w-0">
-              <p className="text-[11px] text-white/55 truncate">
+              <p className="text-[11px] text-white/70 truncate">
                 {greeting} {greetingEmoji}
               </p>
               <p className="text-[15px] font-semibold text-white tracking-tight truncate pr-1">
@@ -977,10 +957,10 @@ export function HomePage() {
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setShowGlobalSearch(true)}
-              className="w-9 h-9 rounded-xl bg-white/10 active:bg-white/15 flex items-center justify-center transition-colors"
+              className="m-ctl relative w-9 h-9 flex items-center justify-center before:absolute before:-inset-1 before:content-['']"
               aria-label={t('a11y_search')}
             >
-              <Search size={16} className="text-white" />
+              <Glyph name="search" size={15} className="text-white/90" />
             </button>
             <InboxAction />
           </div>
@@ -992,17 +972,17 @@ export function HomePage() {
           disabled={accountCount === 0}
           className="block w-full text-left px-5 pb-7 disabled:cursor-default active:opacity-80 transition-opacity"
         >
-          <p className="text-[10.5px] font-semibold text-white/50 tracking-[0.12em] uppercase">
+          <p className="text-[10.5px] font-semibold text-white/70 tracking-[0.12em] uppercase">
             {t('home_your_money')}
           </p>
           {isInitialLoading ? (
-            <div className="mt-1.5 h-12 w-48 rounded-xl bg-white/10 animate-pulse" />
+            <div className="m-skel mt-2 h-11 w-52 rounded-xl" />
           ) : accountCount === 0 ? (
             <>
               <p className="text-white text-[22px] font-semibold tracking-tight mt-1.5 leading-tight">
                 {t('home_no_accounts_title')}
               </p>
-              <p className="text-[12px] text-white/55 mt-1.5 max-w-[260px] leading-relaxed">
+              <p className="text-[12px] text-white/70 mt-1.5 max-w-[260px] leading-relaxed">
                 {t('home_no_accounts_hero_desc')}
               </p>
             </>
@@ -1018,25 +998,26 @@ export function HomePage() {
                 <AnimatedMoney
                   amount={primaryTotal}
                   currency={primaryCurrency}
-                  size={42}
+                  size={46}
                   tone="on-navy"
+                  extrude="violet"
                   animate={!isInitialLoading}
                 />
                 {/* Non-colour liability cue: down-caret + word so a negative
                     net worth never relies on the minus sign alone. */}
                 {primaryTotal < 0 && (
                   <span className="inline-flex items-center gap-0.5 rounded-full bg-white/12 px-1.5 py-0.5 text-[10px] font-semibold text-white/80">
-                    <ChevronDown size={11} strokeWidth={2.6} />
+                    <Glyph name="chevron-down" size={11} strokeWidth={3} />
                     {t('home_owed')}
                   </span>
                 )}
               </div>
               {primaryTotal < 0 && (
-                <p className="text-[10px] text-white/55 mt-1">
+                <p className="text-[10.5px] text-white/70 mt-1">
                   {t('home_net_liab')}
                 </p>
               )}
-              <p className="text-[12px] text-white/55 mt-2">
+              <p className="text-[12px] text-white/70 mt-3">
                 {accountCount === 1
                   ? t('common_account_one')
                   : t('common_account_many').replace('{n}', String(accountCount))}
@@ -1068,23 +1049,24 @@ export function HomePage() {
         {/* First-load skeleton — never flash "Add an account" / quick tiles
             empty state before the accounts query finishes. */}
         {isInitialLoading && (
-          // Clay radii by hand (rounded-2xl = 16px tile, rounded-3xl = 24px
-          // card) so the first real paint doesn't re-corner the whole page.
-          // The 2x2 block previews the quick-tile grid's new geometry —
-          // same 104px height, same pt-5/gap-y-6 float clearance.
+          // Skeletons in the final geometry — stat cards, the 4x2 tile grid,
+          // the feature card — so the first real paint doesn't re-corner
+          // anything.
           <div className="space-y-4" aria-hidden="true">
-            <div className="rounded-3xl bg-cream-card h-20 animate-pulse" />
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl bg-cream-card h-24 animate-pulse" />
-              <div className="rounded-2xl bg-cream-card h-24 animate-pulse" />
+              <div className="m-skel rounded-[16px] h-[104px]" />
+              <div className="m-skel rounded-[16px] h-[104px]" style={{ '--m-skel-delay': '0.15s' } as React.CSSProperties} />
             </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-6 pt-5">
-              <div className="rounded-2xl bg-cream-card h-[104px] animate-pulse" />
-              <div className="rounded-2xl bg-cream-card h-[104px] animate-pulse" />
-              <div className="rounded-2xl bg-cream-card h-[104px] animate-pulse" />
-              <div className="rounded-2xl bg-cream-card h-[104px] animate-pulse" />
+            <div className="grid grid-cols-4 gap-2.5">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="m-skel rounded-[15px] h-[84px]"
+                  style={{ '--m-skel-delay': `${0.3 + (i % 4) * 0.05}s` } as React.CSSProperties}
+                />
+              ))}
             </div>
-            <div className="rounded-3xl bg-cream-card h-32 animate-pulse" />
+            <div className="m-skel rounded-[22px] h-32" style={{ '--m-skel-delay': '0.45s' } as React.CSSProperties} />
           </div>
         )}
 
@@ -1107,25 +1089,24 @@ export function HomePage() {
 
         {/* 2-up: To Receive | To Pay */}
         {accountCount > 0 && (hasReceivables || hasPayables) && (
-          // Tappable, so tiles wearing the mint / coral tint — not Card3Ds
-          // (§10.1). No floating icon: the amount is the content and the
-          // 64px icon gutter would squeeze it on a 360px phone.
+          // Tappable, so tinted tiles (mint = to receive, coral = to pay),
+          // each keyed by a gradient dot with a direction arrow.
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => navigate("/loans?tab=receivables")}
-              className="clay-tile clay-mint p-4 text-left"
+              className="m-tile m-mint p-4 text-left"
             >
               <div className="flex items-center gap-2 mb-2.5">
-                <div className="w-7 h-7 rounded-lg bg-cream-card/70 flex items-center justify-center">
-                  <ArrowDownLeft size={14} className="text-receive-text" />
-                </div>
-                <p className="text-[10.5px] font-semibold text-ink-600 uppercase tracking-[0.1em]">
+                <span className="m-stat-dot m-stat-dot-receive" aria-hidden>
+                  <Glyph name="arrow-down" size={14} strokeWidth={3} />
+                </span>
+                <p className="text-[10.5px] font-semibold text-receive-text uppercase tracking-[0.1em]">
                   {t("loan_receivable")}
                 </p>
               </div>
               {hasReceivables ? (
                 <>
-                  <p className="text-[20px] font-semibold text-receive-text tabular-nums tracking-tight">
+                  <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em]">
                     {formatMoney(
                       receivableEntries[0][1],
                       receivableEntries[0][0],
@@ -1142,7 +1123,7 @@ export function HomePage() {
                 </>
               ) : (
                 <>
-                  <p className="text-[20px] font-semibold text-ink-600 tabular-nums">
+                  <p className="text-[21px] font-semibold text-ink-600 tabular-nums">
                     —
                   </p>
                   <p className="text-[11px] text-ink-600 mt-1">{t('home_no_one')}</p>
@@ -1151,19 +1132,19 @@ export function HomePage() {
             </button>
             <button
               onClick={() => navigate("/loans?tab=payables")}
-              className="clay-tile clay-coral p-4 text-left"
+              className="m-tile m-coral p-4 text-left"
             >
               <div className="flex items-center gap-2 mb-2.5">
-                <div className="w-7 h-7 rounded-lg bg-cream-card/70 flex items-center justify-center">
-                  <ArrowUpRight size={14} className="text-pay-text" />
-                </div>
-                <p className="text-[10.5px] font-semibold text-ink-600 uppercase tracking-[0.1em]">
+                <span className="m-stat-dot m-stat-dot-pay" aria-hidden>
+                  <Glyph name="arrow-up" size={14} strokeWidth={3} />
+                </span>
+                <p className="text-[10.5px] font-semibold text-pay-text uppercase tracking-[0.1em]">
                   {t("loan_payable")}
                 </p>
               </div>
               {hasPayables ? (
                 <>
-                  <p className="text-[20px] font-semibold text-pay-text tabular-nums tracking-tight">
+                  <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em]">
                     {formatMoney(payableEntries[0][1], payableEntries[0][0])}
                   </p>
                   <p className="text-[11px] text-ink-600 mt-1">
@@ -1177,7 +1158,7 @@ export function HomePage() {
                 </>
               ) : (
                 <>
-                  <p className="text-[20px] font-semibold text-ink-600 tabular-nums">
+                  <p className="text-[21px] font-semibold text-ink-600 tabular-nums">
                     —
                   </p>
                   <p className="text-[11px] text-ink-600 mt-1">{t('home_no_one')}</p>
@@ -1187,33 +1168,13 @@ export function HomePage() {
           </div>
         )}
 
-        {/* Quick-access tile grid — the one place this page spends its
-            boldness: eight clay tiles, each with a rendered 3D icon floating
-            over its top edge.
-
-            LAYOUT: 4 columns x 2 rows, on `iconPlacement="top"`. The stacked
-            shape is what makes 4-up survive a 360px phone: at 20px page
-            gutters and an 8px column gap a tile is 74px wide, and the corner
-            layout reserves 64px of that for the icon alone. Stacked, the icon
-            is centred over the top edge and the label gets the full 62px
-            beneath it. `badgePlacement="corner"` keeps the same counts the
-            old QuickTile pinned to the corner, now ringed in the tile's own
-            surface colour so it stays legible over the art.
-
-            `iconSize="lg"` (64px), not the sm it shipped with: founder
-            feedback 2026-09-03 was that the icons should be the obvious
-            thing here. 64px of art on a 74px tile is 86% of its width and
-            hangs 26px above the top edge — bigger than the box it sits on,
-            on purpose. The label follows it down to 11px medium ink-700, so
-            the art leads and the word captions it (Tile3D also supports
-            `label="hidden"` for an art-only grid; the labels are kept for
-            now).
-
-            No overflow-hidden ancestor here, and `pt-7` / `gap-y-7` on the
-            grid: an lg stacked icon hangs 26px above its tile and would clip
-            otherwise. */}
+        {/* Quick-access tile grid — 4 columns x 2 rows of 1d tiles, each a
+            28px extruded glyph in its section's accent over a small label
+            (the handoff's Home grid). Glyphs sit inside the tiles, so the
+            grid needs no float clearance. Corner badges are the violet count
+            pill. */}
         {accountCount > 0 && (
-          <div className="grid grid-cols-4 gap-x-2 gap-y-7 pt-7">
+          <div className="grid grid-cols-4 gap-2.5">
             <Tile3D
               tint="mint"
               icon="target"
@@ -1296,10 +1257,10 @@ export function HomePage() {
             differentiator, visible daily; settling a loan or a group split
             visibly moves this number. */}
         {dataReady && meraPrimary && (loans.length > 0 || accounts.length > 0 || groupObligationTotals.length > 0) && (
-          <Card3D as="section" padding="lg">
+          <Card3D as="section" padding="lg" feature>
             <div className="flex items-center justify-between mb-1.5">
               <h2 className="text-[10.5px] font-semibold text-ink-600 uppercase tracking-[0.12em] flex items-center gap-1.5">
-                <Scale size={11} /> {t("home_mera_hisaab")}
+                <Glyph name="savings" size={12} tone="green" /> {t("home_mera_hisaab")}
               </h2>
               {meraPrevNet !== null && Math.abs(meraPrimary.net - meraPrevNet) > 0.005 && (
                 <span className={`text-[10.5px] font-semibold tabular-nums ${meraPrimary.net >= meraPrevNet ? "text-receive-text" : "text-pay-text"}`}>
@@ -1307,7 +1268,7 @@ export function HomePage() {
                 </span>
               )}
             </div>
-            <p className={`text-[24px] font-semibold tabular-nums tracking-tight ${meraPrimary.net < 0 ? "text-pay-text" : "text-ink-900"}`}>
+            <p className={`text-[28px] font-semibold tabular-nums tracking-[-0.04em] leading-none mt-1 ${meraPrimary.net < 0 ? "text-pay-text" : "text-ink-900"}`}>
               {formatSignedMoney(meraPrimary.net, meraPrimary.currency)}
             </p>
             {(meraPrimary.receivable > 0.005 || meraPrimary.payable > 0.005) && (
@@ -1349,9 +1310,9 @@ export function HomePage() {
               {/* span, not h2 — heading content inside a <button> is invalid
                   and vanishes from the screen-reader outline anyway. */}
               <span className="text-[10.5px] font-semibold text-ink-600 uppercase tracking-[0.12em] flex items-center gap-1.5">
-                <TrendingUp size={11} /> {t("inv_title")}
+                <Glyph name="trend" size={12} tone="violet" /> {t("inv_title")}
               </span>
-              <ChevronRight size={14} className="text-ink-300" />
+              <Glyph name="chevron-right" size={14} className="text-ink-400" />
             </button>
             <div className="divide-y divide-cream-hairline">
               {invMarketRows.map(({ market, bucket: b }) => {
@@ -1415,7 +1376,7 @@ export function HomePage() {
           // your hand") and keeps its count in the tile badge. Done-today
           // flips the ritual tile to mint so keeping the ritual is visibly
           // rewarded.
-          <div className="space-y-6 pt-5">
+          <div className="space-y-3">
             <Tile3D
               tint={checkDays === 0 ? "mint" : "accent"}
               icon="tick"
@@ -1471,11 +1432,11 @@ export function HomePage() {
                   onClick={() => navigate(row.href)}
                   className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left active:bg-cream-soft transition-colors"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-cream-soft border border-cream-hairline flex items-center justify-center shrink-0">
+                  <div className="m-ctl w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0">
                     {row.sub.kind === "cleared" ? (
-                      <CheckCircle2 size={14} className="text-receive-text" />
+                      <Glyph name="check" size={14} tone="green" />
                     ) : (
-                      <CalendarClock size={14} className={row.daysUntil <= 1 ? "text-warn-600" : "text-ink-500"} />
+                      <Glyph name="calendar" size={14} tone={row.daysUntil <= 1 ? "gold" : "blue"} />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1520,15 +1481,12 @@ export function HomePage() {
           </div>
         )}
 
-        {/* The calm status card. Not a NextStepHint any more: that component
-            is shared with SplitsPage/TransactionsPage and is out of this
-            pass's file ownership, and its copy here was two hardcoded
-            English sentences. Same three conditions, same words, now on a
-            mint clay card with a floating sparkle and real i18n keys. */}
+        {/* The calm status card: a mint card with a sparkle glyph and i18n
+            copy (it replaced a NextStepHint whose copy was hardcoded). */}
         {dataReady && showCalmStatus && (
           <Card3D tint="mint" padding="lg" icon="sparkle">
             <div className="flex items-center gap-1.5">
-              <CheckCircle2 size={12} className="text-receive-text" />
+              <Glyph name="check" size={12} tone="green" />
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-receive-text">
                 {t('hint_current_status')}
               </p>
@@ -1576,7 +1534,7 @@ export function HomePage() {
                       className='relative w-7 h-7 rounded-lg flex items-center justify-center text-ink-600 active:bg-cream-soft transition-colors shrink-0 before:absolute before:-inset-2 before:content-[""]'
                       aria-label={t('a11y_dismiss')}
                     >
-                      &#x2715;
+                      <Glyph name="close" size={14} />
                     </button>
                   </div>
                 </Card3D>
@@ -1598,7 +1556,7 @@ export function HomePage() {
                 className="text-[11px] text-accent-600 font-semibold active:opacity-70 flex items-center gap-1"
                 aria-label={t('a11y_add_account')}
               >
-                <Plus size={12} strokeWidth={2.5} /> {t('common_add')}
+                <Glyph name="plus" size={12} strokeWidth={3} /> {t('common_add')}
               </button>
             </div>
             <Card3D padding="none" className="overflow-hidden divide-y divide-cream-hairline">
@@ -1611,8 +1569,8 @@ export function HomePage() {
                     onClick={() => navigate(`/account/${a.id}`)}
                     className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left active:bg-cream-soft transition-colors"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-cream-soft border border-cream-hairline flex items-center justify-center shrink-0">
-                      <Landmark size={14} className="text-ink-600" />
+                    <div className="m-ctl w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0">
+                      <Glyph name="bank" size={14} tone="violet" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-medium text-ink-900 truncate tracking-tight">
@@ -1655,9 +1613,7 @@ export function HomePage() {
             Gated on dataReady so we don't flash this between the accounts
             load completing and the transactions load completing. */}
         {dataReady && accountCount > 0 && transactions.length === 0 && (
-          // Empty state with the illustration the founder asked for: the
-          // piggybank floats over an accent clay card instead of the old
-          // emoji-in-a-square.
+          // No entries yet: the savings glyph on a violet card.
           <Card3D tint="accent" padding="lg" className="flex flex-col items-center text-center">
             <Icon3D name="piggybank" size="lg" float />
             <p className="text-[14px] font-semibold text-ink-900 tracking-tight mt-2">
@@ -1693,7 +1649,7 @@ export function HomePage() {
         {collapsedBanners.length > 0 && (
           <button
             onClick={() => navigate(collapsedReminderHref)}
-            className="clay-tile clay-gold min-h-[44px] px-4 flex items-center gap-2.5 text-left"
+            className="m-tile m-violet min-h-[44px] px-4 flex items-center gap-2.5 text-left"
           >
             <span className="w-7 h-7 rounded-full bg-cream-card flex items-center justify-center shrink-0 text-ink-900 text-[11px] font-bold tabular-nums">
               {collapsedBanners.length}
@@ -1703,7 +1659,7 @@ export function HomePage() {
                 ? t('home_more_reminder_one')
                 : t('home_more_reminders').replace('{n}', String(collapsedBanners.length))}
             </span>
-            <ChevronRight size={15} className="text-ink-600 ml-auto shrink-0" />
+            <Glyph name="chevron-right" size={15} className="text-ink-600 ms-auto" />
           </button>
         )}
 
