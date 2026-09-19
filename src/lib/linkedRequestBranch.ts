@@ -7,6 +7,14 @@
 // null at accept time), so the sender's / receiver's account currencies don't
 // constrain acceptance. Cross-currency handling re-enters the design when
 // balance movement returns in a later phase.
+//
+// One exception: a CASH ADVANCE never branches. It is money borrowed from the
+// user's own card (the card is the lender, not a person), so there is nobody
+// to confirm it. Lending to a person FROM a card is not a cash advance — it
+// branches like any other account, and the card is charged when they accept.
+// Quick Entry used to treat every card-funded loan as a cash advance, so card
+// lends to linked contacts were saved locally and only reached the other
+// person through a manual "Sync past records" (2026-07-12 → 2026-09-19).
 
 import type { Currency, LinkedRequestKind, Person } from '../db';
 
@@ -18,8 +26,12 @@ export function decideLinkedBranch(input: {
   type: 'loan_given' | 'loan_taken';
   person: Person | null | undefined;
   requestCurrency: Currency | null | undefined;
+  /** The Quick Entry cash-advance flow (borrowing from the user's own card) —
+   *  NOT merely "the chosen account is a credit card". */
+  cashAdvance?: boolean;
 }): BranchDecision {
-  const { type, person, requestCurrency } = input;
+  const { type, person, requestCurrency, cashAdvance } = input;
+  if (cashAdvance) return { branch: false };
   if (!person || person.archivedAt || !person.linkedProfileId) return { branch: false };
   if (!requestCurrency) return { branch: false };
 

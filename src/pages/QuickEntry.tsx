@@ -979,15 +979,19 @@ export function QuickEntry({
       // Phase 2B: Full Money Tracker can branch linked-contact loan entries
       // into an approval request. Simple mode must record local wallet effects
       // immediately, so it uses the normal transaction path below.
-      // Card-funded entries never branch: a cash advance is between the user
-      // and their own card — branching here used to fire a cross-user request
-      // and silently skip the card debit entirely.
-      if (appMode !== 'splits_only' && (type === 'loan_given' || type === 'loan_taken') && !selectedCashAdvanceCard) {
+      // A cash advance never branches (it's between the user and their own
+      // card). Lending to a person FROM a card does — `selectedCashAdvanceCard`
+      // is set whenever the From account is ANY card, so gating on it alone
+      // silently saved card lends locally, although the form had promised
+      // "Send for confirmation". The card rides on the request as the
+      // requester account and is charged when they accept, like any account.
+      if (appMode !== 'splits_only' && (type === 'loan_given' || type === 'loan_taken')) {
         const accountForBranch = type === 'loan_given' ? srcAccount : dstAccount;
         const branch = decideLinkedBranch({
           type,
           person: resolvedPerson,
           requestCurrency: accountForBranch?.currency,
+          cashAdvance: cashAdvance && !!selectedCashAdvanceCard,
         });
         if (branch.branch === true) {
           // Deliberate confirm before mirroring a currency-locked record to them.

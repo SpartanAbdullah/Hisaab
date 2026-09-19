@@ -81,6 +81,28 @@ describe('decideLinkedBranch', () => {
     });
   });
 
+  it('never branches a cash advance — the card is the lender, nobody confirms it', () => {
+    const result = decideLinkedBranch({
+      type: 'loan_taken',
+      person: makePerson({ linkedProfileId: 'profile-2' }),
+      requestCurrency: 'AED',
+      cashAdvance: true,
+    });
+    expect(result.branch).toBe(false);
+  });
+
+  it('branches a loan GIVEN from a card account — paying for someone with a card is not a cash advance', () => {
+    // The founder's 2026-09 report: card lends to linked contacts were saved
+    // locally and had to be pushed with "Sync past records" by hand.
+    const result = decideLinkedBranch({
+      type: 'loan_given',
+      person: makePerson({ id: 'p1', linkedProfileId: 'profile-2' }),
+      requestCurrency: 'AED',
+      cashAdvance: false,
+    });
+    expect(result).toEqual({ branch: true, kind: 'lent', toUserId: 'profile-2', personId: 'p1', currency: 'AED' });
+  });
+
   it('does not restrict by currency — Phase 2B is ledger-only', () => {
     // Comment in source explicitly notes "No cross-currency gate" — lock
     // that decision in with a test so a well-meaning future PR doesn't

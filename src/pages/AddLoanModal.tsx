@@ -178,6 +178,12 @@ export function AddLoanModal({ open, onClose }: Props) {
           amount: amt,
           currency: branch.currency,
           note: notes,
+          // Full tracker: the account picked in this form rides on the request
+          // (the same as Quick Entry), so it moves when they accept. It used to
+          // be dropped here, leaving the account untouched after an accepted
+          // loan. The branch currency IS this account's currency, so the DB's
+          // currency-match check can't fire. Splits-only has no accounts.
+          requesterAccountId: isLedgerOnlyMode ? null : selectedAccount?.id ?? null,
           requestId: nextRequestId(),
         });
         track('loan_created', {
