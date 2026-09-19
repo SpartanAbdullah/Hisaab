@@ -90,6 +90,19 @@ function waitForNextPaint(): Promise<void> {
 let wavedThisOpen = false;
 const HAND = "\u{1F44B}";
 
+// A stat figure that stays on ONE line in its half-width card (.m-fit-figure
+// in index.css scales it from its length; the card carries .m-fit-host).
+function FitFigure({ text }: { text: string }) {
+  return (
+    <p
+      className="m-fit-figure font-semibold text-ink-900 tabular-nums tracking-[-0.03em]"
+      style={{ "--chars": text.length } as React.CSSProperties}
+    >
+      {text}
+    </p>
+  );
+}
+
 export function HomePage() {
   const { accounts, loadAccounts } = useAccountStore();
   const { transactions, loadTransactions } = useTransactionStore();
@@ -676,7 +689,7 @@ export function HomePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => navigate("/loans?tab=receivables")}
-                    className="m-tile m-mint p-4 text-left"
+                    className="m-tile m-mint m-fit-host p-4 text-left"
                   >
                     <div className="flex items-center gap-2 mb-2.5">
                       <span className="m-stat-dot m-stat-dot-receive" aria-hidden>
@@ -693,9 +706,7 @@ export function HomePage() {
                       </>
                     ) : (
                       <>
-                        <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em]">
-                          {formatMoney(recvPrimary, recvPrimaryCur)}
-                        </p>
+                        <FitFigure text={formatMoney(recvPrimary, recvPrimaryCur)} />
                         <p className="text-[11px] text-ink-600 mt-1">
                           {recvSecond
                             ? `+ ${formatMoney(recvSecond[1], recvSecond[0])}`
@@ -708,7 +719,7 @@ export function HomePage() {
                   </button>
                   <button
                     onClick={() => navigate("/loans?tab=payables")}
-                    className="m-tile m-coral p-4 text-left"
+                    className="m-tile m-coral m-fit-host p-4 text-left"
                   >
                     <div className="flex items-center gap-2 mb-2.5">
                       <span className="m-stat-dot m-stat-dot-pay" aria-hidden>
@@ -725,9 +736,7 @@ export function HomePage() {
                       </>
                     ) : (
                       <>
-                        <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em]">
-                          {formatMoney(payPrimary, payPrimaryCur)}
-                        </p>
+                        <FitFigure text={formatMoney(payPrimary, payPrimaryCur)} />
                         <p className="text-[11px] text-ink-600 mt-1">
                           {paySecond
                             ? `+ ${formatMoney(paySecond[1], paySecond[0])}`
@@ -1114,7 +1123,7 @@ export function HomePage() {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => navigate("/loans?tab=receivables")}
-              className="m-tile m-mint p-4 text-left"
+              className="m-tile m-mint m-fit-host p-4 text-left"
             >
               <div className="flex items-center gap-2 mb-2.5">
                 <span className="m-stat-dot m-stat-dot-receive" aria-hidden>
@@ -1126,12 +1135,7 @@ export function HomePage() {
               </div>
               {hasReceivables ? (
                 <>
-                  <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em]">
-                    {formatMoney(
-                      receivableEntries[0][1],
-                      receivableEntries[0][0],
-                    )}
-                  </p>
+                  <FitFigure text={formatMoney(receivableEntries[0][1], receivableEntries[0][0])} />
                   <p className="text-[11px] text-ink-600 mt-1">
                     {receivableEntries.length > 1
                       ? `+ ${formatMoney(
@@ -1152,7 +1156,7 @@ export function HomePage() {
             </button>
             <button
               onClick={() => navigate("/loans?tab=payables")}
-              className="m-tile m-coral p-4 text-left"
+              className="m-tile m-coral m-fit-host p-4 text-left"
             >
               <div className="flex items-center gap-2 mb-2.5">
                 <span className="m-stat-dot m-stat-dot-pay" aria-hidden>
@@ -1164,9 +1168,7 @@ export function HomePage() {
               </div>
               {hasPayables ? (
                 <>
-                  <p className="text-[21px] font-semibold text-ink-900 tabular-nums tracking-[-0.03em]">
-                    {formatMoney(payableEntries[0][1], payableEntries[0][0])}
-                  </p>
+                  <FitFigure text={formatMoney(payableEntries[0][1], payableEntries[0][0])} />
                   <p className="text-[11px] text-ink-600 mt-1">
                     {payableEntries.length > 1
                       ? `+ ${formatMoney(

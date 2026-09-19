@@ -1782,6 +1782,19 @@ html.dark, .m-hero, .bg-navy-bloom { --m-surface-top: #141628; --m-surface-botto
     font-size: clamp(8.5px, 14.8cqw, 10.5px);
     overflow-wrap: anywhere;
   }
+  /* One-line figures in half-width cards (Home's To receive / To pay). At
+   * the 21px design size "AED 26,406.89" is 140px wide, but a card on a
+   * 390px phone has 137px inside, so the currency code wrapped above the
+   * number. The card is a size container and the figure scales from its own
+   * length (--chars, set inline): Geist 600 tabular at -0.03em measures
+   * 0.49-0.53 of the font size per character across AED / PKR / USD amounts,
+   * so 0.55 always fits. Never above 21px, never below the 14px floor. */
+  .m-fit-host { container-type: inline-size; }
+  .m-fit-figure {
+    white-space: nowrap;
+    font-size: 21px; /* engines without container units keep the plain size */
+    font-size: clamp(14px, calc(100cqw / (var(--chars, 13) * 0.55)), 21px);
+  }
 
   /* Pressable key — keypad digits, big secondary actions. One thin wall. */
   .m-key {
