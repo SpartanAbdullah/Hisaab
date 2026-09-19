@@ -308,7 +308,9 @@ export function LoansPage() {
   const tabCounts = {
     receivables: distinctPeople(activeLoans.filter((l) => l.type === 'given'), primaryCurrency),
     payables: distinctPeople(activeLoans.filter((l) => l.type === 'taken'), primaryCurrency),
-    settled: settledLoans.length,
+    // People, like the two tabs beside it: it used to count LOANS, so a
+    // "Settled · 66" next to "People owe you · 9" read as 66 people.
+    settled: distinctPeople(settledLoans, primaryCurrency),
   };
 
   // Build the visible list for the current tab. Primary-currency groups first;

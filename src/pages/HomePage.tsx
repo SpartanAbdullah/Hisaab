@@ -19,6 +19,7 @@ import { useInvestmentStore, portfolioTotals } from "../stores/investmentStore";
 import { buildThisWeek, thisWeekTotals } from "../lib/thisWeek";
 import {
   computeMeraHisaab,
+  isCardHeldAdvance,
   monthKeyOf,
   NET_SNAPSHOTS_KEY,
   previousMonthNet,
@@ -179,6 +180,16 @@ export function HomePage() {
       useInvestmentStore.getState().loadInvestments().catch((err) => {
         console.error("loadInvestments failed (non-fatal)", err);
       }),
+      // Group balances — Where I Stand's group half (who owes whom across
+      // splits). App boot loads the group LIST but never the balances, so
+      // without this the headline left groups out until the Groups tab had
+      // been opened. Groups first: loadBalances nets over the hydrated list.
+      // NON-FATAL — the dashboard renders without the group half.
+      loadGroups()
+        .then(loadBalances)
+        .catch((err) => {
+          console.error("group balances failed (non-fatal)", err);
+        }),
     ]);
     // Bounded-history top-up (see the note at `ensureTransactionHistory`).
     // NON-FATAL: the dashboard must render even if this hop fails — the worst
@@ -416,7 +427,16 @@ export function HomePage() {
       .reduce((s, t) => s + t.amount, 0);
     return income > 0 || expense > 0 ? { income, expense } : null;
   };
-  const activeLoans = loans.filter((l) => l.status === "active");
+  // Open loans with PEOPLE — everything below that reads this list (the To
+  // receive / To pay cards, the Contacts tile's unsettled count, the
+  // splits-mode counts) is about people. A cash advance on a card that still
+  // exists is the card's debt: it is already inside "Your money" as card owed
+  // and on the card's statement, and Where I Stand and the Loans page leave it
+  // out the same way (isCardHeldAdvance). Splits-only mode has no cards.
+  const accountIds = new Set(accounts.map((a) => a.id));
+  const activeLoans = loans.filter(
+    (l) => l.status === "active" && !isCardHeldAdvance(l.id, cardFundedLoanIds, accountIds),
+  );
 
   // Proactive coach cards — deterministic insights from data we already have.
   const coachCards = useMemo(() => {

@@ -28,6 +28,26 @@ export interface MeraHisaabInputs {
   cardFundedLoanIds?: Map<string, string>;
 }
 
+/** A cash advance whose funding card still exists is the CARD's debt, not a
+ *  person's: the card's used amount already carries it (used = purchases +
+ *  what's left on its advances — via the −owed limit math, or via the balance
+ *  the advance drove down on a card with no limit), and its instalments are
+ *  lines on the card's statement. Counting the loan too would double the
+ *  debt. Only a deleted funding card leaves the loan as the sole record.
+ *
+ *  The one rule behind every "you owe people" surface — Where I Stand, the
+ *  Home To-pay card, the Contacts tile's unsettled count — so they cannot
+ *  disagree. `cardFundedLoanIds` is loanId → funding card id, derived from
+ *  the loan_taken transaction's sourceAccountId (loans carry no card link). */
+export function isCardHeldAdvance(
+  loanId: string,
+  cardFundedLoanIds: ReadonlyMap<string, string> | undefined,
+  accountIds: ReadonlySet<string>,
+): boolean {
+  const fundingCardId = cardFundedLoanIds?.get(loanId);
+  return fundingCardId !== undefined && accountIds.has(fundingCardId);
+}
+
 export function computeMeraHisaab(inp: MeraHisaabInputs): MeraHisaabTotals[] {
   const byCurrency = new Map<string, MeraHisaabTotals>();
   const entry = (currency: string): MeraHisaabTotals => {
@@ -39,7 +59,7 @@ export function computeMeraHisaab(inp: MeraHisaabInputs): MeraHisaabTotals[] {
     return e;
   };
 
-  const accountById = new Map(inp.accounts.map((a) => [a.id, a]));
+  const accountIds = new Set(inp.accounts.map((a) => a.id));
   for (const a of inp.accounts) {
     const e = entry(a.currency);
     if (a.type === 'credit_card') {
@@ -59,14 +79,8 @@ export function computeMeraHisaab(inp: MeraHisaabInputs): MeraHisaabTotals[] {
     if (loan.type === 'given') {
       e.receivable = round2(e.receivable + loan.remainingAmount);
     } else {
-      // Card-funded cash advance whose card still exists: the card's
-      // contribution to accountsNet already carries this debt — via the
-      // −owed limit math when a limit is set, or via the balance the
-      // advance drove down when no limit is configured. Either way,
-      // counting the loan again would double the debt. Only a DELETED
-      // funding card leaves the loan as the sole record of it.
-      const fundingCardId = inp.cardFundedLoanIds?.get(loan.id);
-      if (fundingCardId && accountById.has(fundingCardId)) continue;
+      // The card's contribution to accountsNet already carries its advances.
+      if (isCardHeldAdvance(loan.id, inp.cardFundedLoanIds, accountIds)) continue;
       e.payable = round2(e.payable + loan.remainingAmount);
     }
   }

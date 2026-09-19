@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeMeraHisaab, monthKeyOf, previousMonthNet, upsertSnapshot } from './meraHisaab';
+import { computeMeraHisaab, isCardHeldAdvance, monthKeyOf, previousMonthNet, upsertSnapshot } from './meraHisaab';
 import type { Account, Loan } from '../db';
 
 const account = (over: Partial<Account>): Account => ({
@@ -74,6 +74,22 @@ describe('computeMeraHisaab', () => {
       loans: [],
     });
     expect(totals.map((t) => t.currency)).toEqual(['PKR', 'AED']);
+  });
+});
+
+describe('isCardHeldAdvance — the card, not a person, holds the debt', () => {
+  const funded = new Map([['ca', 'card']]);
+  it('is true for a cash advance whose funding card still exists', () => {
+    expect(isCardHeldAdvance('ca', funded, new Set(['card', 'bank']))).toBe(true);
+  });
+  it('is false for a loan no card funded — a real person owes or is owed', () => {
+    expect(isCardHeldAdvance('ali', funded, new Set(['card']))).toBe(false);
+  });
+  it('is false once the funding card is deleted — the loan is the only record left', () => {
+    expect(isCardHeldAdvance('ca', funded, new Set(['bank']))).toBe(false);
+  });
+  it('is false with no funding map (splits-only mode has no cards)', () => {
+    expect(isCardHeldAdvance('ca', undefined, new Set(['card']))).toBe(false);
   });
 });
 
