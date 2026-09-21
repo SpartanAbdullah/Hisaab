@@ -283,7 +283,10 @@ export function GlobalSearch({ open, onClose }: Props) {
                           key={result.id}
                           type="button"
                           onClick={() => {
-                            navigate(result.href);
+                            // Replace the overlay's own history entry, so the
+                            // result page takes its place and Back from there
+                            // returns to the page search was opened on.
+                            navigate(result.href, { replace: true });
                             onClose();
                           }}
                           className="w-full px-3.5 py-3 flex items-center gap-3 text-left active:bg-cream-soft transition-colors"

@@ -230,7 +230,7 @@ INSERT INTO _client_rpcs VALUES
   ('register_push_token'),('reject_linked_request'),('reject_settlement_request'),
   ('remove_committee_member'),('remove_group_guest'),('respond_contact_link'),
   ('revoke_committee_witness_token'),('revoke_khata_link'),
-  ('rotate_committee_witness_token'),('transfer_between_accounts'),
+  ('rotate_committee_witness_token'),('set_group_admin'),('transfer_between_accounts'),
   ('transfer_group_ownership'),('unarchive_contact'),('unarchive_group'),
   ('unlink_contact_profile'),('update_committee');
 

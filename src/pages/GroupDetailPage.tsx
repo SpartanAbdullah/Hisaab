@@ -25,6 +25,17 @@ import { VerifiedBadge } from '../components/VerifiedBadge';
 import { EditHistorySheet } from '../components/EditHistorySheet';
 import { readGroupGuardFailure } from '../lib/groupGuardErrors';
 import { buildGuestInviteText, isGuestMember } from '../lib/groupGuests';
+import {
+  adminCandidates,
+  canManageGroup,
+  groupSupportsAdmins,
+  isGroupAdmin,
+  isGroupOwner,
+  setGroupAdminFailureCopy,
+  transferCandidates as eligibleNewOwners,
+} from '../lib/groupRoles';
+import { copyText, shareText } from '../lib/clipboard';
+import { isNativeRuntime } from '../lib/runtime';
 import { buildWhatsAppUrl } from '../lib/whatsappReminder';
 import { useT } from '../lib/i18n';
 import { formatMoney } from '../lib/constants';
@@ -95,6 +106,22 @@ function getActivityDisplay(
     if (!id) return '?';
     return group.members.find(m => m.id === id)?.name ?? '?';
   };
+
+  // Written by set_group_admin (supabase-migration-group-admins.sql §5e).
+  // Payload: { memberId, memberProfileId, memberName, isAdmin, actorName }.
+  // Matched on the raw string: GroupEventType (src/db/types.ts) predates it.
+  const rawType = event.eventType as string;
+  if (rawType === 'member_admin_granted' || rawType === 'member_admin_revoked') {
+    const granted = rawType === 'member_admin_granted';
+    const memberId = typeof payload.memberId === 'string' ? payload.memberId : undefined;
+    const fallbackName = typeof payload.memberName === 'string' ? payload.memberName : event.summary;
+    return {
+      icon: activityGlyph(granted ? 'shield-check' : 'shield-off', granted ? 'blue' : 'neutral'),
+      tone: granted ? 'blue' : 'neutral',
+      title: group.members.find(m => m.id === memberId)?.name ?? fallbackName,
+      subtitle: t(granted ? 'gev_admin_granted' : 'gev_admin_revoked'),
+    };
+  }
 
   switch (event.eventType) {
     case 'settlement_added': {
@@ -268,8 +295,14 @@ function getActivityDisplay(
 // status='connected' — that is precisely what makes them a real ledger
 // participant (audit G6 / O4) — so a status-only branch would label the one
 // person who is NOT on Hisaab as "on Hisaab".
-function memberStatusLabel(t: ReturnType<typeof useT>, member: Pick<GroupMember, 'profileId' | 'status' | 'isOwner'>): string {
-  if (member.isOwner) return t('member_owner');
+//
+// Admins (supabase-migration-group-admins.sql) say "admin" — like the owner,
+// the role is the more useful fact: an admin is on Hisaab by definition.
+type MemberBadgeFields = Pick<GroupMember, 'profileId' | 'status' | 'isOwner' | 'role' | 'isAdmin'>;
+
+function memberStatusLabel(t: ReturnType<typeof useT>, member: MemberBadgeFields): string {
+  if (isGroupOwner(member)) return t('member_owner');
+  if (isGroupAdmin(member)) return t('member_admin');
   if (isGuestMember(member)) return t('guest_tag');
   if (member.status === 'connected') return t('member_on_app');
   if (member.status === 'invited') return t('member_invited');
@@ -279,11 +312,12 @@ function memberStatusLabel(t: ReturnType<typeof useT>, member: Pick<GroupMember,
 // Status halo around a member's avatar. Every person wears the same navy 1d
 // avatar; the 2px ring carries the status, decoded by the legend in the hero:
 // on-app green, invited gold (waiting on them — the same amber as the invite
-// sheet's chip), a guest and everyone else (declined, left) a neutral ring. The owner gets the group's blue accent. Glyph tokens are ≥3:1
+// sheet's chip), a guest and everyone else (declined, left) a neutral ring. The owner and every co-admin — the people who
+// run the group — get the group's blue accent. Glyph tokens are ≥3:1
 // on the sheet in both themes, and the hero re-scopes them to their dark
 // values, so the same ring reads on the hero and on the balances tab.
-function memberStatusRing(member: Pick<GroupMember, 'profileId' | 'status' | 'isOwner'>, onHero: boolean) {
-  if (member.isOwner) return 'ring-glyph-blue';
+function memberStatusRing(member: MemberBadgeFields, onHero: boolean) {
+  if (isGroupAdmin(member)) return 'ring-glyph-blue';
   if (isGuestMember(member)) return onHero ? 'ring-white/30' : 'ring-field-border';
   if (member.status === 'connected') return 'ring-glyph-green';
   if (member.status === 'invited') return 'ring-glyph-gold';
@@ -295,7 +329,7 @@ function MemberAvatar({
   size,
   onHero = false,
 }: {
-  member: Pick<GroupMember, 'name' | 'profileId' | 'status' | 'isOwner'>;
+  member: MemberBadgeFields & Pick<GroupMember, 'name'>;
   size: number;
   onHero?: boolean;
 }) {
@@ -324,7 +358,7 @@ export function GroupDetailPage() {
   const navigate = useNavigate();
   const t = useT();
   const toast = useToast();
-  const { groups, getGroupExpenses, getSettlePlans, deleteGroup, leaveGroup, getGroupEvents, getSettlements, deleteSettlement, loadGroups, setGroupExpenseReconciled, archiveGroup, unarchiveGroup, transferGroupOwnership, refreshJoinCode, createInvite, renameGroupGuest } = useSplitStore();
+  const { groups, getGroupExpenses, getSettlePlans, deleteGroup, leaveGroup, getGroupEvents, getSettlements, deleteSettlement, loadGroups, setGroupExpenseReconciled, archiveGroup, unarchiveGroup, transferGroupOwnership, setGroupAdmin, refreshJoinCode, createInvite, renameGroupGuest } = useSplitStore();
   const markGroupRead = useNotificationStore((state) => state.markGroupRead);
   // M5 per-group mute (docs/notifications.md §8.1). Silent and one-sided —
   // the group's activity/expense rows are still written for everyone, this
@@ -370,6 +404,10 @@ export function GroupDetailPage() {
   const [refreshingCode, setRefreshingCode] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferringMemberId, setTransferringMemberId] = useState<string | null>(null);
+  // Co-admins (supabase-migration-group-admins.sql): the owner's sheet, and
+  // the seat whose set_group_admin call is in flight.
+  const [showAdmins, setShowAdmins] = useState(false);
+  const [settingAdminId, setSettingAdminId] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   // Trust & safety (audit M17). Blocking a fellow member does NOT remove them
   // from the group and does not hide their ledger rows — it stops notifications
@@ -387,8 +425,8 @@ export function GroupDetailPage() {
   // pointing at the same seat.
   const guestInviteGuard = useSubmitGuard();
   const [invitingGuestId, setInvitingGuestId] = useState<string | null>(null);
-  // Rename a guest seat (docs/guest-members.md §9.4) — owner-only, gated below
-  // on `isOwner` next to the rename button itself.
+  // Rename a guest seat (docs/guest-members.md §9.4) — owner or admin, gated
+  // below on `canManage` next to the rename button itself.
   const renameGuard = useSubmitGuard();
   const [renamingGuest, setRenamingGuest] = useState<GroupMember | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -540,23 +578,82 @@ export function GroupDetailPage() {
     guestInviteGuard.run(async () => {
       setInvitingGuestId(member.id);
       try {
-        const result = await createInvite(group.id, member.id);
-        await navigator.clipboard.writeText(result.url).catch(() => {});
+        let url: string;
+        try {
+          url = (await createInvite(group.id, member.id)).url;
+        } catch {
+          toast.show({ type: 'error', title: t('ginv_err_create') });
+          return;
+        }
         if (channel === 'whatsapp') {
+          // The link rides inside the message; the clipboard is a courtesy.
+          void copyText(url);
           window.open(
-            buildWhatsAppUrl(null, buildGuestInviteText(member.name, group.name, result.url)),
+            buildWhatsAppUrl(null, buildGuestInviteText(member.name, group.name, url)),
             '_blank',
             'noopener,noreferrer',
           );
-        } else {
+        } else if (await copyText(url)) {
           toast.show({ type: 'success', title: t('ginv_link_copied'), subtitle: t('guest_assign_hint') });
+        } else {
+          // Minting took long enough for the tap's activation to lapse. The
+          // invite EXISTS — never report this as "could not create invite".
+          offerLinkFallback(url, t('guest_assign_hint'));
         }
-      } catch {
-        toast.show({ type: 'error', title: t('ginv_err_create') });
       } finally {
         setInvitingGuestId(null);
       }
     });
+
+  // Copy text that is already in hand, with an honest toast. Call it before
+  // any await in a tap handler (src/lib/clipboard.ts rule 1).
+  const copyWithToast = async (
+    text: string,
+    success: { title: string; subtitle?: string },
+    failureSubtitle?: string,
+  ) => {
+    if (await copyText(text)) {
+      toast.show({ type: 'success', ...success });
+      return;
+    }
+    toast.show({ type: 'error', title: t('grp_copy_failed'), subtitle: failureSubtitle, duration: 6000 });
+  };
+
+  // A link minted over the network can outlive the tap's user activation, and
+  // then the clipboard refuses it. Offer a FRESH tap instead: the OS share
+  // sheet in the Android app (it needs no activation and carries its own Copy
+  // target), a synchronous Copy on the web.
+  const offerLinkFallback = (url: string, copiedSubtitle?: string) => {
+    const native = isNativeRuntime();
+    toast.show({
+      type: 'info',
+      title: t('ginv_link_ready'),
+      subtitle: native ? t('ginv_link_ready_share_sub') : copiedSubtitle,
+      duration: 10000,
+      action: {
+        label: native ? t('ginv_share') : t('ginv_copy'),
+        onPress: () => {
+          if (!native) {
+            // A fresh tap with the link in hand: this is the path that works
+            // on the web. (No "press and hold" hint — there is no link on this
+            // screen to press; the WhatsApp action carries it instead.)
+            void copyWithToast(url, { title: t('ginv_link_copied'), subtitle: copiedSubtitle });
+            return;
+          }
+          void shareText({
+            title: group.name,
+            text: t('ginv_share_text').replace('{group}', group.name),
+            url,
+            dialogTitle: t('ginv_share'),
+          }).then((outcome) => {
+            if (outcome === 'failed' || outcome === 'unavailable') {
+              toast.show({ type: 'error', title: t('ginv_share_failed') });
+            }
+          });
+        },
+      },
+    });
+  };
 
   const openRenameGuest = (member: GroupMember) => {
     setRenameValue(member.name);
@@ -687,13 +784,20 @@ export function GroupDetailPage() {
   // (tg_block_writes_in_archived_group / tg_block_join_archived_group), so
   // hiding the actions is honesty, not enforcement.
   const isArchived = Boolean(group.archivedAt);
-  const isOwner = Boolean(currentMember?.isOwner);
+  // Roles (src/lib/groupRoles.ts, supabase-migration-group-admins.sql).
+  // OWNER-ONLY: delete the group, transfer it, choose admins.
+  // OWNER OR ADMIN (`canManage`): archive / reopen, the join code, guest
+  // renames, invite links. On a database without the migration nobody is an
+  // admin, so `canManage` is exactly the old owner check.
+  const isOwner = isGroupOwner(currentMember);
+  const canManage = canManageGroup(currentMember);
+  const adminsSupported = groupSupportsAdmins(group.members);
   // transfer_group_ownership only accepts a connected, profile-linked member of
   // the same group — mirror that filter so the picker can never offer a
   // candidate the RPC will reject with INVALID_NEW_OWNER.
-  const transferCandidates = group.members.filter(
-    (member) => member.status === 'connected' && member.profileId && member.profileId !== currentUserId,
-  );
+  const transferCandidates = eligibleNewOwners(group.members, currentUserId);
+  const ownerMember = group.members.find((member) => isGroupOwner(member));
+  const adminSheetMembers = adminCandidates(group.members);
   const joinCodeExpiresAt = group.joinCodeExpiresAt ? new Date(group.joinCodeExpiresAt) : null;
   const joinCodeExpired = joinCodeExpiresAt !== null
     && Number.isFinite(joinCodeExpiresAt.getTime())
@@ -817,8 +921,25 @@ export function GroupDetailPage() {
   // Owner-only handover. The RPC only accepts a member who is connected AND
   // profile-linked, so a group can never be handed to a guest seat or a
   // stranger — the picker below applies exactly that filter.
-  const handleTransferOwnership = async (memberId: string) => {
+  //
+  // It now ASKS first. This used to fire on a single tap of a member in a
+  // sheet titled "Choose the new admin", and that is how the founder gave a
+  // test group away (2026-09-19). The confirm says plainly that the caller
+  // stops being the owner — and, once the co-admin migration is live, that
+  // they stay on as an admin (transfer_group_ownership keeps them one).
+  const handleTransferOwnership = async (member: GroupMember) => {
     if (transferringMemberId) return;
+    const ok = await confirmDestructive({
+      title: t('grp_transfer_confirm_title').replace('{name}', member.name),
+      description: t(adminsSupported ? 'grp_transfer_confirm_body_admin' : 'grp_transfer_confirm_body')
+        .replace('{group}', group.name)
+        .replace('{name}', member.name),
+      confirmLabel: t('grp_transfer_confirm_cta'),
+      cancelLabel: t('cancel'),
+      tone: 'warning',
+    });
+    if (!ok) return;
+    const memberId = member.id;
     setTransferringMemberId(memberId);
     try {
       const result = await transferGroupOwnership(group.id, memberId);
@@ -842,15 +963,49 @@ export function GroupDetailPage() {
     }
   };
 
+  // Owner-only: make a member a co-admin, or remove them. The owner stays the
+  // owner either way — the founder's rule (2026-09-19). On a database without
+  // supabase-migration-group-admins.sql the RPC does not exist and the store
+  // answers NEEDS_DB_UPDATE, which the copy below says in plain words.
+  const handleSetAdmin = async (member: GroupMember, makeAdmin: boolean) => {
+    if (settingAdminId) return;
+    setSettingAdminId(member.id);
+    try {
+      const result = await setGroupAdmin(group.id, member.id, makeAdmin);
+      if (result.status === 'ok') {
+        toast.show({
+          type: 'success',
+          title: t(makeAdmin ? 'grp_admin_made' : 'grp_admin_removed').replace('{name}', member.name),
+          subtitle: makeAdmin ? t('grp_admin_made_sub') : undefined,
+        });
+        await reload();
+        return;
+      }
+      toast.show({ type: 'error', ...setGroupAdminFailureCopy(result.status), duration: 6000 });
+    } catch (err) {
+      toast.show({
+        type: 'error',
+        title: t('grp_admin_err_generic'),
+        subtitle: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setSettingAdminId(null);
+    }
+  };
+
   // Join codes expire 14 days after creation or rotation. Rotating retires the
   // old code immediately (anyone still holding it can no longer join), which is
-  // exactly why this lives behind an explicit owner action.
+  // exactly why this lives behind an explicit owner-or-admin action.
   const handleRefreshJoinCode = async () => {
     if (refreshingCode) return;
     setRefreshingCode(true);
     try {
       const nextCode = await refreshJoinCode(group.id);
-      await navigator.clipboard.writeText(nextCode).catch(() => {});
+      // A courtesy copy only — the toast does not claim it, and the new code
+      // is on screen with its own Copy button. (This used to be a bare
+      // navigator.clipboard call: where that object does not exist it threw,
+      // and a rotation that HAD succeeded was reported as a failure.)
+      void copyText(nextCode);
       toast.show({
         type: 'success',
         title: t('grp_code_refreshed'),
@@ -924,7 +1079,10 @@ export function GroupDetailPage() {
         toast.show({
           type: 'error',
           title: t('gdp_leave_blocked'),
-          subtitle: result.userMessage,
+          // The server's ONLY_OWNER_ADMIN sentence says "Assign another admin
+          // first" — no longer true: making someone an admin does not let the
+          // owner leave, transferring ownership does. Localized, and honest.
+          subtitle: result.reasonCode === 'ONLY_OWNER_ADMIN' ? t('grp_leave_owner_blocked') : result.userMessage,
           duration: 6000,
         });
         return;
@@ -1031,6 +1189,20 @@ export function GroupDetailPage() {
                         {leaving ? t('grp_leaving') : t('grp_leave_cta')}
                       </button>
                     )}
+                    {/* Co-admins: share the running of the group without
+                        giving it away (the owner stays the owner). Offered
+                        on an archived group too — that is how an owner lets
+                        a co-admin reopen it. */}
+                    {isOwner && (
+                      <button
+                        role="menuitem"
+                        onClick={() => { setShowMenu(false); setShowAdmins(true); }}
+                        className="w-full px-4 py-3 text-left text-[13px] font-medium text-white active:bg-white/5 flex items-center gap-2.5 border-t border-white/10 transition-colors"
+                      >
+                        <Glyph name="shield-check" size={14} className="text-white/70" />
+                        {t('grp_admins_action')}
+                      </button>
+                    )}
                     {isOwner && transferCandidates.length > 0 && !isArchived && (
                       <button
                         role="menuitem"
@@ -1041,7 +1213,7 @@ export function GroupDetailPage() {
                         {t('grp_transfer_action')}
                       </button>
                     )}
-                    {isOwner && (
+                    {canManage && (
                       <button
                         role="menuitem"
                         onClick={() => { setShowMenu(false); void (isArchived ? handleUnarchive() : handleArchive()); }}
@@ -1144,7 +1316,7 @@ export function GroupDetailPage() {
               <p className="text-[11.5px] text-ink-600 mt-1 leading-[1.55]">
                 {t('grp_archived_banner_body')}
               </p>
-              {isOwner && (
+              {canManage && (
                 <button
                   onClick={() => void handleUnarchive()}
                   disabled={archiving}
@@ -1167,10 +1339,16 @@ export function GroupDetailPage() {
         // joined, it compacts back into the quiet reference card.
         const connectedCount = group.members.filter(m => m.status === 'connected').length;
         const isSolo = connectedCount <= 1;
-        const copyCode = async () => {
+        // Synchronous start inside the tap, and an honest toast either way —
+        // the bare navigator.clipboard call this replaces rejected unhandled
+        // wherever the API is missing or refused, and the user saw nothing.
+        const copyCode = () => {
           if (!group.joinCode) return;
-          await navigator.clipboard.writeText(group.joinCode);
-          toast.show({ type: 'success', title: t('gdp_code_copied'), subtitle: t('gdp_code_copied_sub') });
+          void copyWithToast(
+            group.joinCode,
+            { title: t('gdp_code_copied'), subtitle: t('gdp_code_copied_sub') },
+            t('grp_copy_failed_code_sub'),
+          );
         };
 
         if (isSolo) {
@@ -1209,7 +1387,7 @@ export function GroupDetailPage() {
                     <Glyph name="copy" size={13} /> {t('gdp_copy')}
                   </button>
                 </div>
-                {isOwner && (
+                {canManage && (
                   <button
                     onClick={() => void handleRefreshJoinCode()}
                     disabled={refreshingCode}
@@ -1239,7 +1417,7 @@ export function GroupDetailPage() {
                   </p>
                 )}
               </div>
-              {isOwner && (
+              {canManage && (
                 <button
                   onClick={() => void handleRefreshJoinCode()}
                   disabled={refreshingCode}
@@ -1408,11 +1586,12 @@ export function GroupDetailPage() {
                 description={t('group_first_invite_body')}
                 actionLabel={t('group_first_invite_cta')}
                 onAction={() => {
-                  void (async () => {
-                    if (!group.joinCode) return;
-                    await navigator.clipboard.writeText(group.joinCode);
-                    toast.show({ type: 'success', title: t('group_code_copied'), subtitle: t('group_code_copied_sub') });
-                  })();
+                  if (!group.joinCode) return;
+                  void copyWithToast(
+                    group.joinCode,
+                    { title: t('group_code_copied'), subtitle: t('group_code_copied_sub') },
+                    t('grp_copy_failed_code_sub'),
+                  );
                 }}
               />
             ) : (
@@ -1630,8 +1809,10 @@ export function GroupDetailPage() {
                     so there is nobody to block or report — instead the two
                     things a real member can do FOR them: hand the seat over,
                     or nudge them onto Hisaab. Both are the same linked-invite
-                    mechanism; see handleGuestInvite. */}
-                {isGuestMember(member) && (
+                    mechanism; see handleGuestInvite. Both MINT an invite,
+                    which only the owner or an admin may do (group_invites
+                    INSERT policy) — for anyone else they could only fail. */}
+                {isGuestMember(member) && canManage && (
                   <div className="mt-2.5 pt-2.5 border-t border-cream-hairline">
                     <div className="flex items-center gap-3 flex-wrap">
                       <button
@@ -1650,10 +1831,10 @@ export function GroupDetailPage() {
                       >
                         {t('guest_assign_cta')}
                       </button>
-                      {/* Rename — owner-only (docs/guest-members.md §9.4). The
-                          only affordance here that isn't the shared linked-
-                          invite mechanism. */}
-                      {isOwner && (
+                      {/* Rename — owner or admin (docs/guest-members.md §9.4).
+                          The only affordance here that isn't the shared
+                          linked-invite mechanism. */}
+                      {canManage && (
                         <button
                           type="button"
                           onClick={() => openRenameGuest(member)}
@@ -1851,8 +2032,8 @@ export function GroupDetailPage() {
       />
       <GroupInviteModal open={showInvite} group={group} onClose={() => { setShowInvite(false); void reload(); }} />
 
-      {/* Rename a guest seat (docs/guest-members.md §9.4). Owner-only,
-          unclaimed guest seats only — see the isOwner gate on the rename
+      {/* Rename a guest seat (docs/guest-members.md §9.4). Owner or admin,
+          unclaimed guest seats only — see the canManage gate on the rename
           button in the balances-tab member row above. */}
       <Modal
         open={!!renamingGuest}
@@ -1899,20 +2080,90 @@ export function GroupDetailPage() {
               {transferCandidates.map((member) => (
                 <button
                   key={member.id}
-                  onClick={() => void handleTransferOwnership(member.id)}
+                  onClick={() => void handleTransferOwnership(member)}
                   disabled={transferringMemberId !== null}
                   className="selector-base gap-3 p-3 disabled:opacity-40"
                 >
                   <UserAvatar name={member.name} size={40} />
                   <div className="min-w-0 flex-1">
                     <p className="text-[13.5px] font-semibold text-ink-900 truncate tracking-[-0.01em]">{member.name}</p>
-                    <p className="text-[10.5px] text-ink-500 mt-0.5">{t('member_on_app')}</p>
+                    <p className="text-[10.5px] text-ink-500 mt-0.5">{memberStatusLabel(t, member)}</p>
                   </div>
                   <Crown size={15} strokeWidth={2.4} className="text-glyph-violet shrink-0" />
                 </button>
               ))}
             </div>
           )}
+        </div>
+      </Modal>
+
+      {/* Co-admins (supabase-migration-group-admins.sql). Owner-only sheet:
+          the owner row on top (always an admin, never editable), then every
+          seat set_group_admin accepts — connected and on Hisaab — with a
+          Make / Remove toggle. Guests, invitees and people who left are not
+          listed: the RPC would refuse them (NOT_ELIGIBLE). */}
+      <Modal
+        open={showAdmins}
+        onClose={() => setShowAdmins(false)}
+        title={t('grp_admins_title')}
+      >
+        <div className="p-5 space-y-3">
+          <p className="text-[12px] text-ink-600 leading-relaxed">{t('grp_admins_body')}</p>
+          {!adminsSupported && (
+            <p className="rounded-xl bg-warn-50 px-3 py-2 text-[11px] font-medium text-warn-700 leading-relaxed">
+              {t('grp_admins_needs_update')}
+            </p>
+          )}
+          <div className="space-y-2.5">
+            {ownerMember && (
+              <div className="m-card p-3 flex items-center gap-3">
+                <MemberAvatar member={ownerMember} size={40} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13.5px] font-semibold text-ink-900 truncate tracking-[-0.01em]">
+                    {ownerMember.name}
+                    {ownerMember.profileId === currentUserId ? (
+                      <span className="font-semibold text-accent-600">{t('gdp_you_suffix')}</span>
+                    ) : null}
+                  </p>
+                </div>
+                <span className="m-chip m-chip-blue m-chip-caps shrink-0">{t('grp_role_owner')}</span>
+              </div>
+            )}
+            {adminSheetMembers.length === 0 ? (
+              <p className="text-[12px] text-ink-500 text-center py-4 leading-relaxed">{t('grp_admins_none')}</p>
+            ) : adminSheetMembers.map((member) => {
+              const memberIsAdmin = isGroupAdmin(member);
+              const busy = settingAdminId === member.id;
+              return (
+                <div key={member.id} className="m-card p-3 flex items-center gap-3">
+                  <MemberAvatar member={member} size={40} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13.5px] font-semibold text-ink-900 truncate tracking-[-0.01em]">{member.name}</p>
+                    {memberIsAdmin ? (
+                      <span className="m-chip m-chip-blue m-chip-caps mt-1">{t('grp_role_admin')}</span>
+                    ) : (
+                      <p className="text-[10.5px] text-ink-500 mt-0.5">{t('member_on_app')}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleSetAdmin(member, !memberIsAdmin)}
+                    disabled={settingAdminId !== null}
+                    aria-busy={busy}
+                    className="m-btn m-btn-plain shrink-0 min-h-[36px] px-3 py-2 gap-1.5 rounded-xl text-[11.5px] disabled:opacity-40"
+                  >
+                    <Glyph
+                      name={memberIsAdmin ? 'shield-off' : 'shield-check'}
+                      size={13}
+                      tone={memberIsAdmin ? 'neutral' : 'blue'}
+                      className={busy ? 'animate-pulse' : ''}
+                    />
+                    {memberIsAdmin ? t('grp_admin_remove') : t('grp_admin_make')}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </Modal>
 

@@ -29,9 +29,28 @@ import { isZeroMoney, MONEY_TOLERANCE } from './moneyTolerance';
 
 export type StatementScope = 'contact' | 'loan';
 
+// What a ledger line records, independent of language. Renderers phrase it in
+// the app's current language and from the READER's side (the statement is
+// sent to the counterparty) via statementText.describeStatementLine —
+// `description` below stays the stable English, user-side label for existing
+// consumers (KhataLinkPage, tests).
+export type StatementLineKind =
+  | 'loan_given' // you lent to them — they owe you more
+  | 'loan_taken' // you borrowed from them — you owe them more
+  | 'repayment_received' // they paid you back
+  | 'repayment_paid' // you paid them back
+  | 'repayments_received_summary' // paid down on a loan you gave, no rows behind it
+  | 'repayments_made_summary' // paid down on a loan you took, no rows behind it
+  | 'settled_earlier' // fold: older fully settled loans (`count`)
+  | 'settled_recent' // collapse: 4+ loans settled in the last 7 days (`count`)
+  | 'settled_in_full'; // one loan settled in the last 7 days
+
 export interface StatementLine {
   date: string; // ISO timestamp of the underlying event
-  description: string; // neutral, human-readable label
+  description: string; // neutral, human-readable label (English, user's side)
+  kind: StatementLineKind; // language-free type of the line (see above)
+  loanNote?: string; // the parent loan's note, named on a line that has none of its own
+  count?: number; // how many loans a fold / collapse line stands for
   note?: string; // optional free-text from the transaction
   delta: number; // signed change (+ increases what they owe you)
   balance: number; // signed running balance AFTER this line
@@ -91,6 +110,14 @@ function describe(txn: Transaction, loanType: Loan['type']): string {
     default:
       return 'Adjustment';
   }
+}
+
+// Only reached for rows signedDelta accepted (loan_given / loan_taken /
+// repayment), so the fallback is never hit in practice.
+function kindOf(txn: Transaction, loanType: Loan['type']): StatementLineKind {
+  if (txn.type === 'loan_given') return 'loan_given';
+  if (txn.type === 'loan_taken') return 'loan_taken';
+  return loanType === 'given' ? 'repayment_received' : 'repayment_paid';
 }
 
 export interface BuildStatementInput {
@@ -175,6 +202,8 @@ export function buildStatement(input: BuildStatementInput): Statement {
       entries.push({
         date: earliest,
         description: `Previously settled loans (${foldedSettled.length}) — nothing pending from these`,
+        kind: 'settled_earlier',
+        count: foldedSettled.length,
         delta: 0,
         grossGiven: gross,
         grossRepaid: gross,
@@ -189,15 +218,20 @@ export function buildStatement(input: BuildStatementInput): Statement {
       entries.push({
         date: latest,
         description: `Recently settled 🎉 — ${recentSettled.length} loans cleared, nothing pending from these`,
+        kind: 'settled_recent',
+        count: recentSettled.length,
         delta: 0,
         grossGiven: gross,
         grossRepaid: gross,
       });
     } else {
       for (const loan of recentSettled) {
+        const loanNote = loan.notes?.trim();
         entries.push({
           date: loan.updatedAt ?? loan.createdAt,
-          description: loan.notes?.trim() ? `Settled in full 🎉 — ${loan.notes.trim()}` : 'Settled in full 🎉',
+          description: loanNote ? `Settled in full 🎉 — ${loanNote}` : 'Settled in full 🎉',
+          kind: 'settled_in_full',
+          ...(loanNote ? { loanNote } : {}),
           delta: 0,
           grossGiven: round2(loan.totalAmount),
           grossRepaid: round2(loan.totalAmount),
@@ -215,6 +249,7 @@ export function buildStatement(input: BuildStatementInput): Statement {
         entries.push({
           date: loan.createdAt,
           description: loan.type === 'given' ? 'Loan given' : 'Loan taken',
+          kind: loan.type === 'given' ? 'loan_given' : 'loan_taken',
           note: loan.notes?.trim() || undefined,
           delta: loan.type === 'given' ? round2(loan.totalAmount) : round2(-loan.totalAmount),
           estimated: true,
@@ -229,13 +264,15 @@ export function buildStatement(input: BuildStatementInput): Statement {
         // A bare "Repayment received" doesn't tell the reader WHICH debt it
         // reduced — name the loan so partial settlement is legible.
         const base = describe(txn, loan.type);
-        const description =
+        const loanNote =
           txn.type === 'repayment' && !txn.notes?.trim() && loan.notes?.trim()
-            ? `${base} — ${loan.notes.trim()}`
-            : base;
+            ? loan.notes.trim()
+            : undefined;
         entries.push({
           date: txn.createdAt,
-          description,
+          description: loanNote ? `${base} — ${loanNote}` : base,
+          kind: kindOf(txn, loan.type),
+          ...(loanNote ? { loanNote } : {}),
           note: txn.notes?.trim() || undefined,
           delta: round2(delta),
         });
@@ -250,6 +287,7 @@ export function buildStatement(input: BuildStatementInput): Statement {
         entries.push({
           date: loan.updatedAt ?? asOf,
           description: loan.type === 'given' ? 'Repayments received (summary)' : 'Repayments made (summary)',
+          kind: loan.type === 'given' ? 'repayments_received_summary' : 'repayments_made_summary',
           delta: loan.type === 'given' ? -unrecorded : unrecorded,
           estimated: true,
         });

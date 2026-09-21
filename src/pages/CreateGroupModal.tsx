@@ -168,7 +168,9 @@ export function CreateGroupModal({ open, onClose, onCreated }: Props) {
       if (onCreated) {
         onCreated(created);
       } else {
-        navigate(`/group/${created.id}`);
+        // Replace the sheet's own history entry (useBackStackLayer), so Back
+        // from the new group returns to where the sheet was opened.
+        navigate(`/group/${created.id}`, { replace: true });
       }
     } catch (err) {
       // createGroup throws an already-translated message when a guest seat is

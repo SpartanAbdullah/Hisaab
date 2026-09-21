@@ -292,6 +292,7 @@ DECLARE
   -- transfer_between_accounts, record_loan_repayment, create_loan_with_leg,
   -- contribute_to_goal, pay_card_bill, record_single_leg_entry,
   -- record_investment_trade, apply_goal_saved_delta).
+  -- 2026-09-19: + set_group_admin (supabase-migration-group-admins.sql).
   v_client_rpcs TEXT[] := ARRAY[
     'accept_group_invite',            'accept_group_membership',
     'accept_linked_request',          'accept_settlement_request',
@@ -318,6 +319,7 @@ DECLARE
     'remove_committee_member',        'remove_group_guest',
     'respond_contact_link',           'revoke_committee_witness_token',
     'revoke_khata_link',              'rotate_committee_witness_token',
+    'set_group_admin',
     'transfer_between_accounts',      'transfer_group_ownership',
     'unarchive_contact',              'unarchive_group',
     'unlink_contact_profile',         'update_committee'
@@ -336,11 +338,17 @@ DECLARE
   --                                (SECURITY INVOKER; the overpayment cap)
   --   group_member_net_balances  — tg_split_groups_guard_delete()
   --                                (SECURITY INVOKER; group deletion guard)
+  --   is_group_admin             — 4 owner-or-admin RLS policies on
+  --                                split_groups / group_members /
+  --                                group_invites (supabase-migration-group-
+  --                                admins.sql §4). Revoking it would 42501
+  --                                every group edit, the owner's included.
   v_internal_keep TEXT[] := ARRAY[
     'is_current_profile_active',
     'is_group_member',
     'group_settlement_cap',
-    'group_member_net_balances'
+    'group_member_net_balances',
+    'is_group_admin'
   ];
 
   -- ── TRIGGER FUNCTIONS THAT PREDATE THE `tg_` PREFIX ───────────────────────
@@ -571,6 +579,14 @@ BEGIN
       AND has_function_privilege('authenticated', 'public.is_group_member(text, uuid)', 'EXECUTE')) THEN
     RAISE EXCEPTION 'p3-rpc-execute-grants V4 FAILED — an RLS-policy helper lost EXECUTE for authenticated; every table read is now a 42501';
   END IF;
+  -- is_group_admin arrives with supabase-migration-group-admins.sql, so it is
+  -- checked only where it exists (nested IF: has_function_privilege RAISES on
+  -- a missing signature, and AND is not promised to short-circuit).
+  IF to_regprocedure('public.is_group_admin(text, uuid)') IS NOT NULL THEN
+    IF NOT has_function_privilege('authenticated', 'public.is_group_admin(text, uuid)', 'EXECUTE') THEN
+      RAISE EXCEPTION 'p3-rpc-execute-grants V4 FAILED — is_group_admin lost EXECUTE for authenticated; every owner-or-admin group write is now a 42501';
+    END IF;
+  END IF;
 
   -- V5. The two SECURITY INVOKER trigger callees (R2) kept `authenticated`.
   IF NOT (has_function_privilege('authenticated', 'public.group_settlement_cap(text, text, text, boolean)', 'EXECUTE')
@@ -600,7 +616,7 @@ BEGIN
       'register_push_token','reject_linked_request','reject_settlement_request',
       'remove_committee_member','remove_group_guest','respond_contact_link',
       'revoke_committee_witness_token','revoke_khata_link',
-      'rotate_committee_witness_token','transfer_between_accounts',
+      'rotate_committee_witness_token','set_group_admin','transfer_between_accounts',
       'transfer_group_ownership','unarchive_contact','unarchive_group',
       'unlink_contact_profile','update_committee']) AS x(n)
    WHERE EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace ns ON ns.oid = p.pronamespace

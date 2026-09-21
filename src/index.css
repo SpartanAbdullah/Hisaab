@@ -151,6 +151,11 @@
   --color-glyph-pink:    #D2527E;
   --color-glyph-neutral: #3F4156;
 
+  /* Verified seal (<VerifiedBadge>) — Meta's blue, founder 2026-09-19. The
+   * white check on it is 4.82:1; the seal clears 3:1 as a graphic on every
+   * surface it sits on (sheet 4.27, card 4.82, raised control/key 4.13). */
+  --color-verified: #0866FF;
+
   /* Gold material — fixed in both themes (a gold button is gold everywhere).
    * gold-ink is the only colour ever written on a gold face. */
   --color-gold-300: #F5DA8F;
@@ -273,6 +278,11 @@ html.dark,
   --color-glyph-blue:    #6B92F5;
   --color-glyph-pink:    #E56C94;
   --color-glyph-neutral: #E6E6EF;
+
+  /* Verified seal: Meta's classic #1877F2, one step lighter than light's
+   * #0866FF so it holds on navy — the balance point where the white check
+   * (4.23) and the card (4.22) read equally; sheet 4.60, key/inset 3.78. */
+  --color-verified: #1877F2;
 }
 
 /* ── Label flips on solid fills ───────────────────────────────────────

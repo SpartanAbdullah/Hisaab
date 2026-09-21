@@ -1,9 +1,11 @@
-﻿import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { Modal } from './Modal';
 import { Glyph } from './Glyph';
 import { useToast } from './Toast';
 import { formatMoney } from '../lib/constants';
 import { useT } from '../lib/i18n';
+import { isNativeRuntime } from '../lib/runtime';
+import { usePersonStore } from '../stores/personStore';
 import {
   buildPaymentReminderMessage,
   getReminderAge,
@@ -31,6 +33,50 @@ interface Props {
   // their chat directly; when absent we fall back to WhatsApp's contact picker.
   // The recipient does NOT need to be a Hisaab user.
   phone?: string | null;
+  // The contact the reminder is about. When WhatsApp has no number it can
+  // dial, the sheet offers to save one on that contact right here. A
+  // name-only person has no contact to keep it on — they get the share sheet.
+  personId?: string | null;
+}
+
+type ShareOutcome = 'shared' | 'cancelled' | 'unavailable';
+
+// Whether this runtime has an OS share sheet for plain text. Android's WebView
+// has no navigator.share, so inside the app it is the @capacitor/share plugin
+// — the same one the statement PDF already reaches WhatsApp through on
+// Android (src/lib/shareStatement.ts). Browsers use the Web Share API.
+function canShareText(): boolean {
+  return isNativeRuntime() || (typeof navigator !== 'undefined' && typeof navigator.share === 'function');
+}
+
+function isShareCancel(err: unknown): boolean {
+  if (err instanceof DOMException && err.name === 'AbortError') return true;
+  // The Capacitor plugin rejects with "Share canceled" when dismissed.
+  const message = err instanceof Error ? err.message.toLowerCase() : '';
+  return message.includes('cancel') || message.includes('abort') || message.includes('dismiss');
+}
+
+async function shareReminderText(text: string, title: string): Promise<ShareOutcome> {
+  if (isNativeRuntime()) {
+    try {
+      const { Share } = await import('@capacitor/share');
+      await Share.share({ text, dialogTitle: title });
+      return 'shared';
+    } catch (err) {
+      if (isShareCancel(err)) return 'cancelled';
+      // Plugin missing or refused — fall through to what the page itself has.
+    }
+  }
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ text });
+      return 'shared';
+    } catch (err) {
+      if (isShareCancel(err)) return 'cancelled';
+      throw err;
+    }
+  }
+  return 'unavailable';
 }
 
 function copyWithFallback(text: string): Promise<void> {
@@ -81,18 +127,32 @@ function formatMeta(age: ReminderAge, t: ReturnType<typeof useT>, hasDueDate: bo
   return t('reminder_open_days').replace('{count}', String(age.days));
 }
 
-export function PaymentReminderModal({ open, onClose, personName, amount, currency, direction, startedAt, hasDueDate = true, phone = null }: Props) {
+export function PaymentReminderModal({ open, onClose, personName, amount, currency, direction, startedAt, hasDueDate = true, phone = null, personId = null }: Props) {
   const t = useT();
   const toast = useToast();
+  const updatePhone = usePersonStore((s) => s.updatePhone);
+  // The contact's number as the store holds it NOW, so a number saved from
+  // this sheet re-targets the WhatsApp button without reopening it.
+  const contactPhone = usePersonStore((s) =>
+    personId ? s.persons.find((p) => p.id === personId)?.phone ?? null : null,
+  );
   const [tone, setTone] = useState<PaymentReminderTone>('friendly');
   const [copying, setCopying] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [phoneDraft, setPhoneDraft] = useState('');
+  const [phoneInvalid, setPhoneInvalid] = useState(false);
+  const [savingPhone, setSavingPhone] = useState(false);
+  const phoneInputId = useId();
 
   const age = useMemo(() => getReminderAge(startedAt), [startedAt]);
   const amountText = formatMoney(amount, currency);
   const duration = formatDuration(age, t);
-  const shareAvailable = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
-  const knownNumber = hasWhatsAppNumber(phone);
+  const effectivePhone = contactPhone ?? phone;
+  // A number WhatsApp can actually dial (national formats included — see
+  // normalizeWhatsAppPhone), not merely "something is saved".
+  const knownNumber = hasWhatsAppNumber(effectivePhone);
+  const shareAvailable = canShareText();
+  const canAddNumber = !knownNumber && Boolean(personId);
 
   const templates: ReminderTemplateMap = {
     receivable: {
@@ -117,7 +177,7 @@ export function PaymentReminderModal({ open, onClose, personName, amount, curren
 
   // The WhatsApp deep link carries the live message (so it respects the chosen
   // tone). Recomputed each render — cheap, and keeps it in sync with `tone`.
-  const whatsappUrl = buildWhatsAppUrl(phone, message);
+  const whatsappUrl = buildWhatsAppUrl(effectivePhone, message);
 
   const handleCopy = async () => {
     setCopying(true);
@@ -132,18 +192,63 @@ export function PaymentReminderModal({ open, onClose, personName, amount, curren
   };
 
   const handleShare = async () => {
-    if (!shareAvailable) return;
     setSharing(true);
     try {
-      await navigator.share({ text: message });
-    } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        toast.show({ type: 'error', title: t('reminder_share_failed') });
+      let outcome: ShareOutcome;
+      try {
+        outcome = await shareReminderText(message, t('reminder_title'));
+      } catch {
+        outcome = 'unavailable';
+      }
+      // No share sheet after all (the button only renders when one should
+      // exist): still never a dead tap — hand the text over by copying it.
+      if (outcome === 'unavailable') {
+        try {
+          await copyWithFallback(message);
+          toast.show({ type: 'success', title: t('reminder_copied') });
+        } catch {
+          toast.show({ type: 'error', title: t('reminder_share_failed') });
+        }
       }
     } finally {
       setSharing(false);
     }
   };
+
+  const handleSavePhone = async () => {
+    if (!personId || savingPhone) return;
+    // Only a number WhatsApp can open is worth saving from here — the whole
+    // point is sending this reminder straight to their chat.
+    if (!hasWhatsAppNumber(phoneDraft)) {
+      setPhoneInvalid(true);
+      return;
+    }
+    setSavingPhone(true);
+    try {
+      await updatePhone(personId, phoneDraft);
+      setPhoneDraft('');
+      toast.show({ type: 'success', title: t('contact_whatsapp_saved') });
+    } catch {
+      toast.show({ type: 'error', title: t('err_could_not_save') });
+    } finally {
+      setSavingPhone(false);
+    }
+  };
+
+  const whatsappLink = (className: string, label: string, glyph: { size: number; tone?: 'green' }) => (
+    // An anchor, like every WhatsApp button in the app: on Android the WebView
+    // hands wa.me to the WhatsApp intent (their chat when we know the number,
+    // WhatsApp's own picker when not); in a browser it opens a new tab.
+    <a
+      href={whatsappUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={() => toast.show({ type: 'success', title: t('reminder_wa_opening') })}
+      className={className}
+    >
+      <Glyph name="whatsapp" size={glyph.size} strokeWidth={2.6} tone={glyph.tone} /> {label}
+    </a>
+  );
 
   return (
     <Modal
@@ -152,31 +257,38 @@ export function PaymentReminderModal({ open, onClose, personName, amount, curren
       title={t('reminder_title')}
       footer={
         <div className="flex flex-col gap-2.5">
-          {/* WhatsApp is the primary action — it's how this audience actually
-              chases payments, and it works whether or not the contact uses
-              Hisaab. Rendered as an anchor so Android hands it to the
-              WhatsApp intent (chat when we know the number, picker when not). */}
-          {/* Green solid (the 1d accept/send green) with the WhatsApp mark. */}
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => toast.show({ type: 'success', title: t('reminder_wa_opening') })}
-            className="m-btn m-btn-green w-full py-3.5 text-[14px]"
-          >
-            <Glyph name="whatsapp" size={17} strokeWidth={2.6} /> {t('reminder_whatsapp')}
-          </a>
-          <div className="flex gap-2.5">
+          {/* The primary action ALWAYS does something visible. A number
+              WhatsApp can dial → straight into their chat (how this audience
+              actually chases payments, Hisaab user or not). No such number →
+              the OS share sheet (WhatsApp, SMS, anything), or WhatsApp's own
+              picker where a runtime has no share sheet. */}
+          {knownNumber || !shareAvailable ? (
+            whatsappLink('m-btn m-btn-whatsapp w-full py-3.5 text-[14px]', t('reminder_whatsapp'), { size: 17 })
+          ) : (
             <button
-              onClick={handleCopy}
+              type="button"
+              onClick={() => void handleShare()}
+              disabled={sharing}
+              className="m-btn m-btn-primary w-full py-3.5 text-[14px]"
+            >
+              <Glyph name="share" size={17} /> {sharing ? t('quick_processing') : t('rmd_share_cta')}
+            </button>
+          )}
+          <div className="flex gap-2.5">
+            {!knownNumber && shareAvailable &&
+              whatsappLink('m-btn m-btn-plain flex-1 px-3 py-3 text-[13px]', t('rmd_whatsapp_short'), { size: 15, tone: 'green' })}
+            <button
+              type="button"
+              onClick={() => void handleCopy()}
               disabled={copying}
               className="m-btn m-btn-plain flex-1 py-3 text-[13px]"
             >
               <Glyph name="copy" size={15} /> {copying ? t('quick_processing') : t('reminder_copy')}
             </button>
-            {shareAvailable ? (
+            {knownNumber && shareAvailable ? (
               <button
-                onClick={handleShare}
+                type="button"
+                onClick={() => void handleShare()}
                 disabled={sharing}
                 className="m-btn m-btn-plain px-4 py-3 text-[13px]"
               >
@@ -221,9 +333,52 @@ export function PaymentReminderModal({ open, onClose, personName, amount, curren
             <p className="text-[13px] text-ink-800 leading-relaxed whitespace-pre-line">{message}</p>
           </div>
           <p className="text-[10.5px] text-ink-500 mt-2">
-            {(knownNumber ? t('reminder_wa_to_name') : t('reminder_wa_pick')).replace('{name}', personName)}
+            {(knownNumber
+              ? t('reminder_wa_to_name')
+              : shareAvailable
+              ? t('rmd_no_number_hint')
+              : t('reminder_wa_pick')
+            ).replace('{name}', personName)}
           </p>
         </div>
+
+        {/* Missing number, right where it's missed: save it on the contact
+            and the primary button becomes "straight into their chat". */}
+        {canAddNumber && (
+          <div className="m-card p-3.5">
+            <label htmlFor={phoneInputId} className="flex items-center gap-2 text-[12.5px] font-semibold text-ink-900">
+              <Glyph name="whatsapp" size={15} tone="green" />
+              {t('rmd_add_number_title').replace('{name}', personName)}
+            </label>
+            <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">{t('rmd_add_number_sub')}</p>
+            <div className="flex items-center gap-2 mt-2.5">
+              <input
+                id={phoneInputId}
+                value={phoneDraft}
+                onChange={(e) => { setPhoneDraft(e.target.value); setPhoneInvalid(false); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleSavePhone(); } }}
+                placeholder="+92 300 1234567"
+                inputMode="tel"
+                autoComplete="tel"
+                aria-invalid={phoneInvalid}
+                className="input-field flex-1 min-w-0 py-2"
+              />
+              <button
+                type="button"
+                onClick={() => void handleSavePhone()}
+                disabled={savingPhone || !phoneDraft.trim()}
+                className="m-btn m-btn-primary shrink-0 px-4 py-2 text-[12.5px]"
+              >
+                {savingPhone ? t('quick_processing') : t('cat_save')}
+              </button>
+            </div>
+            {phoneInvalid && (
+              <p className="text-[11px] text-pay-text mt-2 leading-relaxed" role="alert">
+                {t('rmd_add_number_invalid')}
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </Modal>
   );

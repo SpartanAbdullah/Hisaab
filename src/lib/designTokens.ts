@@ -35,7 +35,8 @@ export type ColorToken =
   | 'warn-50' | 'warn-600' | 'warn-700'
   | 'info-50' | 'info-600'
   | 'field-border' | 'control-off' | 'control-on' | 'whatsapp'
-  | 'glyph-gold' | 'glyph-green' | 'glyph-coral' | 'glyph-violet' | 'glyph-blue' | 'glyph-pink' | 'glyph-neutral';
+  | 'glyph-gold' | 'glyph-green' | 'glyph-coral' | 'glyph-violet' | 'glyph-blue' | 'glyph-pink' | 'glyph-neutral'
+  | 'verified';
 
 export const LIGHT: Record<ColorToken, string> = {
   'cream-bg': '#F4F1EA',
@@ -107,6 +108,10 @@ export const LIGHT: Record<ColorToken, string> = {
   'glyph-blue': '#4A74E0',
   'glyph-pink': '#D2527E',
   'glyph-neutral': '#3F4156',
+
+  // <VerifiedBadge> seal — Meta's blue (founder 2026-09-19). White check
+  // 4.82:1; the seal is ≥3:1 on sheet / card / control / key.
+  'verified': '#0866FF',
 };
 
 export const DARK: Record<ColorToken, string> = {
@@ -179,6 +184,11 @@ export const DARK: Record<ColorToken, string> = {
   'glyph-blue': '#6B92F5',
   'glyph-pink': '#E56C94',
   'glyph-neutral': '#E6E6EF',
+
+  // Meta's classic #1877F2: lighter than the light value so the seal holds on
+  // navy, and the point where the white check (4.23) and the card (4.22)
+  // balance.
+  'verified': '#1877F2',
 };
 
 /** Fixed material colours — identical in both themes (a gold button is gold

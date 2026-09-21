@@ -14,7 +14,7 @@ import { useToast } from "../components/Toast";
 import { isNativeRuntime } from "../lib/runtime";
 import { enableRemindersFlow, remindersEnabled, rescheduleNotifications, REMINDERS_KEY } from "../lib/notificationScheduler";
 import { requestPushPermissionAndRegister } from "../lib/pushRegistration";
-import { PhoneDiscoverySection } from "../components/PhoneDiscoverySection";
+import { MyPhoneField, PhoneDiscoverySection } from "../components/PhoneDiscoverySection";
 import { TelemetryConsentToggle } from "../components/TelemetryConsentToggle";
 import { FeedbackCard } from "../components/FeedbackCard";
 import { useBlockStore } from "../stores/blockStore";
@@ -27,8 +27,15 @@ import { useThemeStore, type ThemeMode } from "../stores/themeStore";
 import { useT, useI18nStore } from "../lib/i18n";
 import { validatePassword, PASSWORD_MIN_LENGTH } from "../lib/passwordPolicy";
 import { exportAllData, importData, downloadJSON } from "../lib/dataExport";
-import { profilesDb } from "../lib/supabaseDb";
+import { phoneDiscoveryDb, profilesDb } from "../lib/supabaseDb";
 import { supabase } from "../lib/supabase";
+import {
+  LEGACY_MOBILE_KEY,
+  discoverableForSave,
+  legacyPhoneDraft,
+  readMyPhone,
+  type MyPhone,
+} from "../lib/myPhone";
 import {
   buildAppShareUrl,
   generatePublicCodeCandidate,
@@ -79,6 +86,30 @@ function copyShareText(text: string): Promise<void> {
   }
 
   return copyWithTextareaFallback(text);
+}
+
+// The old My Account "Mobile" field only ever wrote this device's
+// localStorage (never the server). Read it once: while the server holds no
+// number it seeds the "Add" draft; otherwise the server's number — the one
+// discovery actually uses — wins and the leftover is dropped.
+function takeLegacyPhoneDraft(phone: MyPhone | null): string {
+  let legacy: string | null = null;
+  try {
+    legacy = localStorage.getItem(LEGACY_MOBILE_KEY);
+  } catch {
+    /* storage off */
+  }
+  const seed = legacyPhoneDraft(legacy, phone);
+  if (phone && !seed) clearLegacyPhone();
+  return seed;
+}
+
+function clearLegacyPhone() {
+  try {
+    localStorage.removeItem(LEGACY_MOBILE_KEY);
+  } catch {
+    /* storage off */
+  }
 }
 
 // Audit C2 (client half): `delete_current_user` refuses to run when the caller
@@ -226,9 +257,20 @@ export function SettingsPage() {
   const [email] = useState(
     () => user?.email ?? localStorage.getItem("hisaab_email") ?? "",
   );
-  const [mobile, setMobile] = useState(
-    () => localStorage.getItem("hisaab_mobile") ?? "",
-  );
+  // One phone number (founder 2026-09-19 — src/lib/myPhone.ts):
+  // `profiles.phone_e164` is its only home. My Account edits it; the
+  // discovery card only flips `phone_discoverable` for it, so the two can
+  // never disagree. `undefined` while the profile loads (both surfaces hold
+  // their place, inert); `null` when the phone columns aren't there
+  // (migration not applied) — both are hidden then rather than show a
+  // control that silently fails.
+  const [myPhone, setMyPhoneState] = useState<MyPhone | null | undefined>(undefined);
+  const [phoneBusy, setPhoneBusy] = useState(false);
+  const [phoneEditing, setPhoneEditing] = useState(false);
+  // What the old device-only field held — the starting draft for "Add"
+  // while the server has no number (takeLegacyPhoneDraft).
+  const [legacyPhone, setLegacyPhone] = useState("");
+  const phoneFieldRef = useRef<HTMLDivElement>(null);
   const [newPassword, setNewPassword] = useState("");
   // Re-auth (audit SEC-12): both the password change and the account deletion
   // now demand the CURRENT password. Separate fields so neither flow leaks the
@@ -257,9 +299,16 @@ export function SettingsPage() {
     if (!user) return;
     let cancelled = false;
 
-    const ensurePublicCode = async () => {
+    // One read of the profile row serves the phone number and the user code.
+    const loadProfile = async () => {
       const profile = await profilesDb.getCurrent();
-      if (!profile || cancelled) return;
+      if (cancelled) return;
+
+      // The phone first, so it never waits on the public-code write below.
+      const phone = readMyPhone(profile);
+      setMyPhoneState(phone);
+      setLegacyPhone(takeLegacyPhoneDraft(phone));
+      if (!profile) return;
 
       const existing =
         typeof profile.public_code === "string" ? profile.public_code : "";
@@ -277,8 +326,10 @@ export function SettingsPage() {
       if (!cancelled) setPublicCode(nextCode);
     };
 
-    void ensurePublicCode().catch(() => {
-      if (!cancelled) setPublicCode("");
+    void loadProfile().catch(() => {
+      if (cancelled) return;
+      setPublicCode("");
+      setMyPhoneState((current) => (current === undefined ? null : current));
     });
 
     return () => {
@@ -404,9 +455,74 @@ export function SettingsPage() {
     toast.show({ type: "success", title: t("pin_removed") });
   };
 
-  const handleSaveProfile = () => {
-    if (mobile) localStorage.setItem("hisaab_mobile", mobile);
-    toast.show({ type: "success", title: t("settings_profile_saved") });
+  // ── The phone number: every write goes through setMyPhone, which stores
+  // the number and its findability together (profiles.phone_e164 +
+  // phone_discoverable). Online-required like every write: a failure says
+  // so and nothing on screen changes.
+  const saveMyPhone = async (e164: string) => {
+    if (!myPhone) return;
+    // First number on file → findable (the editor said so before Save);
+    // replacing a number keeps the user's choice.
+    const discoverable = discoverableForSave(myPhone);
+    const turnedOn = discoverable && !myPhone.discoverable;
+    setPhoneBusy(true);
+    try {
+      await phoneDiscoveryDb.setMyPhone(e164, discoverable);
+      setMyPhoneState({ e164, discoverable });
+      clearLegacyPhone();
+      setLegacyPhone("");
+      setPhoneEditing(false);
+      toast.show({
+        type: "success",
+        title: t("disc_my_phone_saved"),
+        ...(turnedOn ? { subtitle: t("setph_saved_findable") } : {}),
+      });
+    } catch {
+      toast.show({ type: "error", title: t("setph_save_failed") });
+    } finally {
+      setPhoneBusy(false);
+    }
+  };
+
+  const removeMyPhone = async () => {
+    setPhoneBusy(true);
+    try {
+      // No number means unfindable too (setMyPhone forces the flag off).
+      await phoneDiscoveryDb.setMyPhone(null, false);
+      setMyPhoneState({ e164: null, discoverable: false });
+      clearLegacyPhone();
+      setLegacyPhone("");
+      setPhoneEditing(false);
+      toast.show({ type: "success", title: t("disc_my_phone_removed") });
+    } catch {
+      toast.show({ type: "error", title: t("setph_save_failed") });
+    } finally {
+      setPhoneBusy(false);
+    }
+  };
+
+  const setPhoneDiscoverable = async (next: boolean) => {
+    const number = myPhone?.e164;
+    if (!number) return;
+    setPhoneBusy(true);
+    try {
+      await phoneDiscoveryDb.setMyPhone(number, next);
+      setMyPhoneState({ e164: number, discoverable: next });
+    } catch {
+      toast.show({ type: "error", title: t("setph_save_failed") });
+    } finally {
+      setPhoneBusy(false);
+    }
+  };
+
+  // The discovery card's "Add number": open My Account on the number editor
+  // and bring it to the middle of the screen (the editor focuses itself).
+  const openPhoneEditor = () => {
+    setShowProfile(true);
+    setPhoneEditing(true);
+    requestAnimationFrame(() => {
+      phoneFieldRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
   };
 
   const handleShareApp = async () => {
@@ -648,7 +764,11 @@ export function SettingsPage() {
         <div className={sectionClass}>
           <div>
             <button
-              onClick={() => setShowProfile(!showProfile)}
+              onClick={() => {
+                // Folding the panel away abandons an open number edit.
+                if (showProfile) setPhoneEditing(false);
+                setShowProfile(!showProfile);
+              }}
               className={rowClass + " w-full text-left"}
               aria-expanded={showProfile}
             >
@@ -671,17 +791,22 @@ export function SettingsPage() {
                     className="input-field text-ink-600 cursor-not-allowed"
                   />
                 </div>
-                <div>
-                  <label htmlFor="settings-mobile" className="form-label">{t("settings_mobile")}</label>
-                  <input
-                    id="settings-mobile"
-                    type="tel"
-                    value={mobile}
-                    onChange={(e) => setMobile(e.target.value)}
-                    placeholder="+971 50 123 4567"
-                    className="input-field"
-                  />
-                </div>
+                {/* The ONE place the account's phone number is typed. The
+                    discovery card under this one only switches findability
+                    for this same number. */}
+                {myPhone !== null && (
+                  <div ref={phoneFieldRef}>
+                    <MyPhoneField
+                      phone={myPhone}
+                      busy={phoneBusy}
+                      editing={phoneEditing}
+                      onEditingChange={setPhoneEditing}
+                      draftSeed={legacyPhone}
+                      onSave={saveMyPhone}
+                      onRemove={removeMyPhone}
+                    />
+                  </div>
+                )}
                 <div>
                   <label htmlFor="settings-user-code" className="form-label">{t('set_user_code_label')}</label>
                   <div className="flex gap-2">
@@ -777,12 +902,6 @@ export function SettingsPage() {
                     </div>
                   );
                 })()}
-                <button
-                  onClick={handleSaveProfile}
-                  className="m-btn m-btn-primary w-full py-3 text-[13px]"
-                >
-                  {t("settings_save_profile")}
-                </button>
               </div>
             )}
           </div>
@@ -820,6 +939,21 @@ export function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {/* Phone discovery — opt-in, and the ONLY contact-matching Hisaab
+            does. No address-book access anywhere in the app. Sits right under
+            My Account because it uses My Account's number: only the switch
+            lives here, never a second number field. */}
+        {myPhone !== null && (
+          <PhoneDiscoverySection
+            sectionClass={sectionClass}
+            rowClass={rowClass}
+            phone={myPhone}
+            busy={phoneBusy}
+            onToggle={setPhoneDiscoverable}
+            onAddNumber={openPhoneEditor}
+          />
+        )}
 
         {/* Notifications — daily wisdom, reminders, mute, quiet hours, push.
             One card of switches (handoff §5); each switch is the 48×28
@@ -1045,10 +1179,6 @@ export function SettingsPage() {
             </div>
           )}
         </div>
-
-        {/* Phone discovery — opt-in, and the ONLY contact-matching Hisaab
-            does. No address-book access anywhere in the app. */}
-        <PhoneDiscoverySection sectionClass={sectionClass} rowClass={rowClass} />
 
         {/* Blocked people — audit M17. Users must be able to see and undo what
             they did; a block with no visible list is an action they can never

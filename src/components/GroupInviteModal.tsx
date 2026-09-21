@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from './Modal';
 import { Glyph } from './Glyph';
 import { UserAvatar } from './UserAvatar';
@@ -17,6 +17,9 @@ import {
   isGuestMember,
   validateGuestName,
 } from '../lib/groupGuests';
+import { canManageGroup, isGroupAdmin, isGroupOwner } from '../lib/groupRoles';
+import { copyText, shareText } from '../lib/clipboard';
+import { isNativeRuntime } from '../lib/runtime';
 import type { GroupInvite, GroupMember, SplitGroup } from '../db';
 
 interface Props {
@@ -34,19 +37,24 @@ interface Props {
 // The GUEST case is checked FIRST and deliberately: a guest seat is
 // status='connected' (that is what makes them a real ledger participant), so
 // the status-only branch below would otherwise label them "on Hisaab", which is
-// exactly the one thing they are not.
+// exactly the one thing they are not. The owner and co-admins
+// (supabase-migration-group-admins.sql) come before either — a role is the more
+// useful fact, and an admin is on Hisaab by definition.
 function statusLabel(t: ReturnType<typeof useT>, member: GroupMember): string {
-  if (member.isOwner) return t('member_owner');
+  if (isGroupOwner(member)) return t('member_owner');
+  if (isGroupAdmin(member)) return t('member_admin');
   if (isGuestMember(member)) return t('guest_tag');
   if (member.status === 'connected') return t('member_on_app');
   if (member.status === 'invited') return t('member_invited');
   return t('member_not_on_app');
 }
 
-// Status chip tone: on the app = green, invited = gold (waiting on them), a
-// guest and everyone else = neutral. Same vocabulary as the status rings on
-// GroupDetailPage.
+// Status chip tone: the people who run the group (owner, admins) wear the
+// group's blue — the same accent as their avatar ring on GroupDetailPage; on
+// the app = green, invited = gold (waiting on them), a guest and everyone else
+// = neutral.
 function statusBadgeClass(member: GroupMember) {
+  if (isGroupAdmin(member)) return 'm-chip-blue';
   if (isGuestMember(member)) return 'm-chip-neutral';
   if (member.status === 'connected') return 'm-chip-receive';
   if (member.status === 'invited') return 'm-chip-gold';
@@ -67,6 +75,38 @@ function renameFailureMessage(t: ReturnType<typeof useT>, status: string): strin
   return t('guest_err_generic');
 }
 
+/** A minted invite URL, pinned to the group it belongs to: this component can
+ *  stay mounted while the route moves to another group. */
+interface MintedLink {
+  groupId: string;
+  url: string;
+  /** The seat a linked invite rebinds; null for the open "anyone" link. */
+  memberId: string | null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WHY THE LINK IS MINTED BEFORE THE TAP ("copy group invite link not working",
+// founder, 2026-09-19)
+//
+// This sheet used to mint the invite INSIDE the tap — hydrate the group, SHA-256
+// the token, INSERT the row — and only then write the clipboard. A clipboard
+// write needs the tap's user activation; after two to four round trips on a
+// phone that activation had lapsed, Android's WebView (and Safari) refused the
+// write, and the refusal was reported as "Could not create invite" — although
+// the invite existed — or, in the guest flow, swallowed without a word.
+//
+// Now, for the owner or an admin, the open link is minted as soon as the sheet
+// opens, so the footer tap copies a link that is already in hand, synchronously
+// inside the gesture (src/lib/clipboard.ts). An open invite admits ONE person
+// (accept_group_invite stamps accepted_by), so every tap hands out a fresh link
+// and the next is minted in the background. Links minted on demand (a specific
+// seat) can still outlive the activation; then the link is shown in the sheet
+// with Copy and Share buttons — each a fresh tap — and nothing claims a copy
+// that did not happen.
+//
+// Plain members cannot mint at all (group_invites INSERT is owner-or-admin), so
+// they get the group code instead of a button that could only fail.
+// ─────────────────────────────────────────────────────────────────────────────
 export function GroupInviteModal({ open, group, onClose }: Props) {
   const t = useT();
   const toast = useToast();
@@ -85,13 +125,27 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
   const [renamingGuest, setRenamingGuest] = useState<GroupMember | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
-  // Rename is owner-only (docs/guest-members.md §9.4 / §5) — the seat-rules
-  // trigger is INSERT-only, so the group_members UPDATE RLS policy (owner OR
-  // the linked profile — impossible for an unclaimed guest) is the only server
-  // gate, and the pencil affordance must not offer an action every non-owner
-  // tap would silently 0-row.
+  // Invite links and guest renames are OWNER-OR-ADMIN (group_invites INSERT
+  // and group_members UPDATE policies, supabase-migration-group-admins.sql).
+  // On a database without that migration nobody is an admin, so this is the
+  // old owner check. Offering either action to anyone else could only fail.
+  // A legacy owner seat can carry a NULL profile_id (splitStore's
+  // isKnownNonMember note); such a seat can only be the caller's own, so it
+  // stands in when no seat carries the caller's id — the server gates on
+  // split_groups.user_id, not on the seat.
   const currentUserId = localStorage.getItem('hisaab_supabase_uid');
-  const isOwner = group.members.find((m) => m.isOwner)?.profileId === currentUserId;
+  const me = group.members.find((m) => m.profileId === currentUserId)
+    ?? group.members.find((m) => isGroupOwner(m) && !m.profileId);
+  const canManage = canManageGroup(me);
+
+  // The pre-minted open link (see the header), and the last link handed out —
+  // shown in the sheet so it can be copied or shared again with a fresh tap.
+  const [readyLink, setReadyLink] = useState<MintedLink | null>(null);
+  const [lastLink, setLastLink] = useState<MintedLink | null>(null);
+  const premintingRef = useRef(false);
+  const readyUrl = readyLink?.groupId === group.id ? readyLink.url : null;
+  const shownLink = lastLink?.groupId === group.id ? lastLink : null;
+  const canShare = isNativeRuntime() || (typeof navigator !== 'undefined' && typeof navigator.share === 'function');
 
   useEffect(() => {
     if (!open) return;
@@ -106,6 +160,18 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
     };
   }, [getGroupInvites, group.id, open]);
 
+  useEffect(() => {
+    if (!open || !canManage || readyUrl || premintingRef.current) return;
+    premintingRef.current = true;
+    const groupId = group.id;
+    void createInvite(groupId, null)
+      .then((result) => setReadyLink({ groupId, url: result.url, memberId: null }))
+      // Silent on purpose: the tap then mints on demand and reports its own
+      // failure (offline, or no longer allowed).
+      .catch(() => {})
+      .finally(() => { premintingRef.current = false; });
+  }, [open, canManage, readyUrl, createInvite, group.id]);
+
   const inviteLookup = useMemo(
     () => new Map(invites.filter(invite => invite.linkedMemberId).map(invite => [invite.linkedMemberId as string, invite])),
     [invites],
@@ -113,22 +179,98 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
 
   const guestCount = getGuestMembers(group).length;
 
-  const handleCreateInvite = async (linkedMemberId?: string | null) => {
+  const shareInput = (url: string) => ({
+    title: group.name,
+    text: t('ginv_share_text').replace('{group}', group.name),
+    url,
+    dialogTitle: t('ginv_share'),
+  });
+
+  // Hand a link over. copyText() is the FIRST thing that runs, so when the
+  // link was already in hand the write starts inside the tap. A refusal is
+  // never reported as a failed invite: the link exists, and the sheet now
+  // shows it with Copy and Share.
+  const deliverLink = async (url: string, copiedSubtitle: string) => {
+    if (await copyText(url)) {
+      toast.show({ type: 'success', title: t('ginv_link_copied'), subtitle: copiedSubtitle });
+      return;
+    }
+    toast.show({ type: 'info', title: t('ginv_link_ready'), subtitle: t('ginv_link_ready_sub'), duration: 6000 });
+  };
+
+  const mintAndDeliver = async (linkedMemberId: string | null) => {
     setLoading(true);
     try {
-      const result = await createInvite(group.id, linkedMemberId ?? null);
-      await navigator.clipboard.writeText(result.url);
-      toast.show({
-        type: 'success',
-        title: t('ginv_link_copied'),
-        subtitle: linkedMemberId ? t('ginv_copied_sub_member') : t('ginv_copied_sub_open'),
-      });
-      setInvites(await getGroupInvites(group.id));
-    } catch {
-      toast.show({ type: 'error', title: t('ginv_err_create') });
+      let url: string;
+      try {
+        url = (await createInvite(group.id, linkedMemberId)).url;
+      } catch {
+        toast.show({ type: 'error', title: t('ginv_err_create') });
+        return;
+      }
+      setLastLink({ groupId: group.id, url, memberId: linkedMemberId });
+      await deliverLink(url, linkedMemberId ? t('ginv_copied_sub_member') : t('ginv_copied_sub_open'));
+      if (linkedMemberId) {
+        // Best-effort refresh of the "Invite ready" labels — a failure here is
+        // not a failed invite, so it must not say so.
+        try {
+          setInvites(await getGroupInvites(group.id));
+        } catch {
+          /* keep the labels we have */
+        }
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  // Footer: the open "anyone with the link" invite.
+  const handleCopyGroupLink = () => {
+    if (readyUrl) {
+      const url = readyUrl;
+      setReadyLink(null); // consumed — the effect above mints the next one
+      setLastLink({ groupId: group.id, url, memberId: null });
+      void deliverLink(url, t('ginv_copied_sub_open'));
+      return;
+    }
+    void mintAndDeliver(null);
+  };
+
+  // A member's own seat. Within this sheet the same seat reuses the link it
+  // was just given — synchronously — instead of minting another.
+  const handleMemberInvite = (member: GroupMember) => {
+    if (shownLink && shownLink.memberId === member.id) {
+      void deliverLink(shownLink.url, t('ginv_copied_sub_member'));
+      return;
+    }
+    void mintAndDeliver(member.id);
+  };
+
+  // The link box's buttons: a fresh tap each, with the link in hand.
+  const handleCopyShownLink = (url: string) => {
+    void copyText(url).then((copied) => {
+      toast.show(copied
+        ? { type: 'success', title: t('ginv_link_copied') }
+        : { type: 'error', title: t('grp_copy_failed'), subtitle: t('ginv_copy_failed_sub'), duration: 6000 });
+    });
+  };
+
+  const handleShareShownLink = (url: string) => {
+    void shareText(shareInput(url)).then((outcome) => {
+      if (outcome === 'failed' || outcome === 'unavailable') {
+        toast.show({ type: 'error', title: t('ginv_share_failed'), subtitle: t('ginv_copy_failed_sub') });
+      }
+    });
+  };
+
+  // Plain members: the join code, which every member can see and share.
+  const handleCopyCode = () => {
+    if (!group.joinCode) return;
+    void copyText(group.joinCode).then((copied) => {
+      toast.show(copied
+        ? { type: 'success', title: t('gdp_code_copied'), subtitle: t('gdp_code_copied_sub') }
+        : { type: 'error', title: t('grp_copy_failed'), subtitle: t('grp_copy_failed_code_sub'), duration: 6000 });
+    });
   };
 
   /**
@@ -148,13 +290,24 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
     setLoading(true);
     void (async () => {
       try {
-        const result = await createInvite(group.id, member.id);
-        const text = buildGuestInviteText(member.name, group.name, result.url);
-        await navigator.clipboard.writeText(result.url).catch(() => {});
-        setInvites(await getGroupInvites(group.id));
+        let url: string;
+        try {
+          url = (await createInvite(group.id, member.id)).url;
+        } catch {
+          toast.show({ type: 'error', title: t('ginv_err_create') });
+          return;
+        }
+        setLastLink({ groupId: group.id, url, memberId: member.id });
+        const text = buildGuestInviteText(member.name, group.name, url);
+        // The link rides inside the WhatsApp message; the clipboard is only a
+        // courtesy, so its answer does not decide anything here.
+        void copyText(url);
         window.open(buildWhatsAppUrl(null, text), '_blank', 'noopener,noreferrer');
-      } catch {
-        toast.show({ type: 'error', title: t('ginv_err_create') });
+        try {
+          setInvites(await getGroupInvites(group.id));
+        } catch {
+          /* keep the labels we have */
+        }
       } finally {
         setLoading(false);
       }
@@ -224,21 +377,29 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
     }
   });
 
+  const footer = canManage ? (
+    <button
+      onClick={handleCopyGroupLink}
+      // Disabled only while an on-demand mint runs; a pre-minted link is
+      // copied synchronously, so it never waits on the network.
+      disabled={loading}
+      className="cta-primary"
+    >
+      <Glyph name="link" size={16} strokeWidth={2.6} /> {loading ? t('ginv_creating_link') : t('ginv_copy_link_cta')}
+    </button>
+  ) : group.joinCode ? (
+    <button onClick={handleCopyCode} className="cta-primary">
+      <Glyph name="copy" size={16} strokeWidth={2.6} /> {t('ginv_copy_code_cta')}
+    </button>
+  ) : undefined;
+
   return (
     <>
     <Modal
       open={open}
       onClose={onClose}
       title={t('ginv_title')}
-      footer={(
-        <button
-          onClick={() => handleCreateInvite(null)}
-          disabled={loading}
-          className="cta-primary"
-        >
-          <Glyph name="link" size={16} strokeWidth={2.6} /> {loading ? t('ginv_creating_link') : t('ginv_copy_link_cta')}
-        </button>
-      )}
+      footer={footer}
     >
       <div className="p-5 space-y-4">
         <div className="m-card m-blue px-4 py-3.5">
@@ -248,6 +409,45 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
           </p>
         </div>
 
+        {!canManage && (
+          <div className="m-card px-4 py-3.5">
+            <p className="text-[13px] font-semibold text-ink-900">{t('ginv_members_only_title')}</p>
+            <p className="text-[12px] text-ink-600 mt-1 leading-relaxed">{t('ginv_members_only_body')}</p>
+            {group.joinCode && (
+              <p className="m-inset mt-2.5 px-3.5 py-2.5 text-[15px] font-semibold font-mono tracking-tight text-ink-900 select-all">
+                {group.joinCode}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* The last link handed out, for a second try with a fresh tap —
+            select-all so a press-and-hold copies the whole of it. */}
+        {canManage && shownLink && (
+          <div className="m-card p-3.5 animate-fade-in">
+            <p className="m-label">{t('ginv_link_label')}</p>
+            <p className="m-inset mt-2 px-3 py-2 text-[12px] font-mono text-ink-800 break-all select-all">
+              {shownLink.url}
+            </p>
+            <div className="flex gap-2.5 mt-2.5">
+              <button
+                onClick={() => handleCopyShownLink(shownLink.url)}
+                className="m-btn m-btn-plain flex-1 min-h-[38px] px-3 py-2 gap-1.5 rounded-xl text-[12px]"
+              >
+                <Glyph name="copy" size={14} tone="blue" /> {t('ginv_copy')}
+              </button>
+              {canShare && (
+                <button
+                  onClick={() => handleShareShownLink(shownLink.url)}
+                  className="m-btn m-btn-plain flex-1 min-h-[38px] px-3 py-2 gap-1.5 rounded-xl text-[12px]"
+                >
+                  <Glyph name="share" size={14} tone="blue" /> {t('ginv_share')}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="space-y-2.5">
           {group.members.map((member) => {
             const linkedInvite = inviteLookup.get(member.id);
@@ -255,9 +455,9 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
             return (
               <div key={member.id} className="m-card p-3">
                 <div className="flex items-center gap-3">
-                  {/* Every person wears the navy avatar; the owner's is ringed
-                      in the group's blue accent. */}
-                  <span className={`inline-flex shrink-0 rounded-full ${member.isOwner ? 'ring-2 ring-glyph-blue' : ''}`}>
+                  {/* Every person wears the navy avatar; the owner's and the
+                      admins' are ringed in the group's blue accent. */}
+                  <span className={`inline-flex shrink-0 rounded-full ${isGroupAdmin(member) ? 'ring-2 ring-glyph-blue' : ''}`}>
                     <UserAvatar name={member.name} size={40} />
                   </span>
                   <div className="flex-1 min-w-0">
@@ -275,10 +475,11 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
                   </div>
                   {/* A guest is status='connected', so the old
                       `status !== 'connected'` test would have hidden every
-                      affordance for exactly the people who need one. */}
-                  {!member.isOwner && (member.status !== 'connected' || guest) && (
+                      affordance for exactly the people who need one. Both
+                      buttons mint an invite — owner or admin only. */}
+                  {canManage && !isGroupOwner(member) && (member.status !== 'connected' || guest) && (
                     <button
-                      onClick={() => (guest ? handleInviteGuest(member) : void handleCreateInvite(member.id))}
+                      onClick={() => (guest ? handleInviteGuest(member) : handleMemberInvite(member))}
                       disabled={loading}
                       className="m-btn m-btn-plain shrink-0 min-h-[36px] px-3 py-2 gap-1.5 rounded-xl text-[11.5px]"
                     >
@@ -295,7 +496,7 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
                   <div className="mt-2.5 pt-2.5 border-t border-cream-hairline flex items-center justify-between gap-3">
                     <p className="text-[10.5px] text-ink-500 leading-snug">{t('guest_assign_hint')}</p>
                     <div className="shrink-0 flex items-center gap-3">
-                      {isOwner && (
+                      {canManage && (
                         <button
                           onClick={() => openRenameGuest(member)}
                           disabled={loading}
@@ -359,8 +560,8 @@ export function GroupInviteModal({ open, group, onClose }: Props) {
       </div>
     </Modal>
 
-    {/* Rename sheet (docs/guest-members.md §9.4). Owner-only, unclaimed
-        guest seats only — see the isOwner gate on the pencil button above. */}
+    {/* Rename sheet (docs/guest-members.md §9.4). Owner or admin, unclaimed
+        guest seats only — see the canManage gate on the pencil button above. */}
     <Modal
       open={!!renamingGuest}
       onClose={() => setRenamingGuest(null)}

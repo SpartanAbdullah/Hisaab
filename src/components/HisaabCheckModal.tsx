@@ -78,13 +78,24 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
     () => peopleDelta({ receivable, payable }, stamp, currency),
     [receivable, payable, stamp, currency],
   );
+  // One PERSON and everything they owe you in that currency — never a single
+  // loan of theirs (src/lib/hisaabCheck.ts has the rule and the ordering).
   const suggested = useMemo(() => suggestAction(loans, now), [loans, now]);
+  // Their contact, when the loans point at one: the current name and number
+  // (that contact's number only — with none saved, the reminder offers to add
+  // it). A name-only person falls back to a same-name contact's number, the
+  // rule the Loans person sheet uses (LoansPage.groupPhone).
+  const suggestedContact = useMemo(
+    () => (suggested?.personId ? persons.find((p) => p.id === suggested.personId) ?? null : null),
+    [suggested, persons],
+  );
+  const suggestedName = suggestedContact?.name || suggested?.personName || '';
   const suggestedPhone = useMemo(() => {
     if (!suggested) return null;
-    const loan = loans.find((l) => l.id === suggested.loanId);
-    const byId = loan?.personId ? persons.find((p) => p.id === loan.personId)?.phone : null;
-    return byId ?? persons.find((p) => p.name === suggested.personName)?.phone ?? null;
-  }, [suggested, loans, persons]);
+    if (suggested.personId) return suggestedContact?.phone ?? null;
+    const nameKey = suggested.personName.trim().toLowerCase();
+    return persons.find((p) => p.name.trim().toLowerCase() === nameKey)?.phone ?? null;
+  }, [suggested, suggestedContact, persons]);
 
   const finishCheck = () => {
     // LOCAL calendar date — daysSince parses the stamp as local midnight, and
@@ -261,17 +272,19 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
         </div>
       )}
 
-      {/* 4 — one action: the longest-standing receivable, WhatsApp one tap
-          away. Nothing nag-worthy → say so and let the user finish clean. */}
+      {/* 4 — one action: the person who has owed you longest, for their
+          whole balance, WhatsApp one tap away. Nothing nag-worthy → say so
+          and let the user finish clean. */}
       {step === 3 && (
         <div className="animate-fade-in space-y-3">
           <p className="text-[14px] font-semibold text-ink-900 tracking-tight">{t('check_action_title')}</p>
           {suggested ? (
             <div className="m-card p-4 space-y-3.5">
               <p className="text-[13px] text-ink-800 leading-relaxed">
-                {t('check_action_body')
-                  .replace('{name}', suggested.personName)
+                {(suggested.loanCount > 1 ? t('check_action_body_many') : t('check_action_body'))
+                  .replace('{name}', suggestedName)
                   .replace('{amount}', formatMoney(suggested.remaining, suggested.currency))
+                  .replace('{n}', String(suggested.loanCount))
                   .replace('{days}', String(suggested.daysOpen))}
               </p>
               <button
@@ -315,15 +328,18 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
       <PaymentReminderModal
         open={reminderOpen}
         onClose={() => setReminderOpen(false)}
-        personName={suggested.personName}
+        personName={suggestedName}
+        // The person's TOTAL across their open loans, dated from the oldest.
         amount={suggested.remaining}
         currency={suggested.currency as Currency}
         direction="receivable"
         startedAt={suggested.sinceIso}
-        // suggestAction ranks by loan age, not EMI due dates — never call
-        // an open-ended udhaar "overdue" (neutral "open for N days").
+        // suggestAction ranks by how long the person has owed, not EMI due
+        // dates — never call an open-ended udhaar "overdue" (neutral "open
+        // for N days").
         hasDueDate={false}
         phone={suggestedPhone}
+        personId={suggested.personId}
       />
     )}
     </>

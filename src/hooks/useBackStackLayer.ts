@@ -1,5 +1,17 @@
 import { useEffect, useRef } from 'react';
-import { isLayerState, withLayer } from '../lib/backStackLayer';
+import { createBackQueue, isLayerState, withLayer } from '../lib/backStackLayer';
+
+// One queue for every overlay in the app: a push waits while any overlay's
+// closing history.back() is still in flight (see createBackQueue). Its
+// popstate listener is registered here, at module load — before any overlay's
+// own listener — so each pop is counted before the overlays see it.
+const backQueue = createBackQueue(
+  (fn, ms) => window.setTimeout(fn, ms),
+  (handle) => window.clearTimeout(handle as number),
+);
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', () => backQueue.notePop());
+}
 
 /**
  * Makes a full-screen overlay (confirm sheet, global search, QR scanner)
@@ -21,6 +33,13 @@ import { isLayerState, withLayer } from '../lib/backStackLayer';
  * one entry every open/close cycle (which would otherwise take two back
  * presses to leave the page after the sheet had been opened once).
  *
+ * That back() is ASYNC, which used to break every same-tick hand-off
+ * (2026-09-19): a route pushed while an overlay closed was undone when the
+ * back() landed (search results and new groups bounced back), and an overlay
+ * opened as another closed was shut by it (the "Remind does nothing" report).
+ * So: cleanup only consumes our entry while it is still the current one, and
+ * a new overlay waits for any in-flight back() before pushing (backQueue).
+ *
  * Distinct from `uiStore`'s `modalStack` (src/stores/uiStore.ts), which is
  * an in-memory stack the Capacitor `backButton` listener pops directly
  * (src/lib/nativeBridge.ts) — that mechanism doesn't touch `history` at all,
@@ -35,30 +54,41 @@ export function useBackStackLayer(open: boolean, onClose: () => void, layerName 
     onCloseRef.current = onClose;
   });
 
-  const pushedRef = useRef(false);
-
   useEffect(() => {
     if (typeof window === 'undefined' || !open) return;
 
-    window.history.pushState(withLayer(window.history.state, layerName), '');
-    pushedRef.current = true;
+    let pushed = false;
+    let closed = false;
+    backQueue.whenIdle(() => {
+      if (closed) return; // closed again before its turn came
+      window.history.pushState(withLayer(window.history.state, layerName), '');
+      pushed = true;
+    });
 
     const onPopState = (event: PopStateEvent) => {
+      // Not pushed yet: the pop belongs to another overlay's closing back().
+      if (!pushed) return;
       // Landed back on an entry that still carries our tag (shouldn't
       // normally happen — defensive only): nothing to close yet.
       if (isLayerState(event.state, layerName)) return;
-      pushedRef.current = false;
+      pushed = false;
       onCloseRef.current();
     };
 
     window.addEventListener('popstate', onPopState);
 
     return () => {
+      closed = true;
       window.removeEventListener('popstate', onPopState);
-      // Closed by something other than a back press — consume the entry we
-      // pushed so the back stack stays balanced.
-      if (pushedRef.current) {
-        pushedRef.current = false;
+      if (!pushed) return;
+      pushed = false;
+      // Closed by something other than a back press — consume our entry, but
+      // only while it is still the current one. If a route or another overlay
+      // was pushed on top in the same tick, a back() here would undo THAT.
+      // The entry left behind carries the same URL, so it is harmless: a
+      // later back press simply lands on it.
+      if (isLayerState(window.history.state, layerName)) {
+        backQueue.noteBack();
         window.history.back();
       }
     };

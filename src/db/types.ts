@@ -260,6 +260,12 @@ export interface GroupMember {
   role?: 'owner' | 'member';
   status?: 'guest' | 'invited' | 'connected' | 'left';
   joinedAt?: string | null;
+  // Co-admin flag (supabase-migration-group-admins.sql). The owner is always
+  // an admin regardless of it — ask src/lib/groupRoles.ts, never read it raw.
+  // `undefined` means the database predates the migration (the column does
+  // not exist yet), which is why it is optional: `false` is a real answer
+  // from a migrated database, `undefined` is "this server has no co-admins".
+  isAdmin?: boolean;
 }
 
 export interface SplitGroup {

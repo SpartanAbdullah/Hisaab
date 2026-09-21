@@ -2,89 +2,139 @@
 // body (wa.me carries text only) and the "copy" fallback. The PDF renderer in
 // statementPdf.ts is the richer sibling; this is the always-available,
 // zero-dependency path that works for any contact, app user or not.
+//
+// ONE language per message — the app's current language (founder, 2026-09-19:
+// the old English + roman-Urdu repeats were redundant). Every sentence comes
+// from src/lib/i18n.ts; the translator defaults to tStatic (the live UI
+// language) and can be injected (tests, or a caller holding useT()). Dates and
+// amounts are language-free and computed exactly as before.
+//
+// The statement is SENT to the counterparty, so it speaks to them: a loan the
+// user gave them reads "You borrowed", and each currency's headline says what
+// THEY pay or receive.
 
 import { format } from 'date-fns';
 import { formatMoney } from './constants';
+import { tStatic, type I18nKey } from './i18n';
 import { moneyFormatter } from './maskMoney';
-import type { Statement, StatementLine } from './statementOfAccount';
+import type { Statement, StatementLine, StatementLineKind } from './statementOfAccount';
 import { trimSection } from './statementOfAccount';
 
 // formatMoney-compatible formatter threaded through the render helpers so the
 // "Hide amounts" toggle swaps every figure for the mask in one place.
 export type MoneyFmt = (amount: number, currency: string) => string;
 
+// Translator for document copy: an i18n key → its text in ONE language.
+export type DocT = (key: I18nKey) => string;
+
+// Fill `{name}`-style placeholders in a single pass: a substituted value is
+// never re-scanned (a name like "{amount}" stays literal) and `$` sequences in
+// a value are not special. Unknown placeholders are left as they are.
+export function fillTemplate(template: string, vars: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (match, key: string) =>
+    Object.prototype.hasOwnProperty.call(vars, key) ? String(vars[key]) : match,
+  );
+}
+
 // A friendly opener so the statement reads as a message between two people, not
 // a bank export. The style is user-selectable; default 'hello'.
 export type GreetingStyle = 'hello' | 'salaam' | 'dear' | 'none';
 
-export function greetingLine(style: GreetingStyle, name: string): string {
+const GREETING_KEY: Record<Exclude<GreetingStyle, 'none'>, I18nKey> = {
+  hello: 'stmt_greet_hello',
+  salaam: 'stmt_greet_salaam',
+  dear: 'stmt_greet_dear',
+};
+
+export function greetingLine(style: GreetingStyle, name: string, t: DocT = tStatic): string {
   const n = name.trim();
-  if (!n) return '';
-  switch (style) {
-    case 'hello': return `Hello ${n},`;
-    case 'salaam': return `Assalam-o-Alaikum, ${n}`;
-    case 'dear': return `Dear ${n},`;
-    case 'none': default: return '';
-  }
+  if (!n || style === 'none') return '';
+  const key = GREETING_KEY[style];
+  return key ? fillTemplate(t(key), { name: n }) : '';
 }
 
-// Human sentence for a signed net balance. Positive ⇒ they owe you.
-export function netBalanceLabel(partyName: string, closing: number, currency: string, fmt: MoneyFmt = formatMoney): string {
-  if (closing > 0.005) return `${partyName} owes you ${fmt(closing, currency)}`;
-  if (closing < -0.005) return `You owe ${partyName} ${fmt(Math.abs(closing), currency)}`;
-  return `Settled up with ${partyName}`;
+// The in-app headline on the Send-statement sheet — the SENDER's own view of a
+// signed net balance. Positive ⇒ they owe you.
+export function netBalanceLabel(
+  partyName: string,
+  closing: number,
+  currency: string,
+  fmt: MoneyFmt = formatMoney,
+  t: DocT = tStatic,
+): string {
+  if (closing > 0.005) return fillTemplate(t('stmt_net_owes_you'), { name: partyName, amount: fmt(closing, currency) });
+  if (closing < -0.005) return fillTemplate(t('stmt_net_you_owe'), { name: partyName, amount: fmt(Math.abs(closing), currency) });
+  return fillTemplate(t('stmt_net_settled'), { name: partyName });
 }
 
-// Roman-Urdu companion to netBalanceLabel, for the bilingual hero line on the
-// PDF (the audience is Pakistan/Gulf and the doc is sent over WhatsApp).
-export function netBalanceLabelUrdu(partyName: string, closing: number, currency: string, fmt: MoneyFmt = formatMoney): string {
-  if (closing > 0.005) return `${partyName} aap ko ${fmt(closing, currency)} dena hai`;
-  if (closing < -0.005) return `Aap ko ${partyName} ko ${fmt(Math.abs(closing), currency)} dena hai`;
-  return `${partyName} ke saath hisaab barabar hai`;
-}
-
-// RECIPIENT-focused label. The statement is addressed to the account holder,
-// so it must tell THEM whether they pay or receive. `closing` is the internal
+// RECIPIENT-focused. The statement is addressed to the account holder, so it
+// must tell THEM whether they pay or receive. `closing` is the internal
 // (sender-side) net where positive = "they owe you"; from the recipient's seat
 // that means THEY must pay. Colour then follows the recipient: pay = out (red),
 // receive = in (green).
 export type PayReceiveMode = 'pay' | 'receive' | 'settled';
+
+export function payOrReceiveMode(closing: number): PayReceiveMode {
+  if (closing > 0.005) return 'pay';
+  if (closing < -0.005) return 'receive';
+  return 'settled';
+}
+
 export interface PayReceiveText {
   mode: PayReceiveMode;
-  english: string;
-  urdu: string;
+  text: string; // one sentence, in the translator's language
 }
+
 export function payOrReceiveLabel(
   closing: number,
   currency: string,
   senderName?: string,
   fmt: MoneyFmt = formatMoney,
+  t: DocT = tStatic,
 ): PayReceiveText {
-  const money = fmt(Math.abs(closing), currency);
-  const who = senderName?.trim();
-  if (closing > 0.005) {
+  const mode = payOrReceiveMode(closing);
+  const amount = fmt(Math.abs(closing), currency);
+  const name = senderName?.trim();
+  if (mode === 'pay') {
     // Recipient owes the sender ⇒ recipient must PAY.
-    return {
-      mode: 'pay',
-      english: who ? `You need to pay ${who} ${money}` : `You need to pay ${money}`,
-      urdu: who ? `Aap ko ${who} ko ${money} dena hai` : `Aap ko ${money} dena hai`,
-    };
+    return { mode, text: name ? fillTemplate(t('stmt_pay_to'), { name, amount }) : fillTemplate(t('stmt_pay'), { amount }) };
   }
-  if (closing < -0.005) {
+  if (mode === 'receive') {
     // Sender owes the recipient ⇒ recipient will RECEIVE.
-    return {
-      mode: 'receive',
-      english: who ? `You will receive ${money} from ${who}` : `You will receive ${money}`,
-      urdu: who ? `Aap ko ${who} se ${money} milega` : `Aap ko ${money} milega`,
-    };
+    return { mode, text: name ? fillTemplate(t('stmt_receive_from'), { name, amount }) : fillTemplate(t('stmt_receive'), { amount }) };
   }
-  // Fully settled deserves warmth, not bank-speak — this is the moment the
-  // relationship's books close clean.
-  return {
-    mode: 'settled',
-    english: '🎉 Congratulations — nothing pending, all settled!',
-    urdu: 'Mubarak ho — hisaab bilkul barabar hai!',
-  };
+  // A clean slate is good news — one warm line, not a gray zero.
+  return { mode, text: fillTemplate(t('stmt_settled_in'), { currency }) };
+}
+
+// Ledger-line wording, from the reader's side. `settled_earlier` picks its
+// singular/plural key below.
+const LINE_KEY: Record<Exclude<StatementLineKind, 'settled_earlier'>, I18nKey> = {
+  loan_given: 'stmt_line_you_borrowed',
+  loan_taken: 'stmt_line_you_lent',
+  repayment_received: 'stmt_line_you_repaid',
+  repayment_paid: 'stmt_line_repaid_to_you',
+  repayments_received_summary: 'stmt_line_you_repaid_summary',
+  repayments_made_summary: 'stmt_line_repaid_to_you_summary',
+  settled_recent: 'stmt_line_settled_recent_many',
+  settled_in_full: 'stmt_line_settled_in_full',
+};
+
+export function describeStatementLine(line: StatementLine, t: DocT = tStatic): string {
+  const n = line.count ?? 0;
+  const base =
+    line.kind === 'settled_earlier'
+      ? n === 1
+        ? t('stmt_line_settled_earlier_one')
+        : fillTemplate(t('stmt_line_settled_earlier_many'), { n })
+      : fillTemplate(t(LINE_KEY[line.kind]), { n });
+  // Name the loan on a repayment / settle line that has no note of its own.
+  return line.loanNote ? `${base} — ${line.loanNote}` : base;
+}
+
+// "4 earlier entries" — the rows a brought-forward line stands for.
+export function earlierEntriesLabel(count: number, t: DocT = tStatic): string {
+  return count === 1 ? t('stmt_earlier_one') : fillTemplate(t('stmt_earlier_many'), { n: count });
 }
 
 function signedAmount(delta: number, currency: string, fmt: MoneyFmt = formatMoney): string {
@@ -97,16 +147,15 @@ function shortDate(iso: string): string {
   return Number.isNaN(d.getTime()) ? '' : format(d, 'd MMM yyyy');
 }
 
-function lineText(line: StatementLine, currency: string, fmt: MoneyFmt = formatMoney): string {
-  // Fold/summary lines: equal money given and paid back — say so instead of
-  // printing a meaningless "+0.00".
-  if (line.grossGiven || line.grossRepaid) {
-    const gross = fmt(line.grossRepaid ?? line.grossGiven ?? 0, currency);
-    return `• ${[shortDate(line.date), line.description].filter(Boolean).join(' · ')} · ${gross} paid & cleared ✓`;
-  }
-  // Recipient perspective: negate so a charge (they owe more) reads as −out and
-  // a payment they made reads as +in, matching the PDF's Debit/Credit colours.
-  const parts = [shortDate(line.date), line.description, signedAmount(-line.delta, currency, fmt)];
+function lineText(line: StatementLine, currency: string, fmt: MoneyFmt, t: DocT): string {
+  // Fold/summary lines: equal money given and paid back — show the amount that
+  // was cleared (✓) instead of a meaningless "+0.00".
+  // Otherwise, recipient perspective: negate so a charge (they owe more) reads
+  // as −out and a payment they made reads as +in, matching the PDF's columns.
+  const amount = line.grossGiven || line.grossRepaid
+    ? `${fmt(line.grossRepaid ?? line.grossGiven ?? 0, currency)} ✓`
+    : signedAmount(-line.delta, currency, fmt);
+  const parts = [shortDate(line.date), describeStatementLine(line, t), amount];
   return `• ${parts.filter(Boolean).join(' · ')}`; // • date · desc · +amt
 }
 
@@ -116,9 +165,11 @@ export interface RenderStatementTextOptions {
   greeting?: string; // pre-composed opener, e.g. "Hello Rashid,"
   fromName?: string; // signs the message off: "Thank you, {fromName}"
   hideAmounts?: boolean; // privacy: every figure renders as the fixed-width mask
+  t?: DocT; // language of the message; default = the app's current language
 }
 
 export function renderStatementText(statement: Statement, opts: RenderStatementTextOptions = {}): string {
+  const t = opts.t ?? tStatic;
   const { partyName, sections } = statement;
   const asOf = opts.asOfLabel ?? shortDate(statement.asOf);
   const maxLines = opts.maxLinesPerSection ?? 10;
@@ -129,45 +180,39 @@ export function renderStatementText(statement: Statement, opts: RenderStatementT
     out.push(opts.greeting.trim());
     out.push('');
   }
-  out.push('*Statement of account*');
+  out.push(`*${t('soa_title')}*`);
   out.push(partyName);
-  if (asOf) out.push(`As of ${asOf}`);
+  if (asOf) out.push(fillTemplate(t('stmt_as_of'), { date: asOf }));
 
   if (sections.length === 0) {
     out.push('');
-    out.push('🎉 Congratulations — nothing pending, all settled!');
-    out.push('Mubarak ho — hisaab bilkul barabar hai!');
+    out.push(t('stmt_all_settled'));
   }
 
+  // Each currency: its headline once (what the reader pays / receives), then
+  // the entries behind it. No closing repeat of the headline.
   for (const section of sections) {
-    const pr = payOrReceiveLabel(section.closing, section.currency, opts.fromName, money);
     out.push(''); // blank line between blocks
-    out.push(pr.english);
+    out.push(payOrReceiveLabel(section.closing, section.currency, opts.fromName, money, t).text);
 
     const { opening, lines } = trimSection(section, maxLines);
     if (opening) {
       out.push(
-        `• Balance brought forward · ${signedAmount(-opening.balance, section.currency, money)}` +
-          ` (${opening.count} earlier ${opening.count === 1 ? 'entry' : 'entries'})`,
+        `• ${t('stmt_bf')} · ${signedAmount(-opening.balance, section.currency, money)}` +
+          ` (${earlierEntriesLabel(opening.count, t)})`,
       );
     }
-    for (const line of lines) out.push(lineText(line, section.currency, money));
-
-    // Settled: the English celebration already opened the block — close with
-    // the Urdu companion instead of repeating it.
-    out.push(pr.mode === 'settled' ? pr.urdu : `Outstanding — ${pr.english}`);
-    if (section.estimated) {
-      out.push('(Some entries are summarised from loan balances.)');
-    }
+    for (const line of lines) out.push(lineText(line, section.currency, money, t));
+    if (section.estimated) out.push(`(${t('stmt_estimated_note')})`);
   }
 
   if (opts.fromName?.trim()) {
     out.push('');
-    out.push('Thank you,');
+    out.push(t('stmt_thanks'));
     out.push(opts.fromName.trim());
   }
 
   out.push('');
-  out.push('— via Hisaab');
+  out.push(t('stmt_via'));
   return out.join('\n');
 }

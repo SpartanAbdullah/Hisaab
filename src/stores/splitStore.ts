@@ -11,9 +11,11 @@ import {
   groupMembershipDb,
   groupArchiveDb,
   groupOwnershipDb,
+  groupAdminsDb,
   groupGuestsDb,
   transactionsDb,
 } from '../lib/supabaseDb';
+import { canManageGroup, type SetGroupAdminResult } from '../lib/groupRoles';
 import {
   buildInviteUrl,
   generateInviteToken,
@@ -141,14 +143,14 @@ interface SplitState {
   addGroupGuest: (groupId: string, name: string, phone?: string) => Promise<GuestSeatResult>;
   removeGroupGuest: (groupId: string, memberId: string) => Promise<GuestSeatResult>;
   // Rename an unclaimed guest seat (docs/guest-members.md §9.4's "no rename UI"
-  // open risk). OWNER-ONLY — the group_members UPDATE RLS policy only lets a
-  // non-profile-owner write through the group-owner branch, so a non-owner's
-  // write would 0-row silently; this checks ownership client-side FIRST and
-  // returns 'NOT_ALLOWED' as data rather than relying on a silent no-op.
-  // Unlike add/remove there is NO server RPC and NO trigger validating this
-  // write (tg_group_members_guest_seat_rules is BEFORE INSERT only), so the
-  // 1-40-char + live-duplicate checks here are the ONLY enforcement — reused
-  // via the same guest_err_* status vocabulary so callers map it identically.
+  // open risk). OWNER OR ADMIN — the group_members UPDATE RLS policy
+  // ("Group admins can update members", supabase-migration-group-admins.sql)
+  // answers anyone else with a silent 0-row update, so this checks the role
+  // client-side FIRST (canManageGroup) and returns 'NOT_ALLOWED' as data, and
+  // the write itself asks for its row back so a refusal is never reported as
+  // a rename. There is no server RPC for this; the 1-40-char + live-duplicate
+  // checks here mirror group_members_guest_rename_rules (p2-guest-members §3b)
+  // and reuse the guest_err_* status vocabulary so callers map it identically.
   renameGroupGuest: (groupId: string, memberId: string, name: string) => Promise<GuestSeatResult>;
   // Throws on refusal. supabase-migration-audit-p0-group-deletion-guard.sql
   // blocks the hard delete of a SHARED group with GROUP_HAS_OTHER_MEMBERS /
@@ -159,12 +161,19 @@ interface SplitState {
   loadPendingInvitations: () => Promise<void>;
   acceptGroupMembership: (groupId: string) => Promise<LeaveGroupResult>;
   declineGroupMembership: (groupId: string) => Promise<LeaveGroupResult>;
-  // Owner-only lifecycle actions (group-deletion-guard §6, account-deletion §5).
+  // Lifecycle actions. Archive / unarchive are owner-OR-ADMIN since
+  // supabase-migration-group-admins.sql (group-deletion-guard §6 before it);
+  // transfer stays owner-only (account-deletion §5).
   archiveGroup: (groupId: string) => Promise<GroupArchiveResult>;
   unarchiveGroup: (groupId: string) => Promise<GroupArchiveResult>;
   transferGroupOwnership: (groupId: string, newOwnerMemberId: string) => Promise<LeaveGroupResult>;
-  // Owner-only join-code rotation; the server re-stamps a fresh 14-day expiry.
-  // Resolves with the new human-readable code.
+  // Owner-only: make a member a co-admin or remove them (set_group_admin).
+  // The owner stays the owner either way. Refusals — including
+  // NEEDS_DB_UPDATE on a database without the migration — are data.
+  setGroupAdmin: (groupId: string, memberId: string, isAdmin: boolean) => Promise<SetGroupAdminResult>;
+  // Owner-or-admin join-code rotation; the server re-stamps a fresh 14-day
+  // expiry. Resolves with the new human-readable code; throws when the write
+  // was refused (it is never reported as a rotation that did not happen).
   refreshJoinCode: (groupId: string) => Promise<string>;
   createInvite: (groupId: string, linkedMemberId?: string | null) => Promise<{ url: string; invite: GroupInvite }>;
   acceptInvite: (token: string) => Promise<AcceptInviteOutcome>;
@@ -773,6 +782,14 @@ export const useSplitStore = create<SplitState>((set, get) => ({
     return result;
   },
 
+  setGroupAdmin: async (groupId, memberId, isAdmin) => {
+    const result = await groupAdminsDb.setAdmin(groupId, memberId, isAdmin);
+    // Reload on every ok, replays included: a replay means this device's
+    // mirror was stale (another device already made the change).
+    if (result.status === 'ok') await get().loadGroups();
+    return result;
+  },
+
   refreshJoinCode: async (groupId) => {
     // Same generator the create path uses, so the code shape never diverges.
     // The expiry is NOT sent: trg_split_groups_join_code_expiry re-stamps a
@@ -826,9 +843,10 @@ export const useSplitStore = create<SplitState>((set, get) => ({
     const member = group.members.find(item => item.id === memberId);
     if (!member || !isGuestMember(member)) return fail('NOT_A_GUEST');
 
+    // Owner OR admin — the same predicate the server's UPDATE policy asks.
     const currentUserId = getCurrentUserId();
-    const ownerMember = group.members.find(item => item.isOwner);
-    if (ownerMember?.profileId !== currentUserId) return fail('NOT_ALLOWED');
+    const me = group.members.find(item => item.profileId === currentUserId);
+    if (!canManageGroup(me)) return fail('NOT_ALLOWED');
 
     if (trimmed === member.name) {
       // No-op rename (e.g. reopening the sheet and saving unchanged text).
@@ -846,7 +864,10 @@ export const useSplitStore = create<SplitState>((set, get) => ({
     const previous = member;
     patchGroupMemberInState(set, groupId, { ...member, name: trimmed });
     try {
-      await groupMembersDb.update(memberId, { name: trimmed });
+      // requireRow: a refused rename (demoted between render and tap) is a
+      // 0-row UPDATE with no error — without it the optimistic name would
+      // stand until the next reload.
+      await groupMembersDb.update(memberId, { name: trimmed }, { requireRow: true });
     } catch (err) {
       patchGroupMemberInState(set, groupId, previous);
       reportError(err, { feature: 'splitStore.renameGroupGuest', extra: { groupId, memberId } });

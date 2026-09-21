@@ -940,6 +940,7 @@ export function LoanDetailPage() {
         startedAt={reminderStartedAt}
         hasDueDate={totalCount > 0}
         phone={(loan.personId ? persons.find((x) => x.id === loan.personId)?.phone : null) ?? null}
+        personId={loan.personId ?? null}
       />
       <NotificationPermissionPrompt trigger={notifPromptTrigger} />
       <EditHistorySheet

@@ -13,6 +13,12 @@ import {
   showsContactAsks,
   type InboxFilter,
 } from '../lib/inboxFilters';
+import {
+  INBOX_HISTORY_INITIAL,
+  inboxPagingKey,
+  nextHistoryLimit,
+  pageInboxEntries,
+} from '../lib/inboxPaging';
 import type { GlyphName, GlyphTone } from '../lib/glyphs';
 import { useLinkedRequestStore } from '../stores/linkedRequestStore';
 import { useSettlementRequestStore } from '../stores/settlementRequestStore';
@@ -242,13 +248,6 @@ export function InboxPage() {
         tab === 'incoming' ? contactAsks.length : 0,
       ),
     [visible, tab, contactAsks.length],
-  );
-
-  // Where the pinned pending block ends — drives the "Earlier" divider so the
-  // acted-upon history reads as a visually separate section below.
-  const pendingVisibleCount = useMemo(
-    () => shown.filter((e) => e.item.status === 'pending').length,
-    [shown],
   );
 
   // Badge counts follow the same filter, or the tab would advertise work that
@@ -734,6 +733,51 @@ export function InboxPage() {
     return buildWhatsAppUrl(phone, message);
   }
 
+  // One request-tab card: a loan request (RequestCard) or a payment /
+  // settlement request (SettlementCard). Shared by the first page and the
+  // history revealed by "Show more", so both render identically.
+  const renderRequestCard = (entry: InboxItem) =>
+    entry.kind === 'linked' ? (
+      <RequestCard
+        request={entry.item}
+        tab={tab}
+        busy={busyId === entry.item.id}
+        contactName={contactNameFor(entry.item)}
+        remindUrl={remindUrlFor(entry)}
+        accountLine={linkedAccountLine(entry.item)}
+        onAccept={() => handleAccept(entry.item.id)}
+        onReject={() => handleReject(entry.item.id)}
+        onCancel={() => handleCancel(entry.item.id)}
+        // Per-SENDER actions, not per-item. The audit's own words:
+        // "declining is per-item, not per-sender" is exactly the gap.
+        onReport={tab === 'incoming'
+          ? () => setSafety({ mode: 'report', userId: entry.item.fromUserId, name: contactNameFor(entry.item as LinkedRequest), contextId: entry.item.id })
+          : undefined}
+        onBlock={tab === 'incoming'
+          ? () => setSafety({ mode: 'block', userId: entry.item.fromUserId, name: contactNameFor(entry.item as LinkedRequest), contextId: entry.item.id })
+          : undefined}
+      />
+    ) : (
+      <SettlementCard
+        request={entry.item}
+        tab={tab}
+        busy={busyId === entry.item.id}
+        contactName={contactNameForSettlement(entry.item)}
+        remindUrl={remindUrlFor(entry)}
+        accountLine={settlementAccountLine(entry.item)}
+        fullTracker={appMode === 'full_tracker'}
+        onAccept={() => handleAcceptSettlement(entry.item.id)}
+        onReject={() => handleRejectSettlement(entry.item.id)}
+        onCancel={() => handleCancelSettlement(entry.item.id)}
+        onReport={tab === 'incoming'
+          ? () => setSafety({ mode: 'report', userId: entry.item.fromUserId, name: contactNameForSettlement(entry.item as SettlementRequest), contextId: entry.item.id })
+          : undefined}
+        onBlock={tab === 'incoming'
+          ? () => setSafety({ mode: 'block', userId: entry.item.fromUserId, name: contactNameForSettlement(entry.item as SettlementRequest), contextId: entry.item.id })
+          : undefined}
+      />
+    );
+
   return (
     <main className="min-h-dvh bg-cream-bg pb-28">
       <NavyHero accent="violet">
@@ -953,76 +997,15 @@ export function InboxPage() {
             )
           ) : null
         ) : (
-          // Keyed on `tab`: switching Incoming <-> Outgoing swaps the whole
-          // list, so replaying the reveal is the honest signal that the
-          // content changed rather than merely re-sorted.
-          <div className="space-y-3 stagger-in" key={`${tab}-${activeFilter}`}>
-            {/* "Waiting on others (N)" — the outgoing asks that the bell now
-                marks with a quiet dot instead of a red number (audit N-7 kept:
-                no alarm), given a named home so the user can see who is slow
-                and nudge them. Header only; the cards below carry who/what and
-                the age line. */}
-            {tab === 'outgoing' && pendingVisibleCount > 0 && (
-              <SectionDivider label={t('inbox_waiting_on_others').replace('{n}', String(pendingVisibleCount))} />
-            )}
-            {shown.map((entry, idx) => {
-              // Divider sits at the boundary between the pinned pending block
-              // and the resolved history — shown only when both groups exist.
-              const showDivider =
-                pendingVisibleCount > 0 &&
-                pendingVisibleCount < shown.length &&
-                idx === pendingVisibleCount;
-              const card =
-                entry.kind === 'linked' ? (
-                  <RequestCard
-                    request={entry.item}
-                    tab={tab}
-                    busy={busyId === entry.item.id}
-                    contactName={contactNameFor(entry.item)}
-                    remindUrl={remindUrlFor(entry)}
-                    accountLine={linkedAccountLine(entry.item)}
-                    onAccept={() => handleAccept(entry.item.id)}
-                    onReject={() => handleReject(entry.item.id)}
-                    onCancel={() => handleCancel(entry.item.id)}
-                    // Per-SENDER actions, not per-item. The audit's own words:
-                    // "declining is per-item, not per-sender" is exactly the gap.
-                    onReport={tab === 'incoming'
-                      ? () => setSafety({ mode: 'report', userId: entry.item.fromUserId, name: contactNameFor(entry.item as LinkedRequest), contextId: entry.item.id })
-                      : undefined}
-                    onBlock={tab === 'incoming'
-                      ? () => setSafety({ mode: 'block', userId: entry.item.fromUserId, name: contactNameFor(entry.item as LinkedRequest), contextId: entry.item.id })
-                      : undefined}
-                  />
-                ) : (
-                  <SettlementCard
-                    request={entry.item}
-                    tab={tab}
-                    busy={busyId === entry.item.id}
-                    contactName={contactNameForSettlement(entry.item)}
-                    remindUrl={remindUrlFor(entry)}
-                    accountLine={settlementAccountLine(entry.item)}
-                    fullTracker={appMode === 'full_tracker'}
-                    onAccept={() => handleAcceptSettlement(entry.item.id)}
-                    onReject={() => handleRejectSettlement(entry.item.id)}
-                    onCancel={() => handleCancelSettlement(entry.item.id)}
-                    onReport={tab === 'incoming'
-                      ? () => setSafety({ mode: 'report', userId: entry.item.fromUserId, name: contactNameForSettlement(entry.item as SettlementRequest), contextId: entry.item.id })
-                      : undefined}
-                    onBlock={tab === 'incoming'
-                      ? () => setSafety({ mode: 'block', userId: entry.item.fromUserId, name: contactNameForSettlement(entry.item as SettlementRequest), contextId: entry.item.id })
-                      : undefined}
-                  />
-                );
-              return (
-                <Fragment key={`${entry.kind}-${entry.item.id}`}>
-                  {showDivider && (
-                    <SectionDivider label={t('inbox_resolved_divider')} className="pt-1.5" />
-                  )}
-                  {card}
-                </Fragment>
-              );
-            })}
-          </div>
+          // Keyed on tab + filter: switching either mounts a fresh list — the
+          // reveal replays (the honest signal that the content changed rather
+          // than merely re-sorted) and its paging starts again on page one.
+          <PagedRequestList
+            key={inboxPagingKey(tab, activeFilter)}
+            entries={shown}
+            tab={tab}
+            renderCard={renderRequestCard}
+          />
         )}
       </div>
 
@@ -1090,6 +1073,88 @@ function SectionDivider({ label, className = '' }: { label: string; className?: 
     <div className={`flex items-center gap-[9px] pb-0.5 ${className}`}>
       <span className="m-label text-[10px]">{label}</span>
       <span className="flex-1 h-px bg-cream-hairline" />
+    </div>
+  );
+}
+
+// One Incoming / Outgoing request list, paged (founder 2026-09-19,
+// src/lib/inboxPaging.ts): every pending card shows; settled history shows
+// its newest 10, then 20 more per "Show more" — and only those cards are
+// rendered, which is the load-rate win on an account with thousands of old
+// requests. The parent mounts one of these per tab + filter (keyed), so
+// switching either one resets the paging, coming back included.
+function PagedRequestList({
+  entries,
+  tab,
+  renderCard,
+}: {
+  /** The tab's requests AFTER the type filter, pending first, newest first. */
+  entries: InboxItem[];
+  tab: Tab;
+  renderCard: (entry: InboxItem) => React.ReactNode;
+}) {
+  const t = useT();
+  const [historyLimit, setHistoryLimit] = useState(INBOX_HISTORY_INITIAL);
+  const paged = useMemo(() => pageInboxEntries(entries, historyLimit), [entries, historyLimit]);
+  const pendingCount = paged.pending.length;
+  // The pinned pending block and the first history page reveal together, in
+  // the old single-list order, so the "Earlier" divider still sits where
+  // pending ends. Everything after that renders only once asked for.
+  const firstPage = [...paged.pending, ...paged.history.slice(0, INBOX_HISTORY_INITIAL)];
+  const revealed = paged.history.slice(INBOX_HISTORY_INITIAL);
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-3 stagger-in">
+        {/* "Waiting on others (N)" — the outgoing asks that the bell now
+            marks with a quiet dot instead of a red number (audit N-7 kept:
+            no alarm), given a named home so the user can see who is slow
+            and nudge them. Header only; the cards below carry who/what and
+            the age line. */}
+        {tab === 'outgoing' && pendingCount > 0 && (
+          <SectionDivider label={t('inbox_waiting_on_others').replace('{n}', String(pendingCount))} />
+        )}
+        {firstPage.map((entry, idx) => (
+          <Fragment key={`${entry.kind}-${entry.item.id}`}>
+            {/* Divider at the boundary between the pinned pending block and
+                the settled history — shown only when both exist. */}
+            {pendingCount > 0 && idx === pendingCount && (
+              <SectionDivider label={t('inbox_resolved_divider')} className="pt-1.5" />
+            )}
+            {renderCard(entry)}
+          </Fragment>
+        ))}
+      </div>
+      {/* History revealed by "Show more" sits outside the stagger container
+          on purpose: its 8th-child-onward delay would hold 20 fresh cards
+          invisible for a beat after the tap, with the button already pushed
+          down past the blank space. */}
+      {revealed.length > 0 && (
+        <div className="space-y-3">
+          {revealed.map((entry) => (
+            <Fragment key={`${entry.kind}-${entry.item.id}`}>{renderCard(entry)}</Fragment>
+          ))}
+        </div>
+      )}
+      {/* "Showing 10 of 128 past requests" + "Show 20 more". Counts the
+          settled history only — pending cards are never held back. */}
+      {paged.nextStep > 0 && (
+        <div className="space-y-2 pt-1">
+          <p className="text-[10.5px] text-ink-500 px-1 tabular-nums" aria-live="polite">
+            {t('inbox_history_showing')
+              .replace('{n}', String(paged.history.length))
+              .replace('{m}', String(paged.historyTotal))}
+          </p>
+          <button
+            type="button"
+            onClick={() => setHistoryLimit((current) => nextHistoryLimit(current, paged.historyTotal))}
+            className="m-btn m-btn-plain w-full text-[12.5px] gap-1.5 tabular-nums"
+          >
+            <Glyph name="chevron-down" size={15} />
+            {t('inbox_history_show_more').replace('{n}', String(paged.nextStep))}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

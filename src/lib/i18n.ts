@@ -4045,15 +4045,17 @@ const S = {
   grp_leaving: { ur: "Chhora ja raha hai…", en: "Leaving…" },
 
   // Ownership transfer — the escape hatch for OWNED_GROUPS_WITH_MEMBERS and
-  // leave_group's ONLY_OWNER_ADMIN.
-  grp_transfer_action: { ur: "Kisi aur ko admin banayein", en: "Assign another admin" },
-  grp_transfer_title: { ur: "Naya admin chunein", en: "Choose the new admin" },
+  // leave_group's ONLY_OWNER_ADMIN. Renamed 2026-09-19: this was labelled
+  // "Assign another admin" and handed the whole group away. Sharing the work
+  // is "Manage admins" now (grp_admins_*); this says plainly what it does.
+  grp_transfer_action: { ur: "Owner badlein", en: "Transfer ownership" },
+  grp_transfer_title: { ur: "Group ka owner badlein", en: "Transfer ownership" },
   grp_transfer_body: {
-    ur: "Sirf woh members chun sakte hain jo Hisaab par is group mein shaamil ho chuke hain. Iske baad aap aam member ban jayenge.",
-    en: "Only members who have joined this group on Hisaab can take it over. You become a regular member afterwards.",
+    ur: "Jise aap chunein ge woh group ka naya owner ban jaye ga, aur aap owner nahi rahenge. Sirf kaam baantna ho to transfer ki jagah kisi ko admin banayein — group aap ke paas hi rahe ga. Sirf woh members chune ja sakte hain jo Hisaab par is group mein shaamil hain.",
+    en: "The member you pick becomes the group's new owner, and you stop being the owner. To share the work without giving the group away, make someone an admin instead. Only members who have joined this group on Hisaab can take it over.",
   },
   grp_transfer_none: {
-    ur: "Abhi koi aisa member nahi jo group ka admin ban sake. Pehle kisi ko join karwayein.",
+    ur: "Abhi koi aisa member nahi jo group ka owner ban sake. Pehle kisi ko join karwayein.",
     en: "Nobody in this group can take it over yet. Get someone to join first.",
   },
   grp_transfer_done: { ur: "Group ki zimmedari transfer ho gayi", en: "Ownership transferred" },
@@ -4927,24 +4929,11 @@ const S = {
   eh_actor_removed: { ur: "Ek purana member", en: "A former member" },
   eh_actor_system: { ur: "Hisaab", en: "Hisaab" },
 
-  // ── WhoOwesMeCard (unified who-owes-me: loans + groups + ad-hoc splits) ────
-  wom_title: { ur: "Kis ka kitna hisaab", en: "Who owes what" },
-  wom_subtitle: { ur: "Qarz, group aur split — sab ek jagah", en: "Loans, groups and splits together" },
-  wom_they_owe: { ur: "Aap ko dene hain", en: "Owes you" },
-  wom_you_owe: { ur: "Aap ne dene hain", en: "You owe" },
+  // ── Shared leftovers of the retired Loans "Who owes what" card ────────────
+  // The card itself was removed 2026-09-19 (founder: "just extra"); these two
+  // are still read elsewhere (Loans hero, Analytics, the budget banner).
   wom_net_square: { ur: "Hisaab barabar", en: "All square" },
-  wom_name_only: { ur: "sirf naam se milaya", en: "name match only" },
   wom_more_sources: { ur: "+{n} aur", en: "+{n} more" },
-  wom_same_person: {
-    ur: "Kya yeh wohi {name} hai? Contact link karein taake dono hisaab jur jayein.",
-    en: "Same person as {name}? Link the contact to join both balances.",
-  },
-  wom_src_loan: { ur: "Qarz", en: "Loan" },
-  wom_src_group: { ur: "Group", en: "Group" },
-  wom_src_adhoc: { ur: "Split", en: "Split" },
-  // A group chip that names the counterparty too, once the per-person pairwise
-  // attribution is available: "Dubai Trip · Bilal".
-  wom_src_group_person: { ur: "{group} · {name}", en: "{group} · {name}" },
 
   // ── GroupInviteModal ──────────────────────────────────────────────────────
   ginv_title: { ur: "Members bulayein", en: "Invite members" },
@@ -5197,6 +5186,280 @@ const S = {
   a11y_verified: { ur: "Tasdeeq shuda", en: "Verified" },
   cp_saved_locally: { ur: "Sirf aap ke paas saved", en: "Saved locally" },
   // ── 1d: settings + shell END ──
+  // ── 2026-09-19 statements ──
+  // Every shareable document — statement text + PDF, payment receipt, group
+  // settle-up plan, kameti payout slip — is written in ONE language: the app's
+  // current one (founder, 2026-09-19: the old English + roman-Urdu repeats
+  // were redundant). Composed by statementText / receiptText / *Pdf.ts in
+  // src/lib. Statement copy speaks to the READER (the person it is sent to).
+  stmt_greet_hello: { ur: "Hello {name},", en: "Hello {name}," },
+  stmt_greet_salaam: { ur: "Assalam-o-Alaikum {name},", en: "Assalam-o-Alaikum {name}," },
+  stmt_greet_dear: { ur: "Dear {name},", en: "Dear {name}," },
+  stmt_thanks: { ur: "Shukriya,", en: "Thank you," },
+  stmt_via: { ur: "— via Hisaab", en: "— via Hisaab" },
+  stmt_as_of: { ur: "{date} tak", en: "As of {date}" },
+  stmt_all_settled: { ur: "Hisaab barabar — kuch baqi nahi 🎉", en: "All settled — nothing pending 🎉" },
+  stmt_pay_to: { ur: "Aap ne {name} ko {amount} dene hain", en: "You need to pay {name} {amount}" },
+  stmt_pay: { ur: "Aap ne {amount} dene hain", en: "You need to pay {amount}" },
+  stmt_receive_from: { ur: "Aap ko {name} se {amount} milenge", en: "You will receive {amount} from {name}" },
+  stmt_receive: { ur: "Aap ko {amount} milenge", en: "You will receive {amount}" },
+  stmt_settled_in: { ur: "{currency} mein hisaab barabar — kuch baqi nahi 🎉", en: "All settled in {currency} — nothing pending 🎉" },
+  // In-app headline on the Send-statement sheet (the sender's own view).
+  stmt_net_owes_you: { ur: "{name} ne aap ko {amount} dene hain", en: "{name} owes you {amount}" },
+  stmt_net_you_owe: { ur: "Aap ne {name} ko {amount} dene hain", en: "You owe {name} {amount}" },
+  stmt_net_settled: { ur: "{name} ke saath hisaab barabar", en: "Settled up with {name}" },
+  stmt_bf: { ur: "Pichla baqi", en: "Brought forward" },
+  stmt_earlier_one: { ur: "1 purani entry", en: "1 earlier entry" },
+  stmt_earlier_many: { ur: "{n} purani entries", en: "{n} earlier entries" },
+  stmt_estimated_note: {
+    ur: "Kuch entries qarz ke baqi se khulasa ki gayi hain, alag alag record nahi hui thin.",
+    en: "Some entries are summarised from loan balances, not recorded one by one.",
+  },
+  // Ledger lines, from the reader's side ("You borrowed", not "Loan given").
+  // ur keeps borrowed/lent visibly different ("mila" vs "diya"), not a
+  // one-letter "liya"/"diya" pair on a money document.
+  stmt_line_you_borrowed: { ur: "Aap ko udhaar mila", en: "You borrowed" },
+  stmt_line_you_lent: { ur: "Aap ne udhaar diya", en: "You lent" },
+  stmt_line_you_repaid: { ur: "Aap ne wapas diye", en: "You paid back" },
+  stmt_line_repaid_to_you: { ur: "Aap ko wapas mile", en: "Paid back to you" },
+  stmt_line_you_repaid_summary: { ur: "Aap ne wapas diye (khulasa)", en: "You paid back (summary)" },
+  stmt_line_repaid_to_you_summary: { ur: "Aap ko wapas mile (khulasa)", en: "Paid back to you (summary)" },
+  stmt_line_settled_earlier_one: { ur: "1 purana qarz — poora ada", en: "1 earlier loan — settled in full" },
+  stmt_line_settled_earlier_many: { ur: "{n} purane qarz — poore ada", en: "{n} earlier loans — settled in full" },
+  stmt_line_settled_recent_many: { ur: "{n} qarz haal hi mein poore ada", en: "{n} loans recently settled in full" },
+  stmt_line_settled_in_full: { ur: "Poora ada", en: "Settled in full" },
+  // Statement PDF.
+  stmt_pdf_no: { ur: "No. {no}", en: "No. {no}" },
+  stmt_pdf_period: { ur: "Muddat {range}", en: "Period {range}" },
+  stmt_pdf_account_of: { ur: "Khata", en: "Account of" },
+  stmt_pdf_prepared_by: { ur: "Bhejne wale", en: "Prepared by" },
+  stmt_pdf_hero_pay: { ur: "Aap ne dene hain · {currency}", en: "You need to pay · {currency}" },
+  stmt_pdf_hero_receive: { ur: "Aap ko milenge · {currency}", en: "You will receive · {currency}" },
+  stmt_pdf_hero_settled: { ur: "Hisaab barabar · {currency}", en: "All settled · {currency}" },
+  stmt_pdf_hero_to: { ur: "{name} ko", en: "To {name}" },
+  stmt_pdf_hero_from: { ur: "{name} se", en: "From {name}" },
+  stmt_pdf_hero_with: { ur: "{name} ke saath", en: "With {name}" },
+  stmt_pdf_hero_nothing: { ur: "Kuch baqi nahi 🎉", en: "Nothing pending 🎉" },
+  stmt_pdf_activity: { ur: "Lenden", en: "Activity" },
+  stmt_pdf_amounts_in: { ur: "Tamam raqam {currency} mein", en: "All amounts in {currency}" },
+  stmt_pdf_col_date: { ur: "Tareekh", en: "Date" },
+  stmt_pdf_col_desc: { ur: "Tafseel", en: "Description" },
+  stmt_pdf_col_received: { ur: "Aap ko mile", en: "You received" },
+  stmt_pdf_col_gave: { ur: "Aap ne diye", en: "You gave" },
+  stmt_pdf_col_balance: { ur: "Baqi", en: "Balance" },
+  stmt_pdf_opening: { ur: "Shuruati baqi", en: "Opening balance" },
+  stmt_pdf_closing: { ur: "Aakhri baqi", en: "Closing balance" },
+  stmt_pdf_legend_pay: { ur: "− aap ne dene hain", en: "− you need to pay" },
+  stmt_pdf_legend_receive: { ur: "+ aap ko milenge", en: "+ you will receive" },
+  stmt_pdf_generated: {
+    ur: "Hisaab ne {date} ko banaya. Yeh record ki gayi entries ka khulasa hai, qanooni document nahi. E&OE.",
+    en: "Generated by Hisaab on {date}. A summary of recorded transactions, not a legal document. E&OE.",
+  },
+  stmt_pdf_page: { ur: "Safha 1 / 1", en: "Page 1 of 1" },
+  // Group settle-up plan PDF.
+  stmt_gsu_doc: { ur: "Settle-up plan", en: "Settle-up plan" },
+  stmt_gsu_simplified: { ur: "Simplified — kam se kam transfers", en: "Simplified — fewest transfers" },
+  stmt_gsu_direct: { ur: "Direct — kis par kitna baqi hai", en: "Direct — who owes whom" },
+  stmt_gsu_group: { ur: "Group", en: "Group" },
+  stmt_gsu_who_pays: { ur: "Kis ne kis ko dena hai", en: "Who pays whom" },
+  stmt_gsu_all_settled: { ur: "Sab ka hisaab barabar — kuch baqi nahi.", en: "Everyone is settled up — nothing outstanding." },
+  stmt_gsu_expenses: { ur: "Kharche", en: "Expenses" },
+  stmt_gsu_col_paid_by: { ur: "Kis ne diya", en: "Paid by" },
+  stmt_gsu_col_amount: { ur: "Raqam", en: "Amount" },
+  stmt_gsu_no_expenses: { ur: "Koi kharcha record nahi hua.", en: "No expenses recorded." },
+  stmt_gsu_total: { ur: "Kul", en: "Total" },
+  stmt_gsu_footer: {
+    ur: "Upar diye gaye transfers ho jayein to group ka hisaab barabar. Hisaab ne {date} ko banaya. Yeh record kiye gaye kharchon ka khulasa hai, qanooni document nahi. E&OE.",
+    en: "Complete the transfers above to settle the group. Generated by Hisaab on {date}. A summary of recorded expenses, not a legal document. E&OE.",
+  },
+  // Kameti payout slip PDF.
+  stmt_kslip_round: { ur: "Baari {r} / {n}", en: "Round {r} of {n}" },
+  stmt_kslip_committee: { ur: "Kameti", en: "Committee" },
+  stmt_kslip_organiser: { ur: "Organiser", en: "Organiser" },
+  stmt_kslip_payout: { ur: "Payout · {currency}", en: "Payout · {currency}" },
+  stmt_kslip_received_by: { ur: "{name} ko mila", en: "Received by {name}" },
+  stmt_kslip_contributed: { ur: "Ab tak jama kiye", en: "Contributed so far" },
+  stmt_kslip_net: { ur: "Net hisaab", en: "Net position" },
+  stmt_kslip_verify_title: { ur: "Is kameti ko live verify karein", en: "Verify this kameti live" },
+  stmt_kslip_verify_body: {
+    ur: "Is read-only link se koi bhi har contribution aur provably-fair draw check kar sakta hai.",
+    en: "Anyone with this read-only link can check every contribution and the provably fair draw.",
+  },
+  stmt_kslip_footer: {
+    ur: "Sirf record: Hisaab kameti ka hisaab rakhta hai, pool kabhi apne paas nahi rakhta. {date} ko banaya gaya. E&OE.",
+    en: "A no-custody record: Hisaab tracks the committee and never holds the pool. Generated on {date}. E&OE.",
+  },
+  // Payment-received receipt text ({base} — {suffix}.).
+  stmt_rcpt_received_on: { ur: "{date} ko aap se {amount} mil gaye", en: "Received {amount} from you on {date}" },
+  stmt_rcpt_received: { ur: "Aap se {amount} mil gaye", en: "Received {amount} from you" },
+  stmt_rcpt_remaining: { ur: "baqi {amount}", en: "remaining {amount}" },
+  stmt_rcpt_settled: { ur: "ab hisaab barabar", en: "now fully settled" },
+  // ── 2026-09-19 statements END ──
+  // ── 2026-09-19 toast + inbox paging ──
+  // Inbox Incoming / Outgoing (src/lib/inboxPaging.ts): pending requests always
+  // show; settled history shows 10, then 20 more per tap. Counts the settled
+  // history only, which is the part that pages.
+  inbox_history_showing: {
+    ur: "{m} purani requests mein se {n} dikh rahi hain",
+    en: "Showing {n} of {m} past requests",
+  },
+  inbox_history_show_more: { ur: "{n} aur dikhao", en: "Show {n} more" },
+  // ── 2026-09-19 toast + inbox paging END ──
+  // ── 2026-09-19 settings phone + verified ──
+  // One phone number (founder 2026-09-19): it is edited only under Settings →
+  // My Account (settings_mobile); the discovery card keeps just the "let
+  // people with my number find me" switch (disc_my_phone_toggle / _desc).
+  // Shown under the input while adding the FIRST number, before Save: saving
+  // it switches discovery on (src/lib/myPhone.ts discoverableForSave).
+  setph_add_note: {
+    ur: "Save hone ke baad, jinke paas ye number pehle se save hai woh aap ko Hisaab par dhoond sakenge. Ye kabhi bhi “Mere number se log mujhe dhoond sakein” se band kar sakte hain.",
+    en: "Once saved, people who already have this number can find you on Hisaab. Turn that off any time under “Let people with my number find me”.",
+  },
+  // Status line under a saved number that is findable (hidden reuses disc_my_phone_hidden).
+  setph_status_findable: {
+    ur: "Jinke paas ye number hai, woh aap ko Hisaab par dhoond sakte hain",
+    en: "People who have this number can find you on Hisaab",
+  },
+  // Toast subtitle after the first number is saved (discovery just turned on).
+  setph_saved_findable: {
+    ur: "Jinke paas ye number hai, ab woh aap ko Hisaab par dhoond sakte hain.",
+    en: "People who already have it can now find you on Hisaab.",
+  },
+  setph_save_failed: {
+    ur: "Ye tabdeeli save nahi hui — internet check kar ke dobara koshish karein.",
+    en: "Couldn't save that change — check your connection and try again.",
+  },
+  // Discovery card: which number it matches, or the invite to add one.
+  setph_disc_uses: { ur: "Aap ka number (Mera Account se): {number}", en: "Your number (from My Account): {number}" },
+  setph_disc_need: {
+    ur: "Pehle Mera Account mein apna mobile number add karein — phir jinke paas woh number hai, woh aap ko dhoond sakenge.",
+    en: "Add your mobile number in My Account first — then people who already have it can find you.",
+  },
+  setph_disc_add_cta: { ur: "Number add karein", en: "Add number" },
+  // ── 2026-09-19 settings phone + verified END ──
+  // ── 2026-09-19 loans + hisaab check ──
+  // Hisaab check "One action": a person's TOTAL across several open loans.
+  check_action_body_many: {
+    ur: "{name} ne kul {amount} dena hai — {n} qarz, sab se purana {days} din se chal raha hai.",
+    en: "{name} owes you {amount} in total across {n} loans — the oldest has been open {days} days.",
+  },
+  // Payment reminder sheet: the system share sheet (native on Android).
+  rmd_share_cta: { ur: "Reminder share karein", en: "Share reminder" },
+  // Brand name on the secondary WhatsApp (contact picker) button.
+  rmd_whatsapp_short: { ur: "WhatsApp", en: "WhatsApp" },
+  rmd_no_number_hint: {
+    ur: "Number save nahi — share karke {name} ko chun lein.",
+    en: "No number saved — share it and pick {name}.",
+  },
+  // Payment reminder sheet: add the contact's number right where it's missing.
+  rmd_add_number_title: { ur: "{name} ka WhatsApp number", en: "{name}'s WhatsApp number" },
+  rmd_add_number_sub: {
+    ur: "Save karein — phir reminder seedha unki chat mein khulega.",
+    en: "Save it and reminders open straight in their chat.",
+  },
+  rmd_add_number_invalid: {
+    ur: "Yeh number WhatsApp par nahi khulega — country code ke saath likhein, jaise +92 300 1234567.",
+    en: "WhatsApp can't open this number — add the country code, e.g. +92 300 1234567.",
+  },
+  // ── 2026-09-19 loans + hisaab check END ──
+  // ── 2026-09-19 group admins ──
+  // Co-admins (supabase-migration-group-admins.sql, src/lib/groupRoles.ts).
+  // The owner is always an admin; admins share the management work; only the
+  // owner deletes the group, transfers it or chooses admins.
+  grp_role_owner: { ur: "Owner", en: "Owner" },
+  grp_role_admin: { ur: "Admin", en: "Admin" },
+  // Lower-case status label under a hero avatar — the member_owner sibling.
+  member_admin: { ur: "admin", en: "admin" },
+  grp_admins_action: { ur: "Admins chunein", en: "Manage admins" },
+  grp_admins_title: { ur: "Group ke admins", en: "Group admins" },
+  grp_admins_body: {
+    ur: "Admin invite link bana sakte hain, group code badal sakte hain, guests ka naam badal ya hata sakte hain, aur group archive ya dobara khol sakte hain. Group delete karna, owner badalna aur admin chunna sirf aap — owner — kar sakte hain. Kisi ko admin banane se group aap ke paas hi rehta hai.",
+    en: "Admins can create invite links, refresh the group code, rename or remove guests, and archive or reopen the group. Only you, the owner, can delete the group, transfer it or choose admins. Making someone an admin never takes the group away from you.",
+  },
+  grp_admins_none: {
+    ur: "Abhi koi aur member Hisaab par is group mein shaamil nahi hua. Pehle kisi ko bulayein — sirf shaamil hone wale members admin ban sakte hain.",
+    en: "Nobody else has joined this group on Hisaab yet. Invite someone first — only members who have joined can be admins.",
+  },
+  grp_admins_needs_update: {
+    ur: "Group admins ke liye server ka update abhi baqi hai — tab tak kisi ko admin nahi banaya ja sakta.",
+    en: "Group admins need a server update that hasn't been applied yet — until then nobody can be made an admin.",
+  },
+  grp_admin_make: { ur: "Admin banayein", en: "Make admin" },
+  grp_admin_remove: { ur: "Admin se hatayein", en: "Remove admin" },
+  grp_admin_made: { ur: "{name} ab admin hain", en: "{name} is now an admin" },
+  grp_admin_made_sub: { ur: "Aap owner hi rahenge.", en: "You're still the owner." },
+  grp_admin_removed: { ur: "{name} ab admin nahi rahe", en: "{name} is no longer an admin" },
+  grp_admin_err_generic: { ur: "Admin tabdeel nahi ho saka", en: "Could not change the admin" },
+  grp_admin_err_needs_update: { ur: "Is ke liye database update chahiye", en: "This needs a database update" },
+  grp_admin_err_needs_update_sub: {
+    ur: "Group admins abhi server par shuru nahi hue. Update ke baad dobara koshish karein.",
+    en: "Group admins aren't switched on on the server yet. Try again after the update.",
+  },
+  grp_admin_err_not_owner: { ur: "Sirf group ka owner admin chun sakta hai", en: "Only the group owner can choose admins" },
+  grp_admin_err_not_eligible: {
+    ur: "Sirf woh members admin ban sakte hain jo Hisaab par group mein shaamil hain",
+    en: "Only members who have joined on Hisaab can be admins",
+  },
+  grp_admin_err_is_owner: { ur: "Owner hamesha admin hota hai", en: "The owner is always an admin" },
+  // Transfer ownership now asks first — the founder handed a group away with a
+  // single tap on a button labelled "Assign another admin". Two bodies: before
+  // the migration the old owner becomes a regular member, after it they stay
+  // on as an admin.
+  grp_transfer_confirm_title: { ur: "{name} ko owner banayein?", en: "Make {name} the owner?" },
+  grp_transfer_confirm_body: {
+    ur: "Aap \"{group}\" ke owner nahi rahenge aur aam member ban jayenge. Is ke baad group delete karna, owner badalna aur admin chunna sirf {name} kar sakenge.",
+    en: "You will no longer own \"{group}\" and will become a regular member. After this only {name} can delete the group, transfer it or choose admins.",
+  },
+  grp_transfer_confirm_body_admin: {
+    ur: "Aap \"{group}\" ke owner nahi rahenge, lekin admin rahenge. Is ke baad group delete karna, owner badalna aur admin chunna sirf {name} kar sakenge.",
+    en: "You will no longer own \"{group}\", but you stay on as an admin. After this only {name} can delete the group, transfer it or choose admins.",
+  },
+  grp_transfer_confirm_cta: { ur: "Owner badlein", en: "Transfer ownership" },
+  grp_leave_owner_blocked: {
+    ur: "Aap is group ke owner hain. Chhorne se pehle menu mein \"Owner badlein\" se kisi aur ko owner banayein.",
+    en: "You own this group. Transfer ownership to someone else first (menu → Transfer ownership), then leave.",
+  },
+  grp_code_refresh_not_allowed: {
+    ur: "Sirf owner ya admin group code badal sakte hain",
+    en: "Only the owner or an admin can refresh the group code",
+  },
+  gev_admin_granted: { ur: "Admin banaye gaye", en: "Made an admin" },
+  gev_admin_revoked: { ur: "Admin se hataye gaye", en: "No longer an admin" },
+  // Copy / share (src/lib/clipboard.ts): a copy that did not happen is never
+  // announced as one.
+  grp_copy_failed: { ur: "Copy nahi ho saka", en: "Couldn't copy" },
+  grp_copy_failed_code_sub: {
+    ur: "Code ko daba kar rakhein aur khud copy karein.",
+    en: "Press and hold the code to copy it yourself.",
+  },
+  ginv_link_ready: { ur: "Invite link tayyar hai", en: "Invite link ready" },
+  ginv_link_ready_sub: { ur: "Neeche Copy ya Share dabayein.", en: "Tap Copy or Share below." },
+  ginv_link_ready_share_sub: {
+    ur: "Share dabayein — share sheet mein Copy bhi hai.",
+    en: "Tap Share — the share sheet has a Copy option too.",
+  },
+  ginv_link_label: { ur: "Invite link", en: "Invite link" },
+  ginv_share: { ur: "Share", en: "Share" },
+  // The share sheet carries the link as its own field, after this line.
+  ginv_share_text: {
+    ur: "Hisaab par \"{group}\" group mein shaamil hon",
+    en: "Join \"{group}\" on Hisaab",
+  },
+  ginv_copy_failed_sub: {
+    ur: "Share dabayein, ya link ko daba kar rakhein aur khud copy karein.",
+    en: "Tap Share, or press and hold the link to copy it yourself.",
+  },
+  ginv_share_failed: { ur: "Share nahi ho saka", en: "Couldn't open sharing" },
+  ginv_members_only_title: {
+    ur: "Invite link sirf owner ya admin bana sakte hain",
+    en: "Only the owner or an admin can create invite links",
+  },
+  ginv_members_only_body: {
+    ur: "Aap group code share kar sakte hain — jis ke paas yeh code ho woh group join kar sakta hai.",
+    en: "You can share the group code instead — anyone who has it can join the group.",
+  },
+  ginv_copy_code_cta: { ur: "Group code copy karein", en: "Copy group code" },
+  // ── 2026-09-19 group admins END ──
 } as const;
 
 type Key = keyof typeof S;

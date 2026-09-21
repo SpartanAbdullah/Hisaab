@@ -44,8 +44,23 @@ describe('buildStatement', () => {
     expect(section.currency).toBe('PKR');
     expect(section.lines.map((l) => l.balance)).toEqual([25000, 20000, 15000]);
     expect(section.lines.map((l) => l.delta)).toEqual([25000, -5000, -5000]);
+    expect(section.lines.map((l) => l.kind)).toEqual(['loan_given', 'repayment_received', 'repayment_received']);
     expect(section.closing).toBe(15000); // positive ⇒ they owe you
     expect(section.estimated).toBe(false);
+  });
+
+  it('tags every line with a language-free kind (renderers phrase it per language)', () => {
+    const loans = [loan({ id: 'L1', type: 'taken', totalAmount: 900, remainingAmount: 600 })];
+    const transactions = [
+      txn({ id: 't1', type: 'loan_taken', amount: 900, relatedLoanId: 'L1', createdAt: '2026-05-12T00:00:00.000Z' }),
+      txn({ id: 't2', type: 'repayment', amount: 300, relatedLoanId: 'L1', createdAt: '2026-05-28T00:00:00.000Z' }),
+    ];
+    const s = buildStatement({ partyName: 'Ahmed', loans, transactions, asOf: '2026-07-02T00:00:00.000Z', scope: 'loan' });
+    const lines = s.sections[0].lines;
+    expect(lines.map((l) => l.kind)).toEqual(['loan_taken', 'repayment_paid']);
+    expect(lines.map((l) => l.description)).toEqual(['Loan taken', 'Repayment paid']); // English labels unchanged
+    expect(lines.map((l) => l.delta)).toEqual([-900, 300]);
+    expect(s.sections[0].closing).toBe(-600);
   });
 
   it('nets given (+) against taken (−) within one currency', () => {
@@ -82,6 +97,7 @@ describe('buildStatement', () => {
     expect(s.sections).toHaveLength(1);
     expect(s.sections[0].estimated).toBe(true);
     expect(s.sections[0].lines.map((l) => l.description)).toEqual(['Loan taken', 'Repayments made (summary)']);
+    expect(s.sections[0].lines.map((l) => l.kind)).toEqual(['loan_taken', 'repayments_made_summary']);
     expect(s.sections[0].lines.map((l) => l.delta)).toEqual([-8000, 5000]);
     expect(s.sections[0].closing).toBe(-3000); // negative ⇒ you owe them
   });
@@ -96,6 +112,7 @@ describe('buildStatement', () => {
     const s = buildStatement({ partyName: 'Ahmed', loans, transactions, asOf: '2026-07-02T00:00:00.000Z', scope: 'loan' });
     const section = s.sections[0];
     expect(section.lines.map((l) => l.description)).toEqual(['Loan given', 'Repayments received (summary)']);
+    expect(section.lines.map((l) => l.kind)).toEqual(['loan_given', 'repayments_received_summary']);
     expect(section.lines.map((l) => l.delta)).toEqual([25000, -15000]);
     expect(section.closing).toBe(10000); // matches the loan's actual remaining
     expect(section.estimated).toBe(true);
@@ -130,6 +147,8 @@ describe('buildStatement', () => {
     const s = buildStatement({ partyName: 'Ahmed', loans, transactions, asOf: '2026-07-02T00:00:00.000Z', scope: 'contact' });
     const section = s.sections[0];
     expect(section.lines[0].description).toBe('Previously settled loans (2) — nothing pending from these');
+    expect(section.lines[0].kind).toBe('settled_earlier');
+    expect(section.lines[0].count).toBe(2);
     expect(section.lines[0].delta).toBe(0);
     // Gross flows visible in both columns — the reader's payments never vanish.
     expect(section.lines[0].grossGiven).toBe(300);
@@ -155,6 +174,8 @@ describe('buildStatement', () => {
     expect(descriptions).toContain('Settled in full 🎉 — April mess');
     expect(descriptions.filter((d) => d === 'Repayment received')).toHaveLength(0); // its history stays folded
     const celebration = s.sections[0].lines.find((l) => l.description.startsWith('Settled in full'))!;
+    expect(celebration.kind).toBe('settled_in_full');
+    expect(celebration.loanNote).toBe('April mess');
     expect(celebration.grossGiven).toBe(100);
     expect(celebration.grossRepaid).toBe(100);
     expect(s.sections[0].lines).toHaveLength(2); // celebration line + open loan
@@ -174,6 +195,11 @@ describe('buildStatement', () => {
     const descriptions = s.sections[0].lines.map((l) => l.description);
     expect(descriptions).toContain('Repayment received — April mess'); // note-less row names its loan
     expect(descriptions).toContain('Repayment received'); // noted row keeps its own note (rendered separately)
+    const [, noteless, noted] = s.sections[0].lines;
+    expect(noteless.kind).toBe('repayment_received');
+    expect(noteless.loanNote).toBe('April mess'); // renderers append it in either language
+    expect(noted.loanNote).toBeUndefined();
+    expect(noted.note).toBe('via Mashreq CDM');
   });
 
   it('collapses a mass catch-up (4+ recent settles) into a single celebratory line', () => {
@@ -190,6 +216,8 @@ describe('buildStatement', () => {
     const descriptions = s.sections[0].lines.map((l) => l.description);
     expect(descriptions).toContain('Recently settled 🎉 — 5 loans cleared, nothing pending from these');
     const collapse = s.sections[0].lines.find((l) => l.description.startsWith('Recently settled'))!;
+    expect(collapse.kind).toBe('settled_recent');
+    expect(collapse.count).toBe(5);
     expect(collapse.grossGiven).toBe(250); // 5 × 50 — the reader sees what they actually paid
     expect(collapse.grossRepaid).toBe(250);
     expect(s.sections[0].lines).toHaveLength(2); // one collapse line + the open loan

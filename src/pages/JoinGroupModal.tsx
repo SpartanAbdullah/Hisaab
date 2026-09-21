@@ -211,7 +211,9 @@ export function JoinGroupModal({ open, onClose }: Props) {
       setSubmitError(null);
       resetConfirm();
       onClose();
-      navigate(`/group/${groupId}`);
+      // Replace the sheet's own history entry (useBackStackLayer), so Back from
+      // the group returns to where the sheet was opened.
+      navigate(`/group/${groupId}`, { replace: true });
     } catch (error) {
       setSubmitError(t(inviteStatusMessageKey(inviteStatusFromThrown(error))));
       // Drop back to the lookup step so the user can fix the code.

@@ -164,6 +164,17 @@ supabase-migration-p3-currencies-iso4217.sql
 #   table, policy or data — only the function — so it sits with the other
 #   late function replacements, before the grants sweep.
 supabase-migration-p3-account-deletion-balance-gate.sql
+# ↓ 2026-09-19 group co-admins: group_members.is_admin, is_group_admin(),
+#   set_group_admin(), and owner-only management widened to owner-or-admin
+#   (invites, join code, guest seats, archive). Replaces archive_group /
+#   unarchive_group (audit-p0-group-deletion-guard), transfer_group_ownership
+#   (audit-p0-account-deletion) and remove_group_guest (p2-guest-members).
+#   MUST come AFTER p3-rls-initplan-and-indexes: that file's §1 drops and
+#   re-creates the split_groups UPDATE policy BY NAME, which would wipe this
+#   file's widened version. It does touch policies, but writes them pre-hoisted
+#   ((SELECT auth.uid())), so the initplan sweep has nothing left to do. Before
+#   the grants sweep, whose allowlists name set_group_admin / is_group_admin.
+supabase-migration-group-admins.sql
 # ↓ reconciliation reads every table above
 supabase-migration-p3-invariant-monitoring.sql
 # ↓ TRULY LAST — the least-privilege sweep over public.* functions. It is a

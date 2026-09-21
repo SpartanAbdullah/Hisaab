@@ -31,6 +31,11 @@ import {
 } from './groupPreview';
 import { isMemberAlreadyExistsError } from './groupGuardErrors';
 import {
+  missingAdminRpcResult,
+  parseSetGroupAdminResult,
+  type SetGroupAdminResult,
+} from './groupRoles';
+import {
   isMissingFunctionError,
   linkStatusFromThrown,
   parseLinkByCodeResponse,
@@ -1370,19 +1375,25 @@ export const splitGroupsDb = {
     const { error } = await supabase.from('split_groups').delete().eq('id', id).eq('user_id', getUserId());
     if (error) throw error;
   },
-  // Owner-only join-code rotation. Join codes expire 14 days after creation or
-  // rotation — trg_split_groups_join_code_expiry
+  // Owner-or-admin join-code rotation. Join codes expire 14 days after creation
+  // or rotation — trg_split_groups_join_code_expiry
   // (supabase-migration-audit-p0-join-abuse-limits.sql SECTION 2) re-stamps
   // join_code_expires_at server-side whenever join_code changes, so this write
   // deliberately does NOT send an expiry of its own (an explicit value would
-  // win over the trigger). The owner-scoped `user_id` filter mirrors delete().
+  // win over the trigger).
+  //
+  // No `user_id` filter any more: that pinned the write to the OWNER, so a
+  // co-admin's rotation (supabase-migration-group-admins.sql §4a) matched zero
+  // rows and the UI announced a new code that was never saved. RLS is the
+  // gate; `.select('id')` makes a refused write visible instead of silent.
   async rotateJoinCode(id: string, joinCode: string, joinCodeNormalized: string) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('split_groups')
       .update({ join_code: joinCode, join_code_normalized: joinCodeNormalized })
       .eq('id', id)
-      .eq('user_id', getUserId());
+      .select('id');
     if (error) throw error;
+    if (!data || data.length === 0) throw new Error(tStatic('grp_code_refresh_not_allowed'));
   },
 };
 
@@ -1744,13 +1755,26 @@ export const groupMembersDb = {
     const { error } = await supabase.from('group_members').insert(rows);
     if (error) throw translateMemberInsertError(error);
   },
-  async update(id: string, changes: Partial<GroupMember>) {
+  // `isAdmin` is deliberately NOT writable here: group_members_admin_flag
+  // refuses a client change (GROUP_ADMIN_RPC_ONLY) and the column may not even
+  // exist yet — admins move only through groupAdminsDb.setAdmin.
+  //
+  // `requireRow`: RLS answers a refused UPDATE with zero rows and no error. A
+  // caller that has already told the user "saved" (an optimistic rename) asks
+  // for the row back and gets a throw instead of a silent no-op.
+  async update(id: string, changes: Partial<GroupMember>, opts: { requireRow?: boolean } = {}) {
     const row: Record<string, unknown> = {};
     if (changes.name !== undefined) row.display_name = changes.name;
     if (changes.profileId !== undefined) row.profile_id = changes.profileId;
     if (changes.role !== undefined) row.role = changes.role;
     if (changes.status !== undefined) row.status = changes.status;
     if (changes.joinedAt !== undefined) row.joined_at = changes.joinedAt;
+    if (opts.requireRow) {
+      const { data, error } = await supabase.from('group_members').update(row).eq('id', id).select('id');
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('GROUP_MEMBER_UPDATE_REFUSED');
+      return;
+    }
     const { error } = await supabase.from('group_members').update(row).eq('id', id);
     if (error) throw error;
   },
@@ -2354,6 +2378,28 @@ export const groupOwnershipDb = {
   },
 };
 
+// Owner-only co-admin grant / removal (supabase-migration-group-admins.sql
+// §5e). The owner stays the owner either way — this is the fix for the
+// founder's "making someone an admin removed me". Failures come back as data
+// (status), never as a throw, including the one the CLIENT detects: on a
+// database without the migration PostgREST answers PGRST202 ("function not in
+// the schema cache") and this returns NEEDS_DB_UPDATE, so the UI can say so
+// instead of showing a raw error.
+export const groupAdminsDb = {
+  async setAdmin(groupId: string, memberId: string, isAdmin: boolean): Promise<SetGroupAdminResult> {
+    const { data, error } = await supabase.rpc('set_group_admin', {
+      p_group_id: groupId,
+      p_member_id: memberId,
+      p_is_admin: isAdmin,
+    });
+    if (error) {
+      if (isMissingFunctionError(error)) return missingAdminRpcResult();
+      throw error;
+    }
+    return parseSetGroupAdminResult(data);
+  },
+};
+
 export const groupsLookupDb = {
   async findByJoinCode(normalizedCode: string): Promise<{ id: string; name: string; emoji: string; currency: string } | null> {
     void normalizedCode;
@@ -2631,6 +2677,11 @@ function mapGroupMember(r: Record<string, unknown>): GroupMember {
     role,
     status: (r.status as GroupMember['status']) ?? 'guest',
     joinedAt: (r.joined_at as string) ?? null,
+    // supabase-migration-group-admins.sql. Read from select('*') on purpose —
+    // naming the column in a select list would 400 on a database that has not
+    // been migrated yet. Absent column ⇒ undefined ("no co-admins on this
+    // server"), never an error.
+    isAdmin: typeof r.is_admin === 'boolean' ? r.is_admin : undefined,
   };
 }
 

@@ -839,7 +839,9 @@ export function QuickEntry({
       if (type === 'repayment' && selectedLoan && selectedLoanIsLinked) {
         reset();
         onClose();
-        navigate(`/loan/${selectedLoan.id}`);
+        // Replace Quick Entry's own history entry (its <Modal>), so Back from
+        // the loan returns to the page Quick Entry was opened on.
+        navigate(`/loan/${selectedLoan.id}`, { replace: true });
         return;
       }
 
@@ -2249,7 +2251,7 @@ export function QuickEntry({
                 <p className="text-[12px] text-iris-text leading-relaxed">{t('ltr_repay_linked_notice')}</p>
                 <button
                   type="button"
-                  onClick={() => { if (selectedLoan) { reset(); onClose(); navigate(`/loan/${selectedLoan.id}`); } }}
+                  onClick={() => { if (selectedLoan) { reset(); onClose(); navigate(`/loan/${selectedLoan.id}`, { replace: true }); } }}
                   className="m-btn m-btn-violet w-full py-2.5 text-[12px]"
                 >{t('ltr_repay_linked_cta')}</button>
               </div>

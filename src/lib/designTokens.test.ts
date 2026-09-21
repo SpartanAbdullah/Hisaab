@@ -218,6 +218,20 @@ describe.each(THEMES)('%s theme — icons, edges, focus (3:1, WCAG 1.4.11)', (th
   });
 });
 
+describe.each(THEMES)('%s theme — the verified seal (3:1, WCAG 1.4.11)', (theme, T) => {
+  // <VerifiedBadge>: a solid rosette in --color-verified with a white check.
+  // It sits beside names on list cards (contacts, groups), in the contact
+  // sheet, and on raised tiles (group cards, the merge picker) — so it must
+  // stand out as a graphic on each of those faces, and its check on it.
+  const S = SURFACES[theme];
+  it.each(['sheet', 'card', 'card-face-bottom', 'control', 'key'])('seal vs %s', (surface) => {
+    expect(contrastRatio(T.verified, S[surface])).toBeGreaterThanOrEqual(3);
+  });
+  it('white check on the seal', () => {
+    expect(contrastRatio('#FFFFFF', T.verified)).toBeGreaterThanOrEqual(3);
+  });
+});
+
 describe('fixed material — labels on buttons, badges and the hero', () => {
   it('white on the brand primary button (middle + bottom of the face)', () => {
     expect(contrastRatio(PRIMARY_BUTTON.ink, PRIMARY_BUTTON.mid)).toBeGreaterThanOrEqual(4.5);

@@ -12,7 +12,6 @@ import { AllocateSettlementModal } from '../components/AllocateSettlementModal';
 import { useEmiStore } from '../stores/emiStore';
 import { useTransactionStore } from '../stores/transactionStore';
 import { useAccountStore } from '../stores/accountStore';
-import { useSplitStore } from '../stores/splitStore';
 import { NavyHero, TopBar } from '../components/NavyHero';
 import { Glyph } from '../components/Glyph';
 import { MoneyDisplay } from '../components/MoneyDisplay';
@@ -26,19 +25,12 @@ import { PaymentReminderModal } from '../components/PaymentReminderModal';
 import { SendStatementModal } from '../components/SendStatementModal';
 import { PageErrorState } from '../components/PageErrorState';
 import { ListSkeleton } from '../components/ListSkeleton';
-import { WhoOwesMeCard } from '../components/WhoOwesMeCard';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
 import { formatMoney } from '../lib/constants';
 import { skeletonDelay } from '../lib/material';
 import { linkedLoanIdSet } from '../lib/linkedLoanIdSet';
 import { useT } from '../lib/i18n';
 import { getPrimaryCurrency } from '../lib/primaryCurrency';
-import {
-  buildAdhocSplitIndex,
-  buildWhoOwesMe,
-  findLikelyDuplicateRows,
-} from '../lib/whoOwesMe';
-import { groupInputsFromNetBalances } from '../lib/whoOwesGroupInputs';
 import {
   getOldestIsoDate,
   getReminderAge,
@@ -75,7 +67,42 @@ type ReminderTarget = {
   startedAt: string | null;
   hasDueDate: boolean;
   phone: string | null;
+  // The contact the loans point at, so the reminder can save a missing number.
+  personId: string | null;
 };
+
+/**
+ * Run `next` once `count` closing sheets have given back their history entry.
+ *
+ * Every <Modal> pushes a history entry while it is open (useBackStackLayer —
+ * the browser/PWA back gesture) and consumes it on close with an ASYNC
+ * `history.back()`. Anything that pushes history in the SAME tick as a close
+ * is undone when that back() lands: a sheet opened in the same tick closes
+ * itself at once, and a route pushed in the same tick bounces back to /loans
+ * (reproduced in headless Chromium, 2026-09-19 — the "Remind does nothing"
+ * report). So a hand-off that has to CLOSE a sheet first waits for its pop;
+ * one that can leave the sheet open simply stacks the next sheet on top (the
+ * reminder does that). useBackStackLayer now guards against both failures
+ * itself (it never undoes a newer entry and holds new sheets until in-flight
+ * backs land); this helper stays because waiting for the pop also leaves no
+ * stale sheet entry behind in history.
+ */
+function afterSheetsClose(count: number, next: () => void) {
+  let seen = 0;
+  let fallback = 0;
+  const onPop = () => {
+    seen += 1;
+    if (seen >= count) finish();
+  };
+  const finish = () => {
+    window.removeEventListener('popstate', onPop);
+    window.clearTimeout(fallback);
+    next();
+  };
+  window.addEventListener('popstate', onPop);
+  // A sheet with no entry to give back sends no pop — never strand the tap.
+  fallback = window.setTimeout(finish, 800);
+}
 
 export function LoansPage() {
   const { loans, loadLoans } = useLoanStore();
@@ -83,25 +110,17 @@ export function LoansPage() {
   const loadPersons = usePersonStore((s) => s.loadPersons);
   const { schedules, loadSchedules } = useEmiStore();
   const { transactions, loadTransactions } = useTransactionStore();
-  // This page reads transaction rows for TWO loan-shaped facts — which loans
-  // were funded by a credit card, and which came from an ad-hoc split — and
-  // both live on the loan's ORIGIN row, which can be years old. The default
-  // 12-month window would drop them and quietly re-classify old card debt as a
-  // person's debt. So: widen coverage to the oldest loan we hold, and no
-  // further (docs/performance.md §7).
+  // This page reads transaction rows for a loan-shaped fact — which loans
+  // were funded by a credit card — and it lives on the loan's ORIGIN row,
+  // which can be years old. The default 12-month window would drop it and
+  // quietly re-classify old card debt as a person's debt. So: widen coverage
+  // to the oldest loan we hold, and no further (docs/performance.md §7).
   const ensureTransactionHistory = useTransactionStore((s) => s.ensureTransactionHistory);
   const { loadAccounts } = useAccountStore();
   const linkedRequests = useLinkedRequestStore((s) => s.requests);
   const loadLinkedRequests = useLinkedRequestStore((s) => s.loadRequests);
   const settlementRequests = useSettlementRequestStore((s) => s.requests);
   const loadSettlementRequests = useSettlementRequestStore((s) => s.loadRequests);
-  // Groups feed the unified "who owes what" card. Raw slices only — filtering
-  // happens inside useMemo (React #185: a selector returning a fresh array on
-  // every call makes useSyncExternalStore's snapshot unstable).
-  const groups = useSplitStore((s) => s.groups);
-  const groupBalances = useSplitStore((s) => s.balances);
-  const loadGroups = useSplitStore((s) => s.loadGroups);
-  const loadBalances = useSplitStore((s) => s.loadBalances);
   const myId = useSupabaseAuthStore((s) => s.user?.id ?? '');
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -127,10 +146,6 @@ export function LoansPage() {
     // loadLinkedRequests is needed so we can exclude linked loans (which must
     // settle via their own confirm flow) from the multi-loan allocation.
     // loadPersons gives us phone numbers for the WhatsApp reminder deep-link.
-    // loadGroups → loadBalances (in that order: loadBalances reads the store's
-    // hydrated groups) gives the who-owes-what card the group side of the
-    // ledger. Two batched queries for every visible expense + settlement, the
-    // same pair the Groups tab already runs — not one fetch per group.
     await Promise.all([
       loadLoans(),
       loadSchedules(),
@@ -139,7 +154,6 @@ export function LoansPage() {
       loadLinkedRequests(),
       loadSettlementRequests(),
       loadPersons(),
-      loadGroups().then(loadBalances),
     ]);
     // Bounded-history top-up. Runs AFTER the loans land (it needs their dates)
     // and resolves without a request whenever the window already reaches back
@@ -147,7 +161,7 @@ export function LoansPage() {
     // year, i.e. almost all of them.
     const oldestLoanAt = oldestCreatedAt(useLoanStore.getState().loans);
     if (oldestLoanAt) await ensureTransactionHistory({ since: oldestLoanAt });
-  }, [loadAccounts, loadLoans, loadSchedules, loadTransactions, loadLinkedRequests, loadSettlementRequests, loadPersons, loadGroups, loadBalances, ensureTransactionHistory]);
+  }, [loadAccounts, loadLoans, loadSchedules, loadTransactions, loadLinkedRequests, loadSettlementRequests, loadPersons, ensureTransactionHistory]);
   const { status: loadStatus, error: loadError, retry: retryLoad } = useAsyncLoad(load);
 
   // Loans mirrored to another Hisaab user (accepted linked pair) — excluded
@@ -200,37 +214,6 @@ export function LoansPage() {
   );
   const activeLoans = peopleLoans.filter((l) => l.status === 'active');
   const settledLoans = peopleLoans.filter((l) => l.status === 'settled');
-
-  // ── Unified "who owes what" (src/lib/whoOwesMe.ts) ─────────────────────────
-  // One row per (person, currency) across loans, linked loans, ad-hoc splits
-  // and group balances. The aggregator has NO account or transaction-as-money
-  // input, so full_tracker and splits_only produce identical rows for the same
-  // loans and groups — ledger-mode loans (no account leg, no transaction row)
-  // are counted exactly like any other loan.
-  //
-  // Transactions are read for ONE purpose: labelling which loans came from an
-  // ad-hoc split. In splits_only mode a split writes no transaction rows at
-  // all, so those loans surface as plain `loan` sources — same money, same
-  // person, only the chip label and deep-link target differ.
-  const adhocByLoanId = useMemo(() => buildAdhocSplitIndex(transactions), [transactions]);
-  const whoOwesGroups = useMemo(
-    () => groupInputsFromNetBalances(groups, groupBalances, myId || null),
-    [groups, groupBalances, myId],
-  );
-  const whoOwesRows = useMemo(
-    () =>
-      buildWhoOwesMe({
-        loans: peopleLoans,
-        groups: whoOwesGroups,
-        contacts: persons,
-        currentProfileId: myId || null,
-        adhocByLoanId,
-      }),
-    [peopleLoans, whoOwesGroups, persons, myId, adhocByLoanId],
-  );
-  // "Bilal the contact" and "Bilal typed by hand" are different keys and stay
-  // different rows — this only offers the user the choice to link them.
-  const whoOwesDuplicates = useMemo(() => findLikelyDuplicateRows(whoOwesRows), [whoOwesRows]);
 
   const sumRemaining = (items: Loan[]) =>
     items.reduce(
@@ -434,15 +417,14 @@ export function LoansPage() {
     group.loans.some((l) => linkedLoanIds.has(l.id));
 
   // Best phone we have for the group, so the WhatsApp reminder can open the
-  // contact's chat directly. Prefer a personId match (exact contact); fall
-  // back to a name match for loans created before the contact existed. Null
-  // ⇒ the reminder opens WhatsApp's picker instead — still works for non-users.
+  // contact's chat directly. A contact-backed group uses THAT contact's number
+  // only — never a same-name stranger's (with none saved, the reminder offers
+  // to add it). Name-only loans, made before the contact existed, fall back
+  // to a name match. Null ⇒ the reminder shares or opens WhatsApp's picker
+  // instead — still works for non-users.
   const groupPhone = (group: LoanGroup): string | null => {
-    for (const l of group.loans) {
-      if (!l.personId) continue;
-      const p = persons.find((x) => x.id === l.personId);
-      if (p?.phone) return p.phone;
-    }
+    const personId = group.loans.find((l) => l.personId)?.personId;
+    if (personId) return persons.find((x) => x.id === personId)?.phone ?? null;
     const byName = persons.find(
       (p) => p.name.trim().toLowerCase() === group.name.trim().toLowerCase(),
     );
@@ -465,8 +447,12 @@ export function LoansPage() {
     return t('reminder_open_days').replace('{count}', String(age.days));
   };
 
+  // The reminder opens ON TOP of the person sheet, which stays open beneath
+  // it (closing it once sent lands back on this person). It used to close the
+  // person sheet in the same tick, and that sheet's history pop then closed
+  // the reminder too — the tap on "Remind" did nothing (afterSheetsClose).
+  // The amount is the person's whole balance in this currency and direction.
   const openReminder = (group: LoanGroup) => {
-    setSelectedGroup(null);
     setReminderTarget({
       personName: group.name,
       amount: group.remaining,
@@ -475,7 +461,16 @@ export function LoansPage() {
       startedAt: getGroupReminderDate(group),
       hasDueDate: groupHasDueDate(group),
       phone: groupPhone(group),
+      personId: group.loans.find((l) => l.personId)?.personId ?? null,
     });
+  };
+
+  // Leaving the person sheet for a loan's own page: close the sheet first and
+  // navigate once its history entry is gone — navigating while it was open
+  // let its closing pop bounce the app straight back to /loans.
+  const openLoanFromSheet = (loanId: string) => {
+    setSelectedGroup(null);
+    afterSheetsClose(1, () => navigate(`/loan/${loanId}`));
   };
 
   // Open a full Statement of Account for this person. The statement itself is
@@ -786,18 +781,6 @@ export function LoansPage() {
           </p>
         )}
 
-        {/* Unified who-owes-what — sits ABOVE the per-direction lists because
-            it is the only surface that nets a person's loans, ad-hoc splits and
-            group balances together. Hidden on the Settled tab, which is about
-            closed history rather than what is outstanding. */}
-        {loadStatus !== 'loading' && tab !== 'settled' && (
-          <WhoOwesMeCard
-            rows={whoOwesRows}
-            duplicateHints={whoOwesDuplicates}
-            defaultExpanded={whoOwesRows.length > 0}
-          />
-        )}
-
         {/* Primary-currency people list */}
         {primaryGroups.length > 0 ? (
           <div className="m-card overflow-hidden divide-y divide-cream-hairline">
@@ -919,7 +902,7 @@ export function LoansPage() {
                     <LoanDrilldownRow
                       key={loan.id}
                       loan={loan}
-                      onClick={() => navigate(`/loan/${loan.id}`)}
+                      onClick={() => openLoanFromSheet(loan.id)}
                     />
                   ))}
               </div>
@@ -974,9 +957,14 @@ export function LoansPage() {
             setShowAllocate(false);
             setSelectedGroup(null);
             void load();
-            // Offer an updated statement now that the balance changed.
+            // Offer an updated statement now that the balance changed — once
+            // BOTH closing sheets (this one and the person sheet) have given
+            // back their history entries; opened in the same tick, their pops
+            // closed the statement the moment it appeared (afterSheetsClose).
             if (paidGroup) {
-              openStatementForGroup(paidGroup, t('soa_nudge_intro').replace('{name}', paidGroup.name));
+              afterSheetsClose(2, () =>
+                openStatementForGroup(paidGroup, t('soa_nudge_intro').replace('{name}', paidGroup.name)),
+              );
             }
           }}
         />
@@ -993,6 +981,7 @@ export function LoansPage() {
           startedAt={reminderTarget.startedAt}
           hasDueDate={reminderTarget.hasDueDate}
           phone={reminderTarget.phone}
+          personId={reminderTarget.personId}
         />
       ) : null}
 

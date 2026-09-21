@@ -38,3 +38,70 @@ export function withLayer(currentState: unknown, layerName: string): LayerState 
     : {};
   return { ...base, layer: layerName };
 }
+
+/**
+ * Sequencing for overlay history entries (2026-09-19). Closing an overlay
+ * consumes its entry with an ASYNC `history.back()`. An overlay that opens in
+ * the same tick pushes its own entry first, and when that back() lands it
+ * lands on the new overlay's entry — which reads as "back pressed" and closes
+ * it at once (the "Remind does nothing" report). So a push waits while any
+ * programmatic back() is still in flight.
+ *
+ * The queue only counts and defers; the hook owns the DOM. `notePop` runs for
+ * EVERY popstate before the overlays' own listeners, and waiters run on the
+ * NEXT tick so no overlay sees the very pop that released it.
+ */
+export interface BackQueue {
+  /** A programmatic history.back() was just issued. */
+  noteBack(): void;
+  /** A popstate arrived, from any source. */
+  notePop(): void;
+  /** Run `fn` once no programmatic back() is in flight — now, if none is. */
+  whenIdle(fn: () => void): void;
+  /** How many programmatic backs are still in flight (for tests). */
+  readonly inFlight: number;
+}
+
+export function createBackQueue(
+  schedule: (fn: () => void, ms: number) => unknown,
+  cancel: (handle: unknown) => void,
+  // A back() that never produces a popstate (the page is going away, or there
+  // was nothing to go back to) must not park every later overlay forever.
+  safetyMs = 600,
+): BackQueue {
+  let inFlight = 0;
+  let waiters: Array<() => void> = [];
+  let safety: unknown = null;
+
+  const release = () => {
+    inFlight = 0;
+    if (safety !== null) {
+      cancel(safety);
+      safety = null;
+    }
+    if (waiters.length === 0) return;
+    const ready = waiters;
+    waiters = [];
+    schedule(() => ready.forEach((fn) => fn()), 0);
+  };
+
+  return {
+    noteBack() {
+      inFlight += 1;
+      if (safety !== null) cancel(safety);
+      safety = schedule(release, safetyMs);
+    },
+    notePop() {
+      if (inFlight === 0) return;
+      inFlight -= 1;
+      if (inFlight === 0) release();
+    },
+    whenIdle(fn) {
+      if (inFlight === 0) fn();
+      else waiters.push(fn);
+    },
+    get inFlight() {
+      return inFlight;
+    },
+  };
+}
