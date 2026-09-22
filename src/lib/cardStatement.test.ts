@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   allocateBillPayment,
+  billAdvancesAsOf,
   buildCardStatement,
   statementInstalmentDates,
   type AdvanceForAllocation,
@@ -220,5 +221,44 @@ describe('allocateBillPayment', () => {
     expect(a.perLoan).toEqual([]);
     expect(a.purchasesApplied).toBe(300);
     expect(a.surplus).toBe(0);
+  });
+});
+
+describe('billAdvancesAsOf — "this cycle" is decided by the PAYMENT date', () => {
+  // Statement/due day 26. Instalment #5 (26 Aug) already paid; #6 due 26 Sep.
+  const schedules = [
+    emi({ id: 'e5', installmentNumber: 5, dueDate: '2026-08-26', status: 'paid' }),
+    emi({ id: 'e6', installmentNumber: 6, dueDate: '2026-09-26' }),
+    emi({ id: 'e7', installmentNumber: 7, dueDate: '2026-10-26' }),
+  ];
+  const loans = [loan()];
+
+  it('a bill paid on 20 Aug (before the Aug due day) owes no September instalment', () => {
+    const [a] = billAdvancesAsOf({ loans, schedules, dueDay: 26, when: new Date(2026, 7, 20, 12) });
+    expect(a).toEqual({ loanId: 'l1', remaining: 3000, dueThisCycle: 0, createdAt: '2026-05-21T00:00:00Z' });
+  });
+
+  it('the same bill recorded today (21 Sep) would step the September instalment', () => {
+    const [a] = billAdvancesAsOf({ loans, schedules, dueDay: 26, when: new Date(2026, 8, 21, 9) });
+    expect(a.dueThisCycle).toBe(1000);
+  });
+
+  it('paid after the Aug due day (29 Aug) → the next due day is 26 Sep, so #6 is this cycle', () => {
+    const [a] = billAdvancesAsOf({ loans, schedules, dueDay: 26, when: new Date(2026, 7, 29, 12) });
+    expect(a.dueThisCycle).toBe(1000);
+  });
+
+  it('an overdue unpaid instalment is always included', () => {
+    const overdue = [emi({ id: 'e5', installmentNumber: 5, dueDate: '2026-07-26' }), ...schedules.slice(1)];
+    const [a] = billAdvancesAsOf({ loans, schedules: overdue, dueDay: 26, when: new Date(2026, 7, 20, 12) });
+    expect(a.dueThisCycle).toBe(1000);
+  });
+
+  it('feeds allocateBillPayment unchanged: an early-dated payment prepays instead of stepping', () => {
+    const advances = billAdvancesAsOf({ loans, schedules, dueDay: 26, when: new Date(2026, 7, 20, 12) });
+    const alloc = allocateBillPayment({ payment: 1500, revolvingPurchases: 500, advances });
+    // Nothing due this cycle → purchases first (500), then 1000 prepays the advance.
+    expect(alloc.purchasesApplied).toBe(500);
+    expect(alloc.perLoan).toEqual([{ loanId: 'l1', principalApplied: 1000 }]);
   });
 });

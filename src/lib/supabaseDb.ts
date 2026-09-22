@@ -439,6 +439,10 @@ export const transactionsDb = {
     if (changes.reconciledAt !== undefined) row.reconciled_at = changes.reconciledAt;
     if (changes.reconciledBy !== undefined) row.reconciled_by = changes.reconciledBy;
     if (changes.receiptPath !== undefined) row.receipt_path = changes.receiptPath;
+    // The entry's DATE (created_at is the user-visible date — there is no
+    // separate column). Without this line a date edit only changed local
+    // state and silently reverted on the next refetch.
+    if (changes.createdAt !== undefined) row.created_at = changes.createdAt;
     const { error } = await supabase.from('transactions').update(row).eq('id', id).eq('user_id', getUserId());
     if (error) throw error;
   },

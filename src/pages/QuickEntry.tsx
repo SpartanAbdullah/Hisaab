@@ -45,6 +45,7 @@ import { statementInstalmentDates } from '../lib/cardStatement';
 import { planEmiRows } from '../lib/emiPlan';
 import { getPrimaryCurrency } from '../lib/primaryCurrency';
 import { localIso } from '../lib/thisWeek';
+import { entryDayToCreatedAt, isFutureLocalDay } from '../lib/localDate';
 import { CategoryPicker } from '../components/CategoryPicker';
 import { ShareKhataLinkSheet } from '../components/ShareKhataLinkSheet';
 import { useT } from '../lib/i18n';
@@ -165,6 +166,10 @@ export function QuickEntry({
   const [hasEmi, setHasEmi] = useState(false);
   const [emiInstallments, setEmiInstallments] = useState('');
   const [emiStartDate, setEmiStartDate] = useState('');
+  // The day a MOVE happened (YYYY-MM-DD, local). '' = today. A card bill is
+  // often recorded days after it was paid, and the date decides which
+  // statement's instalment the payment steps (backlog 2026-09-22 item 1).
+  const [entryDay, setEntryDay] = useState('');
   const [saving, setSaving] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   // `settled`: this save closed a debt (a repayment that cleared its loan, or a
@@ -385,6 +390,7 @@ export function QuickEntry({
     setNotes(''); setContact({ id: null, name: '' }); setRepayTarget(null); setExpandedGroupKey(''); setLoanSearch('');
     setGoalId(''); setConversionRate('');
     setHasEmi(false); setEmiInstallments(''); setEmiStartDate('');
+    setEntryDay('');
     setSplitPlan(null); setShowSplitSheet(false);
     splitSheetAutoOpened.current = false;
   };
@@ -723,6 +729,10 @@ export function QuickEntry({
     return rateIsSane(parseFloat(conversionRate));
   };
 
+  const todayIso = localIso(new Date());
+  const entryDayInFuture = !!entryDay && isFutureLocalDay(entryDay, new Date());
+  const payingCardBill = type === 'transfer' && dstAccount?.type === 'credit_card';
+
   const canSubmit = () => {
     const amt = parseFloat(amount);
     if (!amt) return false;
@@ -741,7 +751,7 @@ export function QuickEntry({
       // Ledger-only: there is no account to require, so the split plan IS the
       // requirement — without one there is nothing this mode could record.
       case 'expense': return isLedgerOnlySplitFlow ? !!splitPlan : !!sourceId;
-      case 'transfer': return !!sourceId && !!destId && sourceId !== destId;
+      case 'transfer': return !!sourceId && !!destId && sourceId !== destId && !entryDayInFuture;
       case 'loan_given': return (isLedgerOnlyPersonFlow || !!sourceId) && !!contact.name.trim();
       case 'loan_taken':
         // Cash advance: the card is the counterparty — require the card
@@ -1242,7 +1252,7 @@ export function QuickEntry({
           const rate = parseFloat(conversionRate) || 1;
           const dAmt = s.currency !== d.currency ? Math.round(amt * rate * 100) / 100 : amt;
           changes.push({ accountName: d.name, currency: d.currency, before: d.balance, after: d.balance + dAmt });
-          input = { type: 'transfer', amount: amt, sourceAccountId: sourceId, destinationAccountId: destId, conversionRate: s.currency !== d.currency ? rate : undefined, notes };
+          input = { type: 'transfer', amount: amt, sourceAccountId: sourceId, destinationAccountId: destId, conversionRate: s.currency !== d.currency ? rate : undefined, notes, createdAt: entryDayToCreatedAt(entryDay, new Date()) };
           break;
         }
         case 'loan_given': { const s = accounts.find(a => a.id === sourceId)!; changes.push({ accountName: s.name, currency: s.currency, before: s.balance, after: s.balance - amt }); input = { type: 'loan_given', amount: amt, sourceAccountId: sourceId, personName: resolvedPerson!.name, personId: resolvedPerson!.id, notes, emiPlan: loanEmiPlan }; break; }
@@ -2326,6 +2336,24 @@ export function QuickEntry({
                   value={category}
                   onChange={setCategory}
                 />
+              </div>
+            )}
+
+            {type === 'transfer' && (
+              <div>
+                <label className="block text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em] mb-2">{t('edit_date_label')}</label>
+                <input
+                  type="date"
+                  value={entryDay || todayIso}
+                  max={todayIso}
+                  onChange={e => setEntryDay(e.target.value)}
+                  className={inputClass}
+                />
+                {entryDayInFuture ? (
+                  <p className="text-[11px] text-warn-600 mt-1.5">{t('date_future_error')}</p>
+                ) : payingCardBill && (
+                  <p className="text-[11px] text-ink-500 mt-1.5">{t('qe_paid_on_hint')}</p>
+                )}
               </div>
             )}
 

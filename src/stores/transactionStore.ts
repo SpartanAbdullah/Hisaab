@@ -51,8 +51,8 @@ import { buildInternalNote, parseInternalNote } from '../lib/internalNotes';
 import { tStatic } from '../lib/i18n';
 import { statusSyncToPaid, uncoveredToPaidIds } from '../lib/emiCoverage';
 import { clampCardCredit } from '../lib/cardCredit';
-import { daysUntilDayOfMonth } from '../lib/inboxInfo';
-import { localIso } from '../lib/thisWeek';
+import { billAdvancesAsOf } from '../lib/cardStatement';
+import { linkedBillPaymentRows, transferEditKeepsMoney } from '../lib/billPaymentEdit';
 import { assertLinkedLoanDeleteAllowed } from '../lib/linkedLoanGuards';
 import { simulateTimeline, validateTradeInput } from '../lib/investmentMath';
 import { rateIsSane } from '../lib/conversionMath';
@@ -2373,11 +2373,6 @@ async function prepareCardBillPlan(inp: {
   }));
 
   if (statementNative && fundedLoans.length > 0) {
-    const dueIn = daysUntilDayOfMonth(cardDueDay, inp.when) ?? 0;
-    const nextStatementIso = localIso(
-      new Date(inp.when.getFullYear(), inp.when.getMonth(), inp.when.getDate() + dueIn),
-    );
-    const schedules = useEmiStore.getState().schedules;
     const sumRemaining = fundedLoans.reduce((s, l) => s + l.remainingAmount, 0);
     // cardBalanceBefore is the PRE-credit balance, so this is the true
     // pre-payment revolving = used − Σ(advance remaining).
@@ -2385,12 +2380,13 @@ async function prepareCardBillPlan(inp: {
       0,
       Math.round(((cardLimit - inp.cardBalanceBefore) - sumRemaining) * 100) / 100,
     );
-    advances = fundedLoans.map((l) => {
-      const next = schedules
-        .filter((s2) => s2.loanId === l.id && s2.status !== 'paid')
-        .sort((a, b) => a.installmentNumber - b.installmentNumber)[0];
-      const dueThisCycle = next && next.dueDate <= nextStatementIso ? next.amount : 0;
-      return { loanId: l.id, remaining: l.remainingAmount, dueThisCycle, createdAt: l.createdAt };
+    // "This cycle's instalment" is decided from the PAYMENT's date (a
+    // back-dated bill steps the instalment of the statement it paid).
+    advances = billAdvancesAsOf({
+      loans: fundedLoans,
+      schedules: useEmiStore.getState().schedules,
+      dueDay: cardDueDay,
+      when: inp.when,
     });
   }
 
@@ -4002,15 +3998,58 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
     }
 
     // A card-bill transfer that auto-settled cash-advance loans carries
-    // ledger rows keyed to ITS amount — editing it would desync them.
-    // Deletion reverses everything, so delete + re-enter is the honest path.
-    if (
-      existing.type === 'transfer' &&
-      get().transactions.some(
-        (t2) => t2.type === 'repayment' && parseInternalNote(t2.notes).meta.linkedTransactionId === existing.id,
-      )
-    ) {
-      throw new Error('This bill payment settled cash-advance records. Delete it and re-enter instead of editing.');
+    // ledger rows keyed to ITS amount and accounts — changing those would
+    // desync them, so that still means delete + re-enter (deletion reverses
+    // everything). The DATE and the note are metadata, though: they are
+    // edited in place, and a new date moves every linked row with it
+    // (backlog 2026-09-22 item 1 — previously fixed by console scripts).
+    if (existing.type === 'transfer') {
+      // The linked rows are stamped within moments of the transfer; make sure
+      // the window around it is loaded before deciding there are none.
+      const around = new Date(new Date(existing.createdAt).getTime() - 86_400_000).toISOString();
+      await get().ensureTransactionHistory({ since: around });
+      const linkedRows = linkedBillPaymentRows(get().transactions, existing.id);
+      if (linkedRows.length > 0) {
+        const transferInput = input as TransferInput;
+        if (!transferEditKeepsMoney(existing, transferInput)) {
+          throw new Error(tStatic('bill_edit_money_locked'));
+        }
+        const nextCreatedAt = input.createdAt;
+        const updated = await runSafeMutation<Transaction>(
+          async (scope) => {
+            const now = new Date().toISOString();
+            const next: Transaction = {
+              ...existing,
+              notes: transferInput.notes ?? '',
+              ...(nextCreatedAt ? { createdAt: nextCreatedAt } : {}),
+              updatedAt: now,
+            };
+            await trackedUpdateTransaction(scope, existing.id, next, existing);
+            if (nextCreatedAt) {
+              for (const row of linkedRows) {
+                await trackedUpdateTransaction(
+                  scope,
+                  row.id,
+                  { ...row, createdAt: nextCreatedAt, updatedAt: now },
+                  row,
+                );
+              }
+            }
+            return next;
+          },
+          refetchMoneyStores,
+          'transactionStore.updateTransaction.billPaymentMeta',
+        );
+        await logActivitySafe(
+          'transaction_modified',
+          nextCreatedAt
+            ? `Re-dated card bill payment (${linkedRows.length} covered instalment record${linkedRows.length > 1 ? 's' : ''} moved with it)`
+            : 'Updated card bill payment note',
+          updated.id,
+          'transaction',
+        );
+        return updated;
+      }
     }
 
     const { updated, description } = await runSafeMutation<{ updated: Transaction; description: string }>(

@@ -34,3 +34,29 @@ export function localMonthIso(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
 }
+
+/** The local calendar day (YYYY-MM-DD) a stored timestamp falls on. Use this,
+ *  never `iso.slice(0, 10)`, to seed a date input from a `createdAt`: the
+ *  slice reads the UTC day, so an entry saved at 02:00 in Dubai (22:00 UTC the
+ *  day before) would show — and on save, move to — the previous day. */
+export function localDayOf(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : localIso(d);
+}
+
+/** True when a YYYY-MM-DD day is after today (local). Money entries record
+ *  what already happened, so a future day is refused. */
+export function isFutureLocalDay(day: string, now: Date): boolean {
+  return day > localIso(now);
+}
+
+/** The `createdAt` to save for an entry the user dated `day` (YYYY-MM-DD).
+ *  Today (or no day at all) → undefined, so the store stamps the real
+ *  current instant and same-day entries keep their natural order. Any other
+ *  day → that day at LOCAL noon (the repo-wide convention for a dated entry:
+ *  noon survives every UTC±12 re-read without landing on a neighbouring day). */
+export function entryDayToCreatedAt(day: string, now: Date): string | undefined {
+  if (!day || day === localIso(now)) return undefined;
+  const d = new Date(`${day}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}

@@ -521,6 +521,23 @@ const S = {
     ur: "Budget aur analytics is nayi tareekh ke mahine mein ginenge.",
     en: "Budgets and analytics will count this under the new date's month.",
   },
+  // Card bill payment date + editing a saved bill payment (backlog 2026-09-22 #1).
+  date_future_error: {
+    ur: "Tareekh aane wale din ki nahi ho sakti.",
+    en: "The date can't be in the future.",
+  },
+  qe_paid_on_hint: {
+    ur: "Jis din paisa account se gaya, woh tareekh chunein.",
+    en: "Pick the day the money actually left your account.",
+  },
+  bill_edit_money_locked: {
+    ur: "Is bill payment ne cash-advance ki qistain ada ki hain, is liye amount aur accounts lock hain. Tareekh aur note badal sakte hain; amount badalna ho to isay delete kar ke dobara add karein.",
+    en: "This bill payment settled cash-advance instalments, so its amount and accounts are locked. You can change its date and note; to change the amount, delete it and add it again.",
+  },
+  bill_edit_date_moves_rows: {
+    ur: "Is payment se ada hui qiston ke records bhi isi tareekh par chale jayenge.",
+    en: "The instalment records this payment covered move to the same date.",
+  },
   edit_rate_label: { ur: "Rate ({src} → {dst})", en: "Rate ({src} → {dst})" },
   tx_group_orphan_note: {
     ur: "Jis group se yeh entry judi thi woh delete ho chuka hai — ab yeh aam entry hai jise aap delete kar sakte hain.",

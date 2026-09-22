@@ -16,6 +16,8 @@ import { formatMoney, formatSignedMoney } from '../lib/constants';
 import { confirmDestructive } from './ConfirmDestructiveSheet';
 import { groupExpensesDb } from '../lib/supabaseDb';
 import { parseInternalNote } from '../lib/internalNotes';
+import { linkedBillPaymentRows } from '../lib/billPaymentEdit';
+import { isFutureLocalDay, localDayOf, localIso } from '../lib/localDate';
 import { useT } from '../lib/i18n';
 import { getActionLabel } from '../lib/transactionLabel';
 import type { Transaction } from '../db';
@@ -86,7 +88,10 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
     );
     setDestAccountId(transaction.type === 'transfer' ? transaction.destinationAccountId ?? '' : '');
     setConversionRate(transaction.conversionRate ? String(transaction.conversionRate) : '');
-    setTxDate((transaction.createdAt ?? '').slice(0, 10));
+    // LOCAL day, never createdAt.slice(0, 10) (the UTC day): an entry saved
+    // after local midnight in UTC+4/+5 would otherwise show — and on save,
+    // move to — the day before.
+    setTxDate(localDayOf(transaction.createdAt ?? ''));
     setCashAdvanceCardId(transaction.type === 'loan_taken' ? transaction.sourceAccountId ?? '' : '');
     // Hydrate contact from personId when present (post-backfill or post-Phase-1
     // rows); fall back to the legacy string cache for the exceptional case
@@ -134,7 +139,9 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
     ? (transaction.destinationAccountId ?? '')
     : (transaction.sourceAccountId ?? '');
   const origCashAdvance = transaction.type === 'loan_taken' ? (transaction.sourceAccountId ?? '') : '';
-  const origDate = (transaction.createdAt ?? '').slice(0, 10);
+  const origDate = localDayOf(transaction.createdAt ?? '');
+  const todayIso = localIso(new Date());
+  const dateInFuture = !!txDate && isFutureLocalDay(txDate, new Date());
   const isDirty =
     amount !== String(transaction.amount) ||
     accountId !== origAccountId ||
@@ -167,6 +174,12 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
     row.relatedLoanId && allTransactions.some((x) => x.type === 'repayment' && x.relatedLoanId === row.relatedLoanId),
   );
 
+  // A card-bill payment that settled cash-advance instalments: its amount and
+  // accounts are locked (the covered-instalment rows are keyed to them), but
+  // its date and note stay editable — a new date moves those rows with it.
+  const billPaymentRows = isTransfer ? linkedBillPaymentRows(allTransactions, transaction.id) : [];
+  const isSettlingBillPayment = billPaymentRows.length > 0;
+
   const transferSource = isTransfer ? accounts.find((a) => a.id === accountId) : null;
   const transferDest = isTransfer ? accounts.find((a) => a.id === destAccountId) : null;
   const transferCrossCurrency = Boolean(
@@ -180,7 +193,7 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
       if (!destAccountId || destAccountId === accountId) return false;
       if (transferCrossCurrency && !(parseFloat(conversionRate) > 0)) return false;
     }
-    if (!txDate) return false;
+    if (!txDate || dateInFuture) return false;
     return true;
   })();
 
@@ -533,6 +546,10 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
           </p>
         </div>
 
+        {isSettlingBillPayment && (
+          <p className="m-inset text-[12px] text-ink-600 p-3 leading-relaxed">{t('bill_edit_money_locked')}</p>
+        )}
+
         <div>
           <label className="form-label">{t('amount_label')}</label>
           <input
@@ -540,7 +557,8 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
             step="0.01"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
-            className="input-field text-center text-lg font-bold tabular-nums"
+            disabled={isSettlingBillPayment}
+            className="input-field text-center text-lg font-bold tabular-nums disabled:opacity-60"
           />
         </div>
 
@@ -551,6 +569,7 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
           <AccountSelect
             accounts={accounts}
             selectedId={accountId}
+            locked={isSettlingBillPayment}
             onSelect={(id) => {
               setAccountId(id);
               // The main account can't also fund itself as a cash advance,
@@ -568,6 +587,7 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
             <AccountSelect
               accounts={accounts.filter((a) => a.id !== accountId)}
               selectedId={destAccountId}
+              locked={isSettlingBillPayment}
               onSelect={(id) => {
                 setDestAccountId(id);
                 setConversionRate('');
@@ -588,7 +608,8 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
               step="0.0001"
               value={conversionRate}
               onChange={(event) => setConversionRate(event.target.value)}
-              className="input-field text-center tabular-nums"
+              disabled={isSettlingBillPayment}
+              className="input-field text-center tabular-nums disabled:opacity-60"
               placeholder="0.00"
             />
             {parseFloat(conversionRate) > 0 && editableAmount > 0 && (
@@ -604,11 +625,17 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
           <input
             type="date"
             value={txDate}
+            max={todayIso}
             onChange={(event) => setTxDate(event.target.value)}
             className="input-field"
           />
-          {txDate !== origDate && (
-            <p className="text-[11px] text-ink-500 mt-1.5">{t('edit_date_hint')}</p>
+          {dateInFuture ? (
+            <p className="text-[11px] text-warn-600 mt-1.5">{t('date_future_error')}</p>
+          ) : txDate !== origDate && (
+            <p className="text-[11px] text-ink-500 mt-1.5">
+              {t('edit_date_hint')}
+              {isSettlingBillPayment && <> {t('bill_edit_date_moves_rows')}</>}
+            </p>
           )}
         </div>
 

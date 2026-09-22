@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localIso, localMonthIso } from './localDate';
+import { entryDayToCreatedAt, isFutureLocalDay, localDayOf, localIso, localMonthIso } from './localDate';
 
 // This repo does NOT pin the test process's timezone (vitest.config.ts runs
 // plain Node; CI's ubuntu-latest defaults to UTC, but a dev machine can be
@@ -108,5 +108,39 @@ describe('localIso — call-site scenarios pinned by the audit', () => {
     const loggedLocalDay = localDayAtFixedOffset(createdAt, 4);
     const streakAnchorLocalDay = '2026-09-03'; // "today" on the user's device
     expect(loggedLocalDay).toBe(streakAnchorLocalDay);
+  });
+});
+
+describe('entry dates (card bill payment / transfer date field)', () => {
+  const now = new Date(2026, 8, 21, 9, 30); // 21 Sep 2026, 09:30 local
+
+  it('today (or blank) saves no createdAt, so the store stamps the real instant', () => {
+    expect(entryDayToCreatedAt('2026-09-21', now)).toBeUndefined();
+    expect(entryDayToCreatedAt('', now)).toBeUndefined();
+  });
+
+  it('a past day saves local noon of THAT day (the August bill paid on 29 Aug)', () => {
+    const iso = entryDayToCreatedAt('2026-08-29', now)!;
+    expect(iso).toBeDefined();
+    const d = new Date(iso);
+    expect(localIso(d)).toBe('2026-08-29');
+    expect(d.getHours()).toBe(12);
+    expect(localDayOf(iso)).toBe('2026-08-29');
+  });
+
+  it('rejects garbage without throwing', () => {
+    expect(entryDayToCreatedAt('not-a-date', now)).toBeUndefined();
+    expect(localDayOf('nope')).toBe('');
+  });
+
+  it('isFutureLocalDay: tomorrow is future, today and the past are not', () => {
+    expect(isFutureLocalDay('2026-09-22', now)).toBe(true);
+    expect(isFutureLocalDay('2026-09-21', now)).toBe(false);
+    expect(isFutureLocalDay('2026-08-29', now)).toBe(false);
+  });
+
+  it('localDayOf reads the LOCAL day of a stored instant', () => {
+    const at = new Date(2026, 7, 29, 1, 15); // 01:15 local on 29 Aug
+    expect(localDayOf(at.toISOString())).toBe('2026-08-29');
   });
 });

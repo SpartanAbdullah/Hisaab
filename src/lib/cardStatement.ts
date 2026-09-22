@@ -237,3 +237,32 @@ export function allocateBillPayment(inp: {
 
   return { perLoan, purchasesApplied, surplus };
 }
+
+/** The allocation inputs for a bill payment made ON `when` (the payment's own
+ *  date, not "now" — a bill paid on 29 Aug and recorded on 21 Sep must step
+ *  the instalment that was due for AUGUST's statement, not September's).
+ *
+ *  Per advance, `dueThisCycle` = its earliest unpaid instalment when that
+ *  instalment falls due on/before the next payment-due day counted from
+ *  `when` (anything overdue is included). Advances are returned in the order
+ *  given (the caller passes them oldest-first). */
+export function billAdvancesAsOf(inp: {
+  loans: Array<Pick<Loan, 'id' | 'remainingAmount' | 'createdAt'>>;
+  schedules: Array<Pick<EmiSchedule, 'loanId' | 'status' | 'installmentNumber' | 'dueDate' | 'amount'>>;
+  /** metadata.dueDay of the card (1–31). */
+  dueDay: number;
+  /** The payment's date. */
+  when: Date;
+}): AdvanceForAllocation[] {
+  const dueIn = daysUntilDayOfMonth(inp.dueDay, inp.when) ?? 0;
+  const nextDueIso = localIso(
+    new Date(inp.when.getFullYear(), inp.when.getMonth(), inp.when.getDate() + dueIn),
+  );
+  return inp.loans.map((l) => {
+    const next = inp.schedules
+      .filter((s) => s.loanId === l.id && s.status !== 'paid')
+      .sort((a, b) => a.installmentNumber - b.installmentNumber)[0];
+    const dueThisCycle = next && next.dueDate <= nextDueIso ? next.amount : 0;
+    return { loanId: l.id, remaining: l.remainingAmount, dueThisCycle, createdAt: l.createdAt };
+  });
+}
