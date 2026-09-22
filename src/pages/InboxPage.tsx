@@ -4,6 +4,7 @@ import { Inbox } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { NavyHero, TopBar } from '../components/NavyHero';
 import { Glyph } from '../components/Glyph';
+import { TypeCapsule } from '../components/TypeCapsule';
 import { badgeCount, skeletonDelay } from '../lib/material';
 import {
   effectiveInboxFilter,
@@ -40,6 +41,7 @@ import { BlockReportSheet, type BlockReportMode } from '../components/BlockRepor
 import { hideBlockedSenders } from '../lib/blockStatus';
 import { buildInboxActionItems, buildInboxInfoItems, isInboxInfoNotification, type ActionContent, type ActionItem, type InfoItem, type InfoIcon as InfoIconKind } from '../lib/inboxInfo';
 import { notificationHref, renderNotificationContent } from '../lib/notificationContent';
+import { linkedRequestKind, notificationKind, settlementKind, type TxnTypeKind } from '../lib/txnTypeCapsule';
 import type { RecurringDueDetail } from '../lib/recurringRunner';
 import { buildWhatsAppUrl } from '../lib/whatsappReminder';
 import { useToast } from '../components/Toast';
@@ -668,6 +670,14 @@ export function InboxPage() {
     return t('ltr_unknown_person');
   }
 
+  // Reader-side type for a settlement card: my own loan in the pair says
+  // whether this is money coming back to me or money I paid back. Both app
+  // modes keep loans, so this resolves in splits_only too.
+  function settlementTypeKind(r: SettlementRequest): TxnTypeKind {
+    const myLoanId = r.fromUserId === myId ? r.requesterLoanId : r.responderLoanId;
+    return settlementKind(loans.find((l) => l.id === myLoanId)?.type);
+  }
+
   // Which-account line for a settlement card, resolved for MY side only
   // (the other user's account id can't be resolved here and is irrelevant).
   // Full tracker only; direction comes from my loan in the pair.
@@ -763,6 +773,7 @@ export function InboxPage() {
         tab={tab}
         busy={busyId === entry.item.id}
         contactName={contactNameForSettlement(entry.item)}
+        typeKind={settlementTypeKind(entry.item)}
         remindUrl={remindUrlFor(entry)}
         accountLine={settlementAccountLine(entry.item)}
         fullTracker={appMode === 'full_tracker'}
@@ -949,6 +960,7 @@ export function InboxPage() {
                   >
                     <RowIcon glyph={icon.glyph} tone={icon.tone} tint={icon.tint} />
                     <div className="min-w-0 flex-1">
+                      <TypeCapsule kind={notificationKind(n)} className="mb-1" />
                       <p className="text-[13px] font-semibold text-ink-900 tracking-[-0.01em] truncate">
                         {content.title || (n.type === 'contact_linked' ? t('ntf_new_connection') : t('ntf_update'))}
                       </p>
@@ -1458,6 +1470,7 @@ function ContactAskCard({
           <Glyph name="user-plus" tone="violet" size={19} />
         </span>
         <div className="min-w-0 flex-1">
+          <TypeCapsule kind="contact" className="mb-1.5" />
           <p className="text-[13.5px] font-semibold text-ink-900 tracking-[-0.01em]">
             {t('clink_card_title').replace('{name}', name)}
           </p>
@@ -1511,12 +1524,14 @@ function waitingLabel(createdAtIso: string, t: (key: I18nKey) => string): string
 }
 
 function SettlementCard({
-  request, tab, busy, contactName, remindUrl, accountLine, fullTracker, onAccept, onReject, onCancel, onReport, onBlock,
+  request, tab, busy, contactName, typeKind, remindUrl, accountLine, fullTracker, onAccept, onReject, onCancel, onReport, onBlock,
 }: {
   request: SettlementRequest;
   tab: Tab;
   busy: boolean;
   contactName: string;
+  /** Reader-side type (Paid back / Received back / Payment). */
+  typeKind: TxnTypeKind;
   remindUrl: string;
   // Pre-resolved which-account line for MY side (or a "record only" note),
   // null when there's nothing to say. Built by settlementAccountLine.
@@ -1555,6 +1570,7 @@ function SettlementCard({
     <div className={`m-card p-4 ${isPending ? 'outline-2 -outline-offset-2 outline-accent-500/40' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
+          <TypeCapsule kind={typeKind} className="mb-1.5" />
           <p className="text-[13.5px] font-semibold text-ink-900 tracking-[-0.01em]">{title}</p>
           <p className={`text-[22px] font-semibold tabular-nums tracking-[-0.02em] mt-[7px] leading-tight ${amountColor}`}>
             {formatMoney(request.amount, request.currency)}
@@ -1697,19 +1713,17 @@ function RequestCard({
     <div className={`m-card p-4 ${isPending && isIncoming ? 'outline-2 -outline-offset-2 outline-iris-500/40' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <p className="text-[13.5px] font-semibold text-ink-900 tracking-[-0.01em]">
-              {title}
-            </p>
-            {/* Phase 2D: marks a "sync past record" request so the recipient
-                sees this is historical, not a fresh-loan announcement. Same
-                accept/decline flow underneath. */}
-            {request.preExistingLoanId && (
-              <span className="m-chip m-chip-violet m-chip-caps shrink-0">
-                {t('inbox_past_record_tag')}
-              </span>
-            )}
+          {/* Type capsule from MY side (Lent / Borrowed), so a long list of
+              asks to one person reads at a glance. Phase 2D's "past record"
+              rides beside it: historical, not a fresh-loan announcement —
+              same accept/decline flow underneath. */}
+          <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+            <TypeCapsule kind={linkedRequestKind(request.kind, !isIncoming)} />
+            {request.preExistingLoanId && <TypeCapsule kind="past_record" />}
           </div>
+          <p className="text-[13.5px] font-semibold text-ink-900 tracking-[-0.01em]">
+            {title}
+          </p>
           {/* The amount, and — incoming — the resulting stance folded in
               beside it, so the user reads "what this means for me" without
               doing the mental math. */}

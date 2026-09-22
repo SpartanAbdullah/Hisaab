@@ -10,12 +10,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal } from './Modal';
 import { Glyph } from './Glyph';
+import { TypeCapsule } from './TypeCapsule';
 import { useAccountStore } from '../stores/accountStore';
 import { formatMoney, formatSignedMoney } from '../lib/constants';
 import { approxOther } from '../lib/currencyValidation';
 import { currencyMeta } from '../lib/design-tokens';
 import { useT } from '../lib/i18n';
 import { useSubmitGuard } from '../lib/useSubmitGuard';
+import { acceptSheetKind } from '../lib/txnTypeCapsule';
 import type { Currency } from '../db';
 
 export interface AcceptIntoAccountRequest {
@@ -105,6 +107,9 @@ export function AcceptIntoAccountSheet({ open, request, onClose, onConfirm }: Pr
       }
     >
       <div className="space-y-4">
+        {/* What this request is for ME — the same capsule the Inbox card wore,
+            so the sheet reads as the row that opened it. */}
+        <TypeCapsule kind={acceptSheetKind(request.flavor, request.direction)} />
         {/* The same irreversibility warning the old confirmDestructive showed,
             on a gold-tinted (heads-up) card. */}
         <div className="m-card m-gold flex items-start gap-2.5 p-3.5">

@@ -4962,6 +4962,20 @@ const S = {
   inbox_settled_sub: { ur: "{amount} clear ho gaye.", en: "{amount} cleared." },
   inbox_err_load: { ur: "Inbox load nahi ho saka", en: "Couldn't load inbox" },
   inbox_past_record_tag: { ur: "purana record", en: "past record" },
+  // Type capsules on Inbox / notification rows (src/lib/txnTypeCapsule.ts),
+  // always from the READER's side.
+  cap_lent: { ur: "Diya", en: "Lent" },
+  cap_borrowed: { ur: "Liya", en: "Borrowed" },
+  cap_received_back: { ur: "Wapas mila", en: "Received back" },
+  cap_paid_back: { ur: "Wapas diya", en: "Paid back" },
+  cap_payment: { ur: "Adaigi", en: "Payment" },
+  cap_group_expense: { ur: "Group kharcha", en: "Group expense" },
+  cap_group_settle: { ur: "Group hisaab", en: "Group settle-up" },
+  cap_group: { ur: "Group", en: "Group" },
+  cap_group_invite: { ur: "Group dawat", en: "Group invite" },
+  cap_kameti: { ur: "Kameti", en: "Kameti" },
+  cap_contact: { ur: "Rabta", en: "Contact" },
+  cap_update: { ur: "Update", en: "Update" },
 
   // ── LoansPage ─────────────────────────────────────────────────────────────
   loans_instalments_left: { ur: "{n} qisten baqi", en: "{n} instalments left" },
