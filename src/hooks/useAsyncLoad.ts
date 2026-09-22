@@ -16,15 +16,30 @@ export interface AsyncLoadResult {
 //
 // Cancels in-flight results on unmount so a late-returning request can't
 // overwrite state on an unmounted or re-mounted component.
-export function useAsyncLoad(load: () => Promise<void>): AsyncLoadResult {
-  const [status, setStatus] = useState<AsyncStatus>('loading');
+//
+// `options.background` (read once, at mount): the caller already holds data
+// worth showing, so the hook starts 'ready' and the FIRST run refreshes
+// silently — no 'loading' flip, no skeleton (stale-while-revalidate; see
+// src/lib/inboxFreshness.ts). A failure still surfaces as 'error', and an
+// explicit retry() always shows 'loading' again.
+export interface AsyncLoadOptions {
+  background?: boolean;
+}
+
+export function useAsyncLoad(load: () => Promise<void>, options?: AsyncLoadOptions): AsyncLoadResult {
+  const [status, setStatus] = useState<AsyncStatus>(options?.background ? 'ready' : 'loading');
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
+  const silentFirstRun = useRef(!!options?.background);
 
   const run = useCallback(() => {
     const token = ++generation.current;
-    setStatus('loading');
-    setError(null);
+    if (silentFirstRun.current) {
+      silentFirstRun.current = false;
+    } else {
+      setStatus('loading');
+      setError(null);
+    }
     void load()
       .then(() => {
         if (token !== generation.current) return;

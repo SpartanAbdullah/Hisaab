@@ -37,6 +37,7 @@ import { useLoanStore } from '../stores/loanStore';
 import { useEmiStore } from '../stores/emiStore';
 import { useCommitteeStore } from '../stores/committeeStore';
 import { useBlockStore } from '../stores/blockStore';
+import { useInboxSyncStore } from '../stores/inboxSyncStore';
 import { BlockReportSheet, type BlockReportMode } from '../components/BlockReportSheet';
 import { hideBlockedSenders } from '../lib/blockStatus';
 import { buildInboxActionItems, buildInboxInfoItems, isInboxInfoNotification, type ActionContent, type ActionItem, type InfoItem, type InfoIcon as InfoIconKind } from '../lib/inboxInfo';
@@ -148,7 +149,20 @@ export function InboxPage() {
     { mode: BlockReportMode; userId: string; name: string; contextId: string } | null
   >(null);
 
+  // Stale-while-revalidate (backlog 2026-09-22 item 8a, src/lib/inboxFreshness.ts).
+  // Decided ONCE per mount: a revisit renders what the stores already hold
+  // and either refreshes in the background ('revalidate') or, inside the
+  // freshness window, skips the fetch ('fresh') — realtime and the resume
+  // refresh keep the cross-user rows current in between. Only a session's
+  // first open ('cold') shows the skeleton.
+  const [loadPlan] = useState(() => useInboxSyncStore.getState().planNow());
+  const skipFirstLoad = useRef(loadPlan === 'fresh');
   const load = useCallback(async () => {
+    // A retry() after a 'fresh' mount must really load, so the skip is spent once.
+    if (skipFirstLoad.current) {
+      skipFirstLoad.current = false;
+      return;
+    }
     await Promise.all([
       loadRequests(), loadSettlements(), loadPersons(),
       // Info-tab sources (cheap; most are already warm from app boot).
@@ -163,14 +177,15 @@ export function InboxPage() {
       // reports its own failure, leaving the previous list in place.
       useBlockStore.getState().loadBlocks(),
     ]);
+    useInboxSyncStore.getState().markLoaded();
   }, [loadRequests, loadSettlements, loadPersons, loadBudgets, loadTransactions, loadTemplates, loadAccounts, loadExpenses, loadNotifications, loadContactLinks]);
-  const { status: loadStatus, error: loadError, retry: retryLoad } = useAsyncLoad(load);
-
-  useEffect(() => {
-    const onFocus = () => { void loadRequests(); void loadSettlements(); };
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [loadRequests, loadSettlements]);
+  const { status: loadStatus, error: loadError, retry: retryLoad } = useAsyncLoad(load, {
+    background: loadPlan !== 'cold',
+  });
+  // No window 'focus' refetch here any more: it re-downloaded requests and
+  // settlements on every focus, unthrottled, on top of resumeGlobalRealtime
+  // (visibilitychange / online / Android appStateChange, 20s cooldown), which
+  // already refetches both — plus notifications and contact asks — on return.
 
   const myId = user?.id ?? '';
 
