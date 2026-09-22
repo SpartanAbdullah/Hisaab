@@ -785,7 +785,7 @@ const S = {
   kslip_pdf: { ur: "Slip bhejein (PDF)", en: "Send slip (PDF)" },
   kslip_received: { ur: "Payout", en: "Payout" },
   kslip_received_line: {
-    ur: "Aap ko {amount} mile — Round {r} of {n}.",
+    ur: "Aap ko {amount} mile — Baari {r} / {n}.",
     en: "You received {amount} — Round {r} of {n}.",
   },
   kslip_intro: { ur: "{name} ne Round {r} ka payout liya.", en: "{name} took the Round {r} payout." },
@@ -5412,6 +5412,29 @@ const S = {
   stmt_rcpt_received: { ur: "Aap se {amount} mil gaye", en: "Received {amount} from you" },
   stmt_rcpt_remaining: { ur: "baqi {amount}", en: "remaining {amount}" },
   stmt_rcpt_settled: { ur: "ab hisaab barabar", en: "now fully settled" },
+  // Group settle-up WhatsApp card + full plan text (groupSettleUp.ts) —
+  // backlog 2026-09-22 item 8b: these were English-only, so an Urdu user's
+  // card opened with an Urdu greeting and carried on in English.
+  stmt_gsu_card_title: { ur: "Hisaab barabar karein — {group}", en: "Settle up — {group}" },
+  stmt_gsu_card_receive: { ur: "Kul mila kar aap ko {amount} milenge.", en: "You'll receive {amount} overall." },
+  stmt_gsu_card_pay: { ur: "Kul mila kar aap ne {amount} dene hain.", en: "You need to pay {amount} overall." },
+  stmt_gsu_card_settled: { ur: "{group} mein aap ka hisaab barabar hai.", en: "You're all settled up in {group}." },
+  stmt_gsu_card_you_pay: { ur: "Aap ne {name} ko {amount} dene hain", en: "You pay {name} {amount}" },
+  stmt_gsu_card_pays_you: { ur: "{name} ne aap ko {amount} dene hain", en: "{name} pays you {amount}" },
+  stmt_gsu_plan_line: { ur: "{from} ne {to} ko {amount} dene hain", en: "{from} pays {to} {amount}" },
+  // Kameti payout slip WhatsApp text (kametiSlipText.ts) — it hardcoded
+  // "Shukriya!" after an English line and "via Hisaab" after an Urdu one.
+  stmt_kslip_thanks: { ur: "Shukriya!", en: "Thank you!" },
+  stmt_kslip_signoff: { ur: "— {name}, via Hisaab", en: "— {name}, via Hisaab" },
+  // Overdue-settlement WhatsApp nudge (settlementNudges.ts) — was roman Urdu
+  // for everyone, whatever the app language.
+  stmt_nudge_greeting: { ur: "Salam {name},", en: "Salam {name}," },
+  stmt_nudge_body: {
+    ur: "Hisaab par maine ek settlement request bheji thi — {amount}.",
+    en: "I sent you a settlement request on Hisaab — {amount}.",
+  },
+  stmt_nudge_close: { ur: "Jab time mile, accept kar dena. Shukriya 🙂", en: "Please accept it when you get a minute. Thank you 🙂" },
+  stmt_nudge_someone: { ur: "Aap ke network mein koi", en: "Someone in your network" },
   // ── 2026-09-19 statements END ──
   // ── 2026-09-19 toast + inbox paging ──
   // Inbox Incoming / Outgoing (src/lib/inboxPaging.ts): pending requests always

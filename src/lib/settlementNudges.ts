@@ -9,6 +9,8 @@
 
 import type { SettlementRequest, Person } from '../db';
 import { buildWhatsAppUrl, hasWhatsAppNumber } from './whatsappReminder';
+import { tStatic } from './i18n';
+import { fillTemplate, type DocT } from './statementText';
 
 const NUDGE_AFTER_DAYS = 3;
 const SNOOZE_DURATION_MS = 24 * 60 * 60 * 1000;
@@ -83,7 +85,7 @@ export function getOverdueSettlements(
     const snoozedUntil = snoozes[r.id];
     if (typeof snoozedUntil === 'number' && snoozedUntil > now) continue;
     const linkedPerson = personByLinkedProfile.get(r.toUserId);
-    const recipientLabel = linkedPerson?.name ?? 'Someone in your network';
+    const recipientLabel = linkedPerson?.name ?? tStatic('stmt_nudge_someone');
     // Deep link only when the number passes the shared sanity check
     // (whatsappReminder.ts) — its min-length guard stops broken chat links
     // that the old local phone-cleaning allowed through.
@@ -97,13 +99,15 @@ export function getOverdueSettlements(
   return nudges.slice(0, limit);
 }
 
-function buildNudgeMessage(recipientName: string, r: SettlementRequest): string {
+/** Exported for the one-language test. `t` defaults to the live UI language —
+ *  the message used to be roman Urdu for everyone (backlog 2026-09-22 item 8b). */
+export function buildNudgeMessage(recipientName: string, r: SettlementRequest, t: DocT = tStatic): string {
   // Light, polite. The amount is intentionally last so the message reads
   // less like a debt-collection notice and more like a friendly check-in.
   return [
-    `Salam ${recipientName},`,
+    fillTemplate(t('stmt_nudge_greeting'), { name: recipientName }),
     '',
-    `Hisaab par maine ek settlement request bheji thi — ${r.currency} ${r.amount.toLocaleString()}.`,
-    'Jab time mile, accept kar dena. Shukriya \u{1F642}',
+    fillTemplate(t('stmt_nudge_body'), { amount: `${r.currency} ${r.amount.toLocaleString()}` }),
+    t('stmt_nudge_close'),
   ].join('\n');
 }

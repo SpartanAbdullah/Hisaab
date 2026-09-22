@@ -60,12 +60,13 @@ export function GroupSettleUpModal({ open, onClose, group, debts, expenses, simp
   const selectedMember = group.members.find((m) => m.id === selectedId);
   const su = useMemo(() => memberSettleUp(debts, selectedId), [debts, selectedId]);
   const greeting = useMemo(
-    () => greetingLine(greetingStyle, selectedMember?.name ?? ''),
-    [greetingStyle, selectedMember?.name],
+    () => greetingLine(greetingStyle, selectedMember?.name ?? '', t),
+    [greetingStyle, selectedMember?.name, t],
   );
+  // One language — the app's, greeting included (backlog 2026-09-22 item 8b).
   const message = useMemo(
-    () => buildMemberCardText(su, { groupName: group.name, currency: group.currency, greeting, fromName: myName || undefined, hideAmounts }),
-    [su, group.name, group.currency, greeting, myName, hideAmounts],
+    () => buildMemberCardText(su, { groupName: group.name, currency: group.currency, greeting, fromName: myName || undefined, hideAmounts }, t),
+    [su, group.name, group.currency, greeting, myName, hideAmounts, t],
   );
   const whatsappUrl = buildWhatsAppUrl(null, message); // group members have no stored phone → picker
 

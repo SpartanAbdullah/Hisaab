@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { getOverdueSettlements, snoozeNudge, isSnoozed } from './settlementNudges';
+import { buildNudgeMessage, getOverdueSettlements, snoozeNudge, isSnoozed } from './settlementNudges';
+import { foreignFragmentsIn, translatorFor, withAppLanguage } from './testing/docLanguage';
 import type { SettlementRequest, Person } from '../db';
 
 function settlement(overrides: Partial<SettlementRequest> = {}): SettlementRequest {
@@ -126,5 +127,34 @@ describe('getOverdueSettlements', () => {
       persons,
     );
     expect(result[0]?.whatsappUrl).toBe(null);
+  });
+});
+
+// One language — the app's (backlog 2026-09-22 item 8b). The nudge used to be
+// roman Urdu for everyone.
+describe('buildNudgeMessage', () => {
+  const r = settlement({ amount: 1500, currency: 'AED' });
+
+  it('is English for an English user', () => {
+    const text = buildNudgeMessage('Bilal', r, translatorFor('en'));
+    expect(text).toBe([
+      'Salam Bilal,',
+      '',
+      'I sent you a settlement request on Hisaab — AED 1,500.',
+      'Please accept it when you get a minute. Thank you 🙂',
+    ].join('\n'));
+    expect(foreignFragmentsIn(text, 'ur')).toEqual([]);
+  });
+
+  it('is roman Urdu for an Urdu user', () => {
+    const text = buildNudgeMessage('Bilal', r, translatorFor('ur'));
+    expect(text).toContain('Hisaab par maine ek settlement request bheji thi — AED 1,500.');
+    expect(text).toContain('Jab time mile, accept kar dena.');
+    expect(foreignFragmentsIn(text, 'en')).toEqual([]);
+  });
+
+  it('follows the app language by default, fallback label included', () => {
+    const [nudge] = withAppLanguage('ur', () => getOverdueSettlements([settlement({ toUserId: 'nobody' })]));
+    expect(nudge?.recipientLabel).toBe('Aap ke network mein koi');
   });
 });

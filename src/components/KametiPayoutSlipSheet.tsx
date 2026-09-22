@@ -4,9 +4,9 @@ import { Modal } from './Modal';
 import { useToast } from './Toast';
 import { useT } from '../lib/i18n';
 import { formatMoney } from '../lib/constants';
-import { moneyFormatter } from '../lib/maskMoney';
 import { poolAmount, memberPosition } from '../lib/committeeMath';
 import { generateKametiSlipPdf } from '../lib/kametiSlipPdf';
+import { buildKametiSlipText } from '../lib/kametiSlipText';
 import { shareStatementFile } from '../lib/shareStatement';
 import { buildWhatsAppUrl } from '../lib/whatsappReminder';
 import type { Committee, CommitteeMember, CommitteePayment } from '../db';
@@ -52,24 +52,24 @@ export function KametiPayoutSlipSheet({ open, onClose, committee, recipient, rou
     [recipient, payments, committee],
   );
 
-  const message = useMemo(() => {
-    const lines: string[] = [];
-    lines.push(`*${t('kslip_title')} — ${committee.name}*`);
-    lines.push(
-      t('kslip_received_line')
-        .replace('{amount}', moneyFormatter(hideAmounts)(pool, committee.currency))
-        .replace('{r}', String(round))
-        .replace('{n}', String(committee.totalRounds)),
-    );
-    lines.push('Shukriya!');
-    if (witnessUrl) {
-      lines.push('');
-      lines.push(`${t('kslip_verify')}: ${witnessUrl}`);
-    }
-    lines.push('');
-    lines.push(organiserName ? `— ${organiserName}, via Hisaab` : '— via Hisaab');
-    return lines.join('\n');
-  }, [t, committee, pool, round, witnessUrl, organiserName, hideAmounts]);
+  // One language — the app's (src/lib/kametiSlipText.ts, backlog item 8b).
+  const message = useMemo(
+    () =>
+      buildKametiSlipText(
+        {
+          committeeName: committee.name,
+          currency: committee.currency,
+          pool,
+          round,
+          totalRounds: committee.totalRounds,
+          witnessUrl,
+          organiserName,
+          hideAmounts,
+        },
+        t,
+      ),
+    [t, committee, pool, round, witnessUrl, organiserName, hideAmounts],
+  );
 
   const whatsappUrl = buildWhatsAppUrl(recipient.phone ?? null, message);
 
