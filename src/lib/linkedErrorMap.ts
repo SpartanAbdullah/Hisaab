@@ -11,6 +11,10 @@ const LINKED_ERROR_KEYS: Array<{ match: string; key: I18nKey }> = [
   { match: 'lsr: loan is no longer active', key: 'lsr_err_loan_inactive' },
   { match: 'lsr: only the target user can accept', key: 'lsr_err_not_target' },
   { match: 'lsr: request not found', key: 'lsr_err_not_found' },
+  // Past-record sync refused at accept (supabase-migration-linked-sync-live-amount.sql).
+  { match: 'ltr: pre_existing loan has been settled or archived', key: 'ltr_err_sync_loan_settled' },
+  { match: 'ltr: pre_existing loan no longer available', key: 'ltr_err_sync_loan_gone' },
+  { match: 'ltr: pre_existing loan changed currency', key: 'ltr_err_sync_loan_gone' },
 ];
 
 export function friendlyLinkedError(raw: string): string {

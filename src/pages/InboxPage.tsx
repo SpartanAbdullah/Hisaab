@@ -52,6 +52,8 @@ import { AcceptIntoAccountSheet, type AcceptIntoAccountRequest } from '../compon
 import { formatMoney } from '../lib/constants';
 import { approxOther, plausibilityCheck } from '../lib/currencyValidation';
 import { friendlyLinkedError } from '../lib/linkedErrorMap';
+import { reportError } from '../lib/errorReporter';
+import { pendingSyncDisplayAmount, pendingSyncView, type PendingSyncView } from '../lib/pendingSyncAmount';
 import { useCategoryOptions } from '../lib/mergedCategories';
 import { useT, type I18nKey } from '../lib/i18n';
 import { daysWaiting } from '../lib/notificationCounts';
@@ -440,11 +442,14 @@ export function InboxPage() {
     const req = requests.find((r) => r.id === id);
     setBusyId(id);
     try {
-      await accept(id, accountId);
+      // The returned row carries the amount actually mirrored — for a
+      // past-record sync that is the sender's live remaining, which may have
+      // moved since the request was sent.
+      const updated = await accept(id, accountId);
       toast.show({
         type: 'success',
         title: t('inbox_accepted_title'),
-        subtitle: req ? t('inbox_accepted_sub').replace('{amount}', formatMoney(req.amount, req.currency)) : undefined,
+        subtitle: req ? t('inbox_accepted_sub').replace('{amount}', formatMoney(updated.amount, updated.currency)) : undefined,
       });
       return true;
     } catch (err) {
@@ -458,7 +463,19 @@ export function InboxPage() {
 
   const handleAccept = async (id: string) => {
     // Tier-2: cross-user, irreversible, currency-locks on accept → deliberate confirm.
-    const req = requests.find((r) => r.id === id);
+    let req = requests.find((r) => r.id === id);
+    // A past-record sync follows the sender's loan while it is pending (the
+    // server refreshes its amount on every repayment), so re-read it before
+    // quoting a figure in the confirm. Best effort: the accept mirrors the
+    // live loan regardless of what this copy says.
+    if (req?.preExistingLoanId) {
+      try {
+        await useLinkedRequestStore.getState().loadRequests();
+        req = useLinkedRequestStore.getState().requests.find((r) => r.id === id) ?? req;
+      } catch (err) {
+        reportError(err, { feature: 'inbox.accept.refreshSync', extra: { requestId: id } });
+      }
+    }
     if (req) {
       // Defense-in-depth: refuse an implausible amount before it mirrors onto
       // your ledger, even if it slipped past the sender's guard.
@@ -737,9 +754,12 @@ export function InboxPage() {
       : (entry.item as LinkedRequest).kind === 'lent'
         ? t('req_remind_linked_lent')
         : t('req_remind_linked_borrowed');
+    const quoted = isLinked
+      ? pendingSyncDisplayAmount(entry.item, pendingSyncView(entry.item as LinkedRequest, user?.id, loans))
+      : entry.item.amount;
     const message = template
       .replaceAll('{name}', name)
-      .replaceAll('{amount}', formatMoney(entry.item.amount, entry.item.currency));
+      .replaceAll('{amount}', formatMoney(quoted, entry.item.currency));
     return buildWhatsAppUrl(phone, message);
   }
 
@@ -755,6 +775,7 @@ export function InboxPage() {
         contactName={contactNameFor(entry.item)}
         remindUrl={remindUrlFor(entry)}
         accountLine={linkedAccountLine(entry.item)}
+        syncView={pendingSyncView(entry.item, user?.id, loans)}
         onAccept={() => handleAccept(entry.item.id)}
         onReject={() => handleReject(entry.item.id)}
         onCancel={() => handleCancel(entry.item.id)}
@@ -1655,7 +1676,7 @@ function SettlementCard({
 }
 
 function RequestCard({
-  request, tab, busy, contactName, remindUrl, accountLine, onAccept, onReject, onCancel, onReport, onBlock,
+  request, tab, busy, contactName, remindUrl, accountLine, syncView, onAccept, onReject, onCancel, onReport, onBlock,
 }: {
   request: LinkedRequest;
   tab: Tab;
@@ -1665,6 +1686,9 @@ function RequestCard({
   // Pre-resolved which-account line for MY side (or a "record only" note),
   // null when there's nothing to say. Built by linkedAccountLine.
   accountLine: string | null;
+  // Outgoing past-record sync only: the loan as it is now vs what was sent
+  // (backlog 2026-09-22 item 5). 'not_applicable' everywhere else.
+  syncView: PendingSyncView;
   onAccept: () => void;
   onReject: () => void;
   onCancel: () => void;
@@ -1674,7 +1698,19 @@ function RequestCard({
 }) {
   const t = useT();
   const isPending = request.status === 'pending';
-  const amountText = formatMoney(request.amount, request.currency);
+  // A pending sync whose loan was repaid since sending shows the live
+  // remaining — the figure the accept will actually mirror.
+  const amountText = formatMoney(pendingSyncDisplayAmount(request, syncView), request.currency);
+  const syncLine = syncView.state === 'changed'
+    ? t('ltr_sync_amount_now')
+        .replace('{sent}', formatMoney(syncView.sent, request.currency))
+        .replace('{now}', formatMoney(syncView.current, request.currency))
+    : syncView.state === 'settled'
+      ? t('ltr_sync_loan_settled')
+      : syncView.state === 'gone'
+        ? t('ltr_sync_loan_gone')
+        : null;
+  const syncLineWarns = syncView.state === 'settled' || syncView.state === 'gone';
   const isIncoming = tab === 'incoming';
 
   let title: string;
@@ -1735,6 +1771,11 @@ function RequestCard({
               <span className={`text-[11.5px] font-semibold ${isClosed ? 'text-ink-500' : stanceColor}`}>{stanceClause}</span>
             )}
           </p>
+          {syncLine && (
+            <p className={`text-[11px] mt-1.5 leading-snug tabular-nums ${syncLineWarns ? 'font-semibold text-pay-text' : 'text-ink-600'}`}>
+              {syncLine}
+            </p>
+          )}
           {request.note ? (
             <p className="text-[11.5px] text-ink-600 mt-1.5 leading-[1.55] truncate">&ldquo;{request.note}&rdquo;</p>
           ) : null}

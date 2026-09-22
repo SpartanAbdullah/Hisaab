@@ -177,6 +177,13 @@ supabase-migration-p3-account-deletion-balance-gate.sql
 supabase-migration-group-admins.sql
 # ↓ daily-close markers: a new self-only table, no functions, no dependencies
 supabase-migration-daily-close.sql
+# ↓ 2026-09-22 backlog item 5: a pending "Sync this record" mirrors the loan as
+#   it is at accept time. Replaces accept_linked_request(text, text), whose
+#   latest definition is audit-p0-settlement-row-locks (no later file replaces
+#   it; p2-trust-safety's ltr_block_accept trigger is untouched), and adds the
+#   AFTER UPDATE trigger loans_refresh_pending_sync. Creates a function, so it
+#   must precede the grants sweep; reads nothing p3-invariant-monitoring owns.
+supabase-migration-linked-sync-live-amount.sql
 # ↓ reconciliation reads every table above
 supabase-migration-p3-invariant-monitoring.sql
 # ↓ TRULY LAST — the least-privilege sweep over public.* functions. It is a

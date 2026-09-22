@@ -563,6 +563,29 @@ const S = {
     ur: "Yeh request ab mojood nahi (shayad cancel ho gayi). Inbox refresh karein.",
     en: "This request no longer exists (it may have been cancelled). Refresh your inbox.",
   },
+  // Past-record sync refused at accept time (supabase-migration-linked-sync-
+  // live-amount.sql): the sender's loan moved while the request sat pending.
+  ltr_err_sync_loan_settled: {
+    ur: "Bhejne wale ki taraf yeh record is dauran poora ada ho chuka hai — confirm karne ko kuch baqi nahi. Isay reject kar dein.",
+    en: "This record was fully paid off on the sender's side in the meantime — there's nothing left to confirm. Reject it.",
+  },
+  ltr_err_sync_loan_gone: {
+    ur: "Bhejne wale ne yeh record is dauran delete ya tabdeel kar diya. Isay reject karein aur un se dobara sync karne ko kahein.",
+    en: "The sender deleted or changed this record in the meantime. Reject it and ask them to sync it again.",
+  },
+  // Outgoing card of a pending past-record sync whose loan moved since sending.
+  ltr_sync_amount_now: {
+    ur: "{sent} bheja tha · wapsi ke baad ab {now} — accept par yahi record hoga",
+    en: "Sent as {sent} · now {now} after repayments — this is what they'll get",
+  },
+  ltr_sync_loan_settled: {
+    ur: "Yeh record ab poora ada ho chuka hai, woh isay accept nahi kar sakenge. Request wapas le lein.",
+    en: "This record is fully paid now, so they can't accept it. Withdraw the request.",
+  },
+  ltr_sync_loan_gone: {
+    ur: "Yeh record delete ya tabdeel ho chuka hai, woh isay accept nahi kar sakenge. Request wapas le lein.",
+    en: "This record was deleted or changed, so they can't accept it. Withdraw the request.",
+  },
   // Stale-schema fallback: the server hasn't accepted the widened currency
   // list yet (supabase-migration-audit-p0-currencies.sql). Never a client-side
   // block — every currency in src/lib/currencies.ts stays selectable in the UI.
