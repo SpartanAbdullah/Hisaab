@@ -6,6 +6,7 @@ import { resetAllUserStores } from './resetAllStores';
 import { accountDeletionDb } from '../lib/supabaseDb';
 import { stopPushRegistration } from '../lib/pushRegistration';
 import { cancelAllScheduledNotifications } from '../lib/notificationScheduler';
+import { clearWidgetSnapshot } from '../lib/widgetBridge';
 import { reportError, reportMessage } from '../lib/errorReporter';
 import { getCachedProfile, invalidateProfileCache } from '../lib/profileCache';
 
@@ -127,6 +128,9 @@ async function teardownDeviceNotifications(): Promise<void> {
   await Promise.all([
     withTeardownTimeout('push token unregister', stopPushRegistration()),
     withTeardownTimeout('scheduled reminder cancel', cancelAllScheduledNotifications()),
+    // The home-screen widget shows today's entry count + streak; the next
+    // holder of this phone must not see the leaving account's.
+    withTeardownTimeout('widget snapshot clear', clearWidgetSnapshot()),
   ]);
 }
 
@@ -219,6 +223,9 @@ export const useSupabaseAuthStore = create<SupabaseAuthState>((set, get) => ({
           } else {
             const previousUserId = localStorage.getItem('hisaab_supabase_uid');
             invalidateProfileCache();
+            // Session ended outside signOut() (expiry, revoked elsewhere):
+            // the widget must not keep showing this account's status.
+            void clearWidgetSnapshot();
             await resetAllUserStores(previousUserId ?? undefined);
             localStorage.removeItem('hisaab_supabase_uid');
           }

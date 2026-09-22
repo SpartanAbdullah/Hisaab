@@ -73,6 +73,24 @@
 
         </activity>
 
+        <!--
+          Home-screen widget: today's status + Add expense / Close today
+          (java/com/usehisaab/app/widget/QuickAddWidget.java). Exported so the
+          system AppWidgetManager can deliver APPWIDGET_UPDATE; it only
+          redraws from the app's own snapshot, so there is nothing to abuse.
+        -->
+        <receiver
+            android:name=".widget.QuickAddWidget"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_quick_add_info" />
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

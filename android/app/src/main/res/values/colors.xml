@@ -6,4 +6,17 @@
          capacitor.config.ts and the edge function's android.notification.color,
          so both delivery paths look like one app in the tray. -->
     <color name="hisaab_notification">#0B0E2A</color>
+
+    <!-- Home-screen widget (layout/widget_quick_add.xml). Fixed dark card in
+         both system themes, like the in-app hero. Contrast on widget_bg:
+         widget_text about 17:1, widget_text_muted about 11:1; white on
+         widget_primary about 6:1 (all AA). -->
+    <color name="widget_bg">#0A0A14</color>
+    <color name="widget_stroke">#2A2640</color>
+    <color name="widget_text">#F3EFFF</color>
+    <color name="widget_text_muted">#C9C4E8</color>
+    <color name="widget_primary">#5B47E8</color>
+    <color name="widget_on_primary">#FFFFFF</color>
+    <color name="widget_secondary">#211C3C</color>
+    <color name="widget_secondary_stroke">#3A3360</color>
 </resources>

@@ -3772,6 +3772,16 @@ const S = {
   home_close_entries: { ur: "{n} entries · streak {s}", en: "{n} entries · streak {s}" },
   home_close_entries_one: { ur: "1 entry · streak {s}", en: "1 entry · streak {s}" },
   home_close_done: { ur: "Band ✓ · streak {s}", en: "Closed ✓ · streak {s}" },
+  // Android home-screen widget (src/lib/widgetSnapshot.ts). Counts and the
+  // streak only — the widget sits on the home screen, never amounts or names.
+  widget_today_entries: { ur: "Aaj: {n} entries · streak {s}", en: "Today: {n} entries · streak {s}" },
+  widget_today_one: { ur: "Aaj: 1 entry · streak {s}", en: "Today: 1 entry · streak {s}" },
+  widget_open: { ur: "Aaj abhi band nahi hua", en: "Not closed yet" },
+  widget_open_streak: { ur: "Abhi band nahi hua · streak {s}", en: "Not closed yet · streak {s}" },
+  widget_done: { ur: "Din band ✓ · streak {s}", en: "Day closed ✓ · streak {s}" },
+  widget_neutral: { ur: "Tap karke aaj ka hisaab likhein", en: "Tap to log today" },
+  widget_add: { ur: "Kharcha likhein", en: "Add expense" },
+  widget_close: { ur: "Din band karein", en: "Close today" },
   // Settings — the daily-close switch (native only).
   settings_close: { ur: "Roz shaam ka hisaab", en: "Daily close" },
   settings_close_desc: {

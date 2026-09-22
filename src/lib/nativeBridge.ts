@@ -15,6 +15,7 @@ import { isNativeRuntime } from './runtime';
 import { extractDeepLinkPath } from './deepLinkRoute';
 import { rescheduleNotifications } from './notificationScheduler';
 import { resumeGlobalRealtime } from './realtime';
+import { installWidgetSync, scheduleWidgetRefresh } from './widgetBridge';
 import { useUIStore } from '../stores/uiStore';
 import { track } from './telemetry';
 
@@ -156,7 +157,14 @@ export async function initNativeBridge(opts: {
       // stale data until the user force-closed it — the single biggest cause
       // of "the notification took ages / only showed after a restart".
       resumeGlobalRealtime();
+      // The home-screen widget's "today" may have rolled over while we were
+      // backgrounded — rewrite its snapshot (debounced, no-op if unchanged).
+      scheduleWidgetRefresh();
     });
+
+    // Home-screen widget: keep its snapshot in step with today's entries,
+    // closes, app mode and language (src/lib/widgetBridge.ts).
+    installWidgetSync();
 
     // Notification taps route into the app (href stashed at schedule time).
     try {

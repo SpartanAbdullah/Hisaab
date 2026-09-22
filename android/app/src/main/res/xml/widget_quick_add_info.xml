@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Home-screen widget metadata (QuickAddWidget). About 4x1 cells; resizable so
+  a launcher with short cells can give it a second row. updatePeriodMillis is
+  the 30-minute floor: it only rolls "today" over after midnight. The app
+  pushes fresh snapshots itself (HisaabWidget.refresh()).
+  targetCellWidth/Height, previewLayout and description are Android 12+;
+  older launchers ignore them and use minWidth/minHeight plus the app icon.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_description"
+    android:initialLayout="@layout/widget_quick_add"
+    android:minWidth="250dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="40dp"
+    android:previewLayout="@layout/widget_quick_add"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

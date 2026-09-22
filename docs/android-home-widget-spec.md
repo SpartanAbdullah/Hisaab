@@ -1,105 +1,72 @@
-# Android home-screen widget — implementation spec
+# Android home-screen widget — as built (2026-09-22)
 
-This is the one W7 piece that can't live in the React/Capacitor layer: a true
-home-screen widget is native Android (a `AppWidgetProvider`). It's specced here
-so it can be dropped into `android/app/src/main` directly.
+Replaces the original W7 spec (cream card, balance at a glance, `hisaab://`
+scheme). What shipped instead serves the daily-logging habit, shows no money,
+and reuses the https deep links the launcher shortcuts already use.
 
-## Goal
+## What it shows
 
-A small home-screen widget that delivers the app's two highest-frequency jobs
-without opening Hisaab:
+About a 4x1 dark card (the app's hero base, `#0A0A14`), resizable:
 
-1. **One-tap quick-add** — tapping the widget (or its `+`) opens the app
-   straight into Quick Entry / the AI quick-add bar. This is the killer use:
-   log "karak 3 aed" in 2 seconds from the home screen.
-2. **At-a-glance balance** — show the primary-account balance (or net) and the
-   primary currency, so the user sees their money without launching anything.
+- the Hisaab mark and name, then a one-line status for today:
+  `Today: 3 entries · streak 12`, `Not closed yet · streak 12`,
+  `Day closed ✓ · streak 12`, or the neutral `Tap to log today`
+- **Add expense** opens QuickEntry on the amount step (`/?add=expense`, App.tsx)
+- **Close today** opens the daily-close sheet (`/?close=today`, HomePage)
+- tapping the header/status opens the app
 
-Keep it calm and on-brand (Sukoon): cream surface, navy text, one accent pill
-for the `+`.
+**Privacy rule:** the widget is on the home screen for anyone to see. It shows
+entry **counts** and the streak only, never amounts, balances, payees or names.
+`widgetSnapshot.ts` has a test that pins the snapshot's fields.
 
-## Files to add (native Android)
+Ledger-only (`splits_only`) mode has no daily close, so the status stays
+neutral and the Close button is hidden. Add expense still works there.
 
-```
-android/app/src/main/
-  java/<pkg>/HisaabWidgetProvider.kt        # AppWidgetProvider subclass
-  res/layout/widget_hisaab.xml              # RemoteViews layout
-  res/xml/hisaab_widget_info.xml            # AppWidgetProviderInfo
-  res/drawable/widget_bg.xml                # rounded cream background
-```
+## Files
 
-And register the provider in `AndroidManifest.xml`:
+| Side | File |
+|---|---|
+| Provider | `android/app/src/main/java/com/usehisaab/app/widget/QuickAddWidget.java` |
+| JS bridge plugin | `android/.../widget/HisaabWidgetPlugin.java` (`HisaabWidget.refresh()`), registered in `MainActivity.onCreate` before `super` |
+| Layout / info | `res/layout/widget_quick_add.xml`, `res/xml/widget_quick_add_info.xml` |
+| Look | `res/drawable/widget_quick_add_bg.xml`, `widget_button_primary.xml`, `widget_button_secondary.xml`, `widget_*` colours in `res/values/colors.xml` |
+| Manifest | `<receiver android:name=".widget.QuickAddWidget" exported="true">` with `APPWIDGET_UPDATE` |
+| Snapshot builder (pure, tested) | `src/lib/widgetSnapshot.ts` + `.test.ts` |
+| Bridge | `src/lib/widgetBridge.ts` |
 
-```xml
-<receiver
-    android:name=".HisaabWidgetProvider"
-    android:exported="false">
-  <intent-filter>
-    <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-  </intent-filter>
-  <meta-data
-      android:name="android.appwidget.provider"
-      android:resource="@xml/hisaab_widget_info" />
-</receiver>
-```
+## Data flow: JS to prefs to widget
 
-## Data bridge (web → widget)
+1. `widgetBridge.installWidgetSync()` (called from `nativeBridge`) subscribes to
+   the transaction, daily-close, app-mode and language stores. App resume also
+   calls `scheduleWidgetRefresh()`. Writes are debounced (1.5 s) and skipped
+   when the rendered result would not change.
+2. It computes `dayActivity` + `computeCloseStreak` for the local day, builds the
+   snapshot with every string **already localized in the in-app language**
+   (the `widget_*` keys in `i18n.ts`, because Android's locale is not the app's
+   language), and writes it with `@capacitor/preferences`. That is the
+   SharedPreferences file `CapacitorStorage`, key `widget_snapshot` (the plugin's
+   default group stores keys as-is).
+3. It calls `HisaabWidget.refresh()`, which redraws every placed widget.
+   `updatePeriodMillis` (30 min, the floor) is the backstop.
+4. The provider reads the JSON. If its `day` is not the device's current date,
+   it shows the snapshot's localized `neutral` text. With no snapshot at all, it
+   uses the English resource fallbacks.
 
-The widget can't call the React app. Use **`@capacitor/preferences`** (already a
-dependency) which writes to Android `SharedPreferences`; the widget reads the
-same store.
+Sign-out (and account deletion, a blocked deleted account, or a session that
+ends elsewhere) removes the snapshot and redraws the widget as neutral
+(`supabaseAuthStore` teardown → `clearWidgetSnapshot`).
 
-- In the web app, whenever the home balance changes, persist a tiny snapshot:
+## Verify on device (founder)
 
-  ```ts
-  import { Preferences } from '@capacitor/preferences';
-  await Preferences.set({
-    key: 'widget_snapshot',
-    value: JSON.stringify({ balance: primaryTotal, currency: primaryCurrency, updatedAt: Date.now() }),
-  });
-  ```
-
-  Capacitor Preferences maps to `SharedPreferences` file
-  `CapacitorStorage`, key `widget_snapshot`.
-
-- In `HisaabWidgetProvider.onUpdate`, read it:
-
-  ```kotlin
-  val prefs = context.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE)
-  val json = prefs.getString("widget_snapshot", null)
-  // parse balance + currency, bind into RemoteViews
-  ```
-
-- Trigger a widget refresh from the web side after writing (optional but nice)
-  by broadcasting `APPWIDGET_UPDATE`, or just let the system's periodic
-  `updatePeriodMillis` (set in `hisaab_widget_info.xml`, min 30 min) refresh it.
-
-## Deep link into quick-add
-
-The widget's tap target opens the app on the quick-add surface. Use a
-`PendingIntent` with a deep link the app already understands, or add one:
-
-```kotlin
-val intent = Intent(Intent.ACTION_VIEW, Uri.parse("hisaab://quick-add"))
-val pi = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-views.setOnClickPendingIntent(R.id.widget_add, pi)
-```
-
-Web side: handle the deep link on launch (Capacitor `App.addListener('appUrlOpen', …)`),
-and route to Quick Entry. A `hisaab://quick-add` scheme needs an
-`<intent-filter>` with `<data android:scheme="hisaab" android:host="quick-add"/>`
-on the main activity.
-
-## Acceptance
-
-- Widget shows the cached balance + currency, updated within ~30 min of a change.
-- Tapping it opens Hisaab directly in Quick Entry.
-- Renders correctly in light and dark (the widget uses its own colors — provide
-  a `night/` variant of `widget_bg.xml` + text colors mirroring the dark tokens
-  in `src/index.css`).
-
-## Why it's not in this repo
-
-Capacitor bundles a web app inside a WebView; it has no API for OS home-screen
-widgets. This must be authored in the native Android project and built via
-Android Studio / Gradle — outside the JS build this repo runs.
+- Long-press the home screen, open Widgets, find Hisaab, and place it. The
+  preview and the placed card should look right, and the text should not be
+  clipped at 1 row. If your launcher's rows are short, resize it to 2 rows.
+- Log an expense. Within about 2 s the count goes up. Close the day and the
+  widget shows `Day closed ✓`. Reopen the day and it goes back.
+- Tap Add expense with the app killed, then again with it in the background.
+  Both times QuickEntry should open on the amount step. Do the same for Close
+  today, which should open the sheet.
+- Switch the app language. The status and both buttons follow it.
+- Switch to ledger-only mode. The status is neutral and the Close button is gone.
+- Sign out. The widget goes neutral (English fallback).
+- The next day, before opening the app, the widget shows the neutral prompt.

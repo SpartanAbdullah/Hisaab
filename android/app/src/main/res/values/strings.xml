@@ -6,4 +6,10 @@
     <string name="custom_url_scheme">com.usehisaab.app</string>
     <string name="shortcut_add_expense">Add expense</string>
     <string name="shortcut_close_today">Close today</string>
+    <!-- Home-screen widget. Fallbacks only: the app writes localized labels
+         into the widget snapshot (src/lib/widgetSnapshot.ts). -->
+    <string name="widget_add_expense">Add expense</string>
+    <string name="widget_close_today">Close today</string>
+    <string name="widget_status_neutral">Tap to log today</string>
+    <string name="widget_description">Add an expense or close today in one tap</string>
 </resources>
