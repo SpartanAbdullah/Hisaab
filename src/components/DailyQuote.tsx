@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Lightbulb } from 'lucide-react';
 import { useT } from '../lib/i18n';
 import { Glyph } from './Glyph';
 import { quoteForDay } from '../lib/financeQuotes';
@@ -75,65 +74,54 @@ export function DailyQuote({ onDismiss }: Props) {
         onClick={dismiss}
       />
 
-      {/* Rainbow frame. The drifting spectrum lives in this box and the card
-          sits on top of it, so all that shows through is the 3px gutter
-          between their two border radii — a moving colour outline, with no
-          coloured pixel ever landing behind body text. 1d: the spectrum runs
-          through the app's own accents (index.css .wisdom-*), and the card
-          inside is the lit sheet material. */}
+      {/* Calm card (founder 2026-09-22: the rainbow version "looks like a
+          clown"). The lit sheet material, one gold accent, a faint quote mark
+          as the only ornament — see index.css "DAILY WISDOM". The violet
+          primary is the one solid block, so it reads as the action. */}
       <div
-        className="relative w-full max-w-[380px] rounded-[30px] p-[3px] overflow-hidden animate-scale-in"
+        className="relative w-full max-w-[360px] m-card m-card-feature overflow-hidden animate-scale-in max-h-[85vh] overflow-y-auto"
         style={{ boxShadow: '0 26px 70px -26px var(--m-shadow)' }}
       >
-        <div className="wisdom-spectrum" aria-hidden="true" />
-
-        <div
-          className="relative bg-cream-bg rounded-[27px] px-6 pt-8 pb-5 max-h-[85vh] overflow-y-auto"
-          style={{ boxShadow: 'inset 0 1px 0 var(--m-sheet-hi)' }}
-        >
-          <div className="wisdom-wash pointer-events-none absolute inset-x-0 top-0 h-36" aria-hidden="true" />
-
-          <button
-            onClick={dismiss}
-            className="m-ctl absolute right-3.5 top-3.5 w-9 h-9 flex items-center justify-center"
-            aria-label={t('cancel')}
-          >
-            <Glyph name="close" size={15} className="text-ink-600" />
-          </button>
-
-          <div className="relative text-center">
-            {/* Same spectrum, second instance, on a plate. The navy scrim over
-                it keeps the white bulb legible across every band — white on the
-                gold stretch would otherwise all but vanish. */}
-            <div className="relative w-14 h-14 rounded-[20px] overflow-hidden mx-auto flex items-center justify-center">
-              <div className="wisdom-spectrum" aria-hidden="true" />
-              <div className="absolute inset-0 bg-navy-900/35" aria-hidden="true" />
-              <Lightbulb size={26} strokeWidth={2.4} className="relative text-white m-glyph-extrude" />
+        <div className="px-6 pt-5 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="m-card m-gold w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0" aria-hidden="true">
+              <Glyph name="lightbulb" size={19} tone="gold" />
             </div>
-
             <p
               id="daily-wisdom-title"
-              className="wisdom-text text-[10.5px] font-bold uppercase tracking-[0.16em] mt-4"
+              className="wisdom-eyebrow flex-1 text-[10.5px] font-bold uppercase tracking-[0.16em]"
             >
               {t('quote_daily_title')}
             </p>
-            <p className="text-[20px] font-semibold text-ink-900 leading-snug tracking-tight mt-2.5 text-balance">
-              &ldquo;{quote.text}&rdquo;
-            </p>
-            <p className="text-[12.5px] text-ink-600 mt-3 font-medium">&mdash; {quote.author}</p>
-
-            {/* The brand-violet primary is the one solid block on screen, so it reads
-                as the action; a rainbow CTA would compete with its own frame. */}
-            <div className="flex gap-2.5 mt-7">
-              <button onClick={dismiss} className="m-btn m-btn-primary flex-1 py-3.5 text-[13.5px]">
-                {t('quote_got_it')}
-              </button>
-              <button onClick={share} className="m-btn m-btn-plain px-5 text-[13px]">
-                <Glyph name="share" size={15} strokeWidth={2.6} /> {t('quote_share')}
-              </button>
-            </div>
-            <button onClick={turnOff} className="w-full text-center text-[11px] text-ink-500 mt-2 min-h-[44px]">{t('quote_turn_off')}</button>
+            <button
+              onClick={dismiss}
+              className="m-ctl w-9 h-9 flex items-center justify-center shrink-0"
+              aria-label={t('cancel')}
+            >
+              <Glyph name="close" size={15} className="text-ink-600" />
+            </button>
           </div>
+
+          <div className="relative mt-5">
+            <span className="wisdom-mark absolute -top-5 -left-2 pointer-events-none" aria-hidden="true">&ldquo;</span>
+            <p className="relative text-[21px] font-semibold text-ink-900 leading-[1.35] tracking-tight text-pretty pt-3">
+              {quote.text}
+            </p>
+            <div className="flex items-center gap-2.5 mt-4">
+              <span className="wisdom-rule" aria-hidden="true" />
+              <p className="text-[12.5px] text-ink-600 font-medium">{quote.author}</p>
+            </div>
+          </div>
+
+          <div className="flex gap-2.5 mt-7">
+            <button onClick={dismiss} className="m-btn m-btn-primary flex-1 py-3.5 text-[13.5px]">
+              {t('quote_got_it')}
+            </button>
+            <button onClick={share} className="m-btn m-btn-plain px-5 text-[13px]">
+              <Glyph name="share" size={15} strokeWidth={2.6} /> {t('quote_share')}
+            </button>
+          </div>
+          <button onClick={turnOff} className="w-full text-center text-[11px] text-ink-500 mt-2 min-h-[44px]">{t('quote_turn_off')}</button>
         </div>
       </div>
     </div>

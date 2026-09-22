@@ -1043,98 +1043,30 @@ html.dark .skeleton-sweep::after {
 }
 
 /* ════════════════════════════════════════════════════════════════════
- * DAILY WISDOM — the one surface allowed to shout
+ * DAILY WISDOM — calm by design
  *
- * Sukoon stays calm everywhere money is on screen. This popup isn't about
- * the user's money: it's a once-a-day nudge that has to earn a glance
- * before the thumb reflexively dismisses it. So it's the deliberate
- * exception — a full-spectrum gradient that drifts.
- *
- * Still inside the performance contract. The drift is a translateX on an
- * over-wide gradient layer behind an overflow-hidden mask, so it composites
- * on the GPU instead of repainting a background-position every frame. The
- * gradient states the colour cycle twice PLUS its first colour again (15
- * stops over 200%), which puts an identical pixel exactly 100% apart — so
- * translating -50% of the layer loops with no visible seam.
- *
- * Under reduced-motion the colour stays and only the drift stops: the
- * rainbow is the personality, the movement is just decoration.
+ * The once-a-day quote used to be "the one surface allowed to shout": a
+ * drifting full-spectrum frame, rainbow label and rainbow icon plate. The
+ * founder's verdict (2026-09-22): it "looks like a clown". Now it speaks
+ * like the rest of the app: the lit sheet material, ONE warm accent (gold —
+ * the kameti/wisdom colour, via --m-gold-strong, AA in both themes), and a
+ * large faint quote mark as the only ornament. Nothing animates.
  * ════════════════════════════════════════════════════════════════════ */
-:root {
-  /* 1d: the spectrum IS the app's own accent set going round — coral, gold,
-     green, blue, violet, pink — so the one loud surface still speaks Hisaab.
-     Built from the 3c glyph tones, which flip per theme: the bright dark-theme
-     values on the dark sheet, the deeper ivory-theme values (≥3:1 on the
-     light sheet) in light — so the gradient label stays legible in both.
-     Six stops, stated twice + the first again: identical pixels sit exactly
-     100% apart, so the -50% drift below still loops without a seam. */
-  --wisdom-spectrum:
-    var(--color-glyph-coral), var(--color-glyph-gold), var(--color-glyph-green),
-    var(--color-glyph-blue), var(--color-glyph-violet), var(--color-glyph-pink);
-  --wisdom-loop: linear-gradient(90deg, var(--wisdom-spectrum), var(--wisdom-spectrum), var(--color-glyph-coral));
+.wisdom-mark {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 88px;
+  line-height: 1;
+  color: var(--m-gold-strong);
+  opacity: 0.18;
+  user-select: none;
 }
-
-@keyframes wisdom-drift {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
-
-/* The moving colour layer. Its parent must be position:relative and
-   overflow:hidden; whatever should sit on top needs its own stacking
-   context (position:relative is enough). */
-.wisdom-spectrum {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 200%;
-  background-image: var(--wisdom-loop);
-  animation: wisdom-drift 7s linear infinite;
-  will-change: transform;
-}
-
-/* Gradient TEXT can't use the translate trick — the gradient has to move
-   inside the glyph mask, not under it — so this one animates
-   background-position. That's a paint, but on a ~20-character label it's
-   nothing, and this is the only place in the app that does it.
-   Shifting -100% of the element is half the 200%-wide gradient, i.e.
-   exactly one colour cycle, so it loops seamlessly like the layer above.
-   The @supports guard keeps the label a solid accent colour on any engine
-   without background-clip, rather than rendering it invisible. */
-@keyframes wisdom-text-drift {
-  from { background-position: 0 50%; }
-  to   { background-position: -100% 50%; }
-}
-.wisdom-text {
-  color: var(--color-accent-text); /* the readable violet, both themes — fallback without background-clip */
-}
-@supports ((-webkit-background-clip: text) or (background-clip: text)) {
-  .wisdom-text {
-    background-image: var(--wisdom-loop);
-    background-size: 200% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    animation: wisdom-text-drift 7s linear infinite;
-  }
-}
-
-/* Static, very low-opacity spectrum wash — adds colour behind the header
-   without another animated layer. Free: no animation, no filter. */
-.wisdom-wash {
-  background-image: linear-gradient(
-    135deg,
-    rgba(242, 150, 124, 0.13),
-    rgba(232, 192, 99, 0.12) 30%,
-    rgba(63, 215, 166, 0.10) 55%,
-    rgba(107, 146, 245, 0.10) 75%,
-    rgba(229, 108, 148, 0.13)
-  );
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .wisdom-spectrum,
-  .wisdom-text { animation: none; }
+.wisdom-eyebrow { color: var(--m-gold-strong); }
+.wisdom-rule {
+  width: 24px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--m-gold-strong);
+  opacity: 0.55;
 }
 
 /* ========== BASE ========== */
