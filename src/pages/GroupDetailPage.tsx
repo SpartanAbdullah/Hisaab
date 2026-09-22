@@ -892,7 +892,7 @@ export function GroupDetailPage() {
     // back in the menu.
     try {
       await deleteGroup(group.id);
-      navigate('/groups');
+      navigate('/groups', { replace: true });
     } catch (err) {
       const blocker = readGroupGuardFailure(err);
       if (blocker?.code === 'GROUP_HAS_OTHER_MEMBERS' || blocker?.code === 'GROUP_HAS_OUTSTANDING_BALANCES') {
@@ -1087,7 +1087,7 @@ export function GroupDetailPage() {
         });
         return;
       }
-      navigate('/groups');
+      navigate('/groups', { replace: true });
       toast.show({ type: 'success', title: result.userMessage });
     } catch (err) {
       console.error('Failed to leave group', err);

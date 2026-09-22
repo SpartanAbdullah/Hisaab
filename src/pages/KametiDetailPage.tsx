@@ -312,7 +312,7 @@ export function KametiDetailPage() {
     if (!ok) return;
     await deleteCommittee(committee.id);
     toast.show({ type: 'success', title: t('kameti_deleted') });
-    navigate('/kameti');
+    navigate('/kameti', { replace: true });
   };
 
   return (

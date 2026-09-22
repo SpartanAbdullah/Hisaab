@@ -2559,6 +2559,10 @@ const S = {
     en: "Add a note (optional)",
   },
   account_not_found: { ur: "Account nahi mila", en: "Account not found" },
+  acct_gone_title: { ur: "Yeh account ab mojood nahi", en: "That account no longer exists" },
+  acct_gone_sub: { ur: "Shayad yeh delete ho chuka hai. Aap ke baqi accounts mehfooz hain.", en: "It may have been deleted. Your other accounts are safe." },
+  acct_gone_cta: { ur: "Tamam accounts", en: "All accounts" },
+  acct_gone_home: { ur: "Home", en: "Home" },
 
   // Loan card-picker labels (replaces 4 native selects in QuickEntry).
   pick_loan: { ur: "Kaun sa qarz?", en: "Which loan?" },

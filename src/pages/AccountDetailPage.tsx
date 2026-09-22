@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAccountStore } from '../stores/accountStore';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
@@ -194,6 +194,21 @@ export function AccountDetailPage() {
     return { statement, advanceLoans, misaligned };
   }, [isCreditCard, account, loans, emiSchedules, transactions]);
 
+  // An account that's gone (deleted here or on another device, or an old
+  // link/bookmark/refresh of a deleted account's URL) is a dead end — once
+  // the list has really loaded, go to Accounts instead of stranding the user
+  // on a blank "not found" page. replace: so Back and refresh don't loop.
+  const accountMissing = loadStatus === 'ready' && !account;
+  // Set while THIS page deletes the account: its own "Account deleted"
+  // toast and navigation win, so the redirect below stays silent.
+  const deletingHereRef = useRef(false);
+  useEffect(() => {
+    if (!accountMissing || deletingHereRef.current) return;
+    toast.show({ type: 'info', title: t('acct_gone_title'), subtitle: t('acct_gone_sub') });
+    navigate('/accounts', { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountMissing]);
+
   // Don't render "account not found" until the accounts list has actually
   // finished loading — otherwise a deep-link to /account/:id flashes the
   // not-found screen for ~1s while Supabase responds.
@@ -234,9 +249,25 @@ export function AccountDetailPage() {
         </main>
       );
     }
+    // Shown only for the moment before the redirect above lands — and as the
+    // way out if it ever can't: a real page with a back button and actions.
     return (
-      <main className="min-h-dvh bg-cream-bg flex items-center justify-center">
-        <p className="text-ink-500 text-[13px]">{t('account_not_found')}</p>
+      <main className="min-h-dvh bg-cream-bg pb-28">
+        <NavyHero>
+          <TopBar title="" back />
+          <div className="pb-7" />
+        </NavyHero>
+        <div className="sukoon-body min-h-[60dvh] px-5 pt-5">
+          <EmptyState
+            clayIcon="wallet"
+            title={t('account_not_found')}
+            description={t('acct_gone_sub')}
+            actionLabel={t('acct_gone_cta')}
+            onAction={() => navigate('/accounts', { replace: true })}
+            secondaryActionLabel={t('acct_gone_home')}
+            onSecondaryAction={() => navigate('/', { replace: true })}
+          />
+        </div>
       </main>
     );
   }
@@ -423,10 +454,14 @@ export function AccountDetailPage() {
                           });
                           if (ok) {
                             try {
+                              deletingHereRef.current = true;
                               await deleteAccount(account.id);
                               toast.show({ type: 'success', title: t('acct_deleted') });
-                              navigate('/accounts');
+                              // Replace, don't push: Back must never return
+                              // to the page of an account that's gone.
+                              navigate('/accounts', { replace: true });
                             } catch (err) {
+                              deletingHereRef.current = false;
                               toast.show({
                                 type: 'error',
                                 title: err instanceof Error ? err.message : t('adp_failed'),

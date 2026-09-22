@@ -275,7 +275,7 @@ export function LoanDetailPage() {
     try {
       await deleteLoanCascade(loan.id);
       toast.show({ type: 'success', title: t('loan_deleted') });
-      navigate('/loans');
+      navigate('/loans', { replace: true });
     } catch (err) {
       // Reversal blocked because a credited account spent the money since —
       // offer to proceed with that account going visibly negative.
@@ -294,7 +294,7 @@ export function LoanDetailPage() {
           try {
             await deleteLoanCascade(loan.id, { allowNegative: true });
             toast.show({ type: 'success', title: t('loan_deleted') });
-            navigate('/loans');
+            navigate('/loans', { replace: true });
           } catch (retryErr) {
             toast.show({ type: 'error', title: t('error'), subtitle: retryErr instanceof Error ? retryErr.message : undefined });
           }
