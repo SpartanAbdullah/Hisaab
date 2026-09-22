@@ -1,9 +1,11 @@
 # Who owes me — unified person balances + settle-up plans
 
 **Status:** pure logic shipped (`src/lib/whoOwesMe.ts`, `src/lib/settleUpMinimize.ts`,
-both with colocated tests). **No UI is wired yet** — the surfaces described in
-§6 are owned by a later batch. Nothing here touches accounts, stores, SQL or
-i18n.
+both with colocated tests). **UI status (2026-09-22):** `settleUpMinimize` drives
+the group settle-up plans in `GroupDetailPage.tsx` (via `splitStore`). The
+unified Loans "Who owes what" card (`WhoOwesMeCard`) was wired and then
+removed in the 2026-09-19 founder batch (44f95aa), so `buildWhoOwesMe` has no
+screen today. Nothing here touches accounts, stores, SQL or i18n.
 
 Closes the *math* half of audit `docs/audit-2026-09/11-competitive-analysis.md`
 **G4 / O7** ("debt-minimization settle-up + unified who-owes-me surface") and

@@ -222,7 +222,7 @@ The one place the distinction could have leaked in is the device-local budget re
 
 ## 8. Client follow-ups — not built by M5
 
-M5 shipped the backend, the store and the delivery shaping. Three pieces of UI are still missing. Exact insertion points:
+M5 shipped the backend, the store and the delivery shaping. Three pieces of UI were left missing; **all three have since shipped** (group mute in `GroupDetailPage.tsx`, quiet hours + mute-all + the push section in `SettingsPage.tsx`, the bell via `countBellItems` in `InboxAction.tsx`), as have both one-liners in §8.4. The insertion notes below are kept as the historical plan; line numbers are stale.
 
 ### 8.1 Per-group mute toggle — `src/pages/GroupDetailPage.tsx`
 
@@ -332,6 +332,6 @@ The function is Deno and cannot be typechecked or run by the repo's toolchain. I
 4. **Channel importance is write-once.** If `money` should have been MAX rather than HIGH, existing installs will never change. Only fresh installs pick up a revision.
 5. **The kameti sweep needs a scheduler.** With no pg_cron and no dashboard cron, `kameti_round_due` / `kameti_payout_due` never fire. The draw notification is trigger-driven and unaffected. There is no alert for the sweep not running — check `cron.job_run_details` (Q5) or the absence of rows in Q1.
 6. **Kameti reach depends on the organiser's contact links.** A committee whose members were typed as plain names notifies nobody, and there is no UI telling the organiser that. Q6 quantifies it; a "3 of 8 members will be notified" hint on the kameti screen would close it.
-7. **`notification_prefs` has no UI yet** (§8). Until §8.1 and §8.2 ship, the only ways to mute or set quiet hours are a direct row insert or the store methods — so the fatigue controls exist but are unreachable by a normal user.
+7. ~~**`notification_prefs` has no UI yet** (§8).~~ Closed: the group mute (§8.1) and Settings quiet hours / mute-all (§8.2) are built, so the fatigue controls are reachable by a normal user.
 8. **The prefs mirror can be stale.** The store loads prefs once; a mute set on another device is not pushed over realtime (`notification_prefs` is not in the publication). The server-side filter is authoritative, so the worst case is a locally-optimistic count until the next `loadPrefs()`.
 9. **Three copies of the routing rules** (SQL, `notificationContent.ts`, `pushRegistration.ts`) must be edited together. Tests pin each side against the same expectations, but nothing mechanically diffs them.

@@ -18,7 +18,7 @@ Owner split: Codex implements app code and migration files. Abdullah runs Supaba
 | Tombstone migration | Done | Codex | `supabase-migration-incremental-sync-tombstones.sql` adds `deleted_at` and deleted-row indexes. |
 | Apply tombstone migration | Done | Abdullah | Abdullah confirmed `supabase-migration-incremental-sync-tombstones.sql` was run in Supabase. |
 | Delete/tombstone strategy | Done | Codex | App deletes are now soft deletes for accounts, transactions, loans, and budgets; incremental sync removes tombstones from Dexie. |
-| Settings sync status | Done | Codex | Settings shows per-table last sync, last full refresh, and queued offline changes. |
+| Settings sync status | Removed | Codex | Settings once showed per-table last sync, last full refresh, and queued offline changes. That card was deleted with the inert outbox on 2026-09-04 (D5, `docs/offline-story.md`); there is no offline queue — writes are online-required. |
 | QA: tests/build | Pending | Codex | Run after each implementation slice. |
 
 ## Current Decision
