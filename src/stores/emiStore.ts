@@ -32,7 +32,7 @@ interface EmiState {
   reconcileCovered: (loanId: string, paidAmount: number) => Promise<number>;
   // Per-card migration: re-date a cash advance's unpaid instalments onto the
   // funding card's statement day (date-only, no money moves).
-  reanchorToStatementDay: (loanId: string, dueDates: string[]) => Promise<number>;
+  reanchorToStatementDay: (loanId: string, updates: Array<{ id: string; newDue: string }>) => Promise<number>;
   deleteByLoan: (loanId: string) => Promise<void>;
   getByLoan: (loanId: string) => EmiSchedule[];
   reset: () => void;
@@ -82,19 +82,21 @@ export const useEmiStore = create<EmiState>((set, get) => ({
     set((s) => ({ schedules: [...s.schedules, ...entries] }));
   },
 
-  // Re-anchor a cash advance's UNPAID instalments onto a card's statement day
-  // (the per-card migration). Paid instalments and amounts are untouched — only
-  // the future due-dates move. Date-only: no money changes. Returns how many
-  // instalments were re-dated (0 = nothing to do / already aligned).
-  reanchorToStatementDay: async (loanId, dueDates) => {
-    const unpaid = get().schedules
-      .filter((e) => e.loanId === loanId && e.status !== 'paid')
-      .sort((a, b) => a.installmentNumber - b.installmentNumber);
-    if (unpaid.length === 0) return 0;
-    // Map each unpaid instalment (in order) onto the next statement dates.
-    const updates = unpaid
-      .map((e, i) => ({ id: e.id, oldDue: e.dueDate, newDue: dueDates[i] }))
-      .filter((u) => u.newDue && u.newDue !== u.oldDue);
+  // Apply a planned re-anchor of a cash advance's instalments onto a card's
+  // statement day (the per-card migration). The plan comes from the pure
+  // planStatementReanchor (src/lib/cardStatement.ts), which already froze
+  // paid and already-billed instalments and kept the months monotonic. This
+  // write re-checks the live rows as a last guard: a row that is gone, now
+  // paid, or already on the target date is skipped. Date-only: no money
+  // changes. Returns how many instalments were actually re-dated.
+  reanchorToStatementDay: async (loanId, planned) => {
+    const live = new Map(
+      get().schedules.filter((e) => e.loanId === loanId).map((e) => [e.id, e]),
+    );
+    const updates = planned.filter((u) => {
+      const row = live.get(u.id);
+      return !!row && row.status !== 'paid' && !!u.newDue && u.newDue !== row.dueDate;
+    });
     if (updates.length === 0) return 0;
     await Promise.all(updates.map((u) => emiSchedulesDb.setDueDate(u.id, u.newDue)));
     const byId = new Map(updates.map((u) => [u.id, u.newDue]));

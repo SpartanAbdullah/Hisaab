@@ -4004,6 +4004,7 @@ const S = {
   cc_statement_title: { ur: "Statement — is mahine", en: "Statement — this month" },
   cc_statement_purchases: { ur: "Kharchay + baaki", en: "Purchases + carried" },
   cc_statement_instalment: { ur: "Is cycle ki installment", en: "This cycle's instalment" },
+  cc_statement_after_close: { ur: "Statement ke baad ka kharcha (agla bill)", en: "Spent after statement (next bill)" },
   cc_statement_total_balance: { ur: "Total balance", en: "Total balance" },
 
   // ── Group consent, archive & lifecycle (audit 2026-09 P0 client wiring) ──

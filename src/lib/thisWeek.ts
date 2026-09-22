@@ -229,6 +229,8 @@ export function buildThisWeek(inp: ThisWeekInputs): ThisWeekRow[] {
         advanceLoans,
         schedules: inp.schedules,
         today: inp.today,
+        // Spend after the statement closed is next bill's, not this week's.
+        transactions: inp.transactions,
       });
       // Only a limited card has a computable statement. A no-limit card's
       // statement is 0 because the amount is UNKNOWABLE — keep its date-only

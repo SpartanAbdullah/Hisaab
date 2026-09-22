@@ -6,7 +6,7 @@ import { PageErrorState } from '../components/PageErrorState';
 import { useTransactionStore } from '../stores/transactionStore';
 import { useLoanStore } from '../stores/loanStore';
 import { useEmiStore } from '../stores/emiStore';
-import { buildCardStatement, statementInstalmentDates } from '../lib/cardStatement';
+import { buildCardStatement, planStatementReanchor, type ReanchorUpdate } from '../lib/cardStatement';
 import { StatementCycleField } from '../components/StatementCycleField';
 import { localIso } from '../lib/thisWeek';
 import { useUpcomingExpenseStore } from '../stores/upcomingExpenseStore';
@@ -164,24 +164,32 @@ export function AccountDetailPage() {
   // Hook must run unconditionally on every render (rules-of-hooks) — kept
   // above the `!account` early return below, with a null-safe body.
   const cardAdvances = useMemo(() => {
-    if (!isCreditCard || !account) return { statement: null, advanceLoans: [], misaligned: [] as typeof loans };
-    const isOnStatementDay = (iso: string, dd: number): boolean => {
-      const d = new Date(`${iso}T00:00:00`);
-      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-      return d.getDate() === Math.min(dd, lastDay);
-    };
+    if (!isCreditCard || !account) return { statement: null, advanceLoans: [], misaligned: [] as Array<{ loan: (typeof loans)[number]; updates: ReanchorUpdate[] }> };
     const map = new Map<string, string>();
     for (const txn of transactions) {
       if (txn.type === 'loan_taken' && txn.relatedLoanId && txn.sourceAccountId) map.set(txn.relatedLoanId, txn.sourceAccountId);
     }
     const advanceLoans = loans.filter((l) => l.status === 'active' && map.get(l.id) === account.id);
-    const statement = buildCardStatement({ card: account, advanceLoans, schedules: emiSchedules, today: new Date() });
+    const today = new Date();
+    // Transactions sharpen "due this statement": spend after the statement
+    // closed belongs to the next bill (buildCardStatement's close rule).
+    const statement = buildCardStatement({ card: account, advanceLoans, schedules: emiSchedules, today, transactions });
     const dd = parseInt(account.metadata.dueDay ?? '', 10);
     const validDueDay = Number.isFinite(dd) && dd >= 1 && dd <= 31;
+    // A plan needs aligning only if Align would actually move something —
+    // paid and already-billed instalments are frozen, so an off-date but
+    // billed instalment never keeps the banner up with nothing to do.
     const misaligned = validDueDay
-      ? advanceLoans.filter((l) =>
-          emiSchedules.some((s) => s.loanId === l.id && s.status !== 'paid' && !isOnStatementDay(s.dueDate, dd)),
-        )
+      ? advanceLoans
+          .map((l) => ({
+            loan: l,
+            updates: planStatementReanchor({
+              schedules: emiSchedules.filter((s) => s.loanId === l.id),
+              dueDay: dd,
+              today,
+            }),
+          }))
+          .filter((p) => p.updates.length > 0)
       : [];
     return { statement, advanceLoans, misaligned };
   }, [isCreditCard, account, loans, emiSchedules, transactions]);
@@ -249,10 +257,16 @@ export function AccountDetailPage() {
       // Count PLANS actually re-anchored (a plan counts if any of its
       // instalments moved), so the toast never claims a no-op succeeded.
       let plansMoved = 0;
-      for (const l of cardAdvances.misaligned) {
-        const unpaidCount = emiSchedules.filter((s) => s.loanId === l.id && s.status !== 'paid').length;
-        const dates = statementInstalmentDates(dd, unpaidCount, localIso(new Date()));
-        const moved = await useEmiStore.getState().reanchorToStatementDay(l.id, dates);
+      // Plan from the LIVE store at tap time (not the memo) — paid and
+      // already-billed instalments are frozen; only future ones move.
+      const live = useEmiStore.getState().schedules;
+      for (const { loan: l } of cardAdvances.misaligned) {
+        const updates = planStatementReanchor({
+          schedules: live.filter((s) => s.loanId === l.id),
+          dueDay: dd,
+          today: new Date(),
+        });
+        const moved = await useEmiStore.getState().reanchorToStatementDay(l.id, updates);
         if (moved > 0) plansMoved += 1;
       }
       if (plansMoved > 0) {
@@ -554,7 +568,7 @@ export function AccountDetailPage() {
         {/* Statement breakdown — only when the card finances an instalment
             plan (otherwise the hero's "used" already IS the statement). The
             honest monthly bill: purchases/carried + this cycle's instalment. */}
-        {isCreditCard && cardAdvances.statement && cardAdvances.advanceLoans.length > 0 && cardAdvances.statement.statementDue > 0.005 && (
+        {isCreditCard && cardAdvances.statement && (cardAdvances.advanceLoans.length > 0 || cardAdvances.statement.postCloseSpend > 0.005) && cardAdvances.statement.statementDue > 0.005 && (
           <div className="m-card p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10.5px] font-semibold text-ink-500 uppercase tracking-[0.12em]">{t('cc_statement_title')}</p>
@@ -576,16 +590,24 @@ export function AccountDetailPage() {
               </p>
             )}
             <div className="mt-2 space-y-1 text-[11.5px] text-ink-600 tabular-nums">
-              {cardAdvances.statement.revolving > 0.005 && (
+              {cardAdvances.statement.statementRevolving > 0.005 && (
                 <div className="flex justify-between">
                   <span>{t('cc_statement_purchases')}</span>
-                  <span>{formatMoney(cardAdvances.statement.revolving, account.currency)}</span>
+                  <span>{formatMoney(cardAdvances.statement.statementRevolving, account.currency)}</span>
                 </div>
               )}
               {cardAdvances.statement.instalmentDue > 0.005 && (
                 <div className="flex justify-between">
                   <span>{t('cc_statement_instalment')}</span>
                   <span>{formatMoney(cardAdvances.statement.instalmentDue, account.currency)}</span>
+                </div>
+              )}
+              {/* Spend after the statement closed — owed, but on the NEXT
+                  bill, so it's shown here and kept out of the figure above. */}
+              {cardAdvances.statement.postCloseSpend > 0.005 && (
+                <div className="flex justify-between text-ink-400">
+                  <span>{t('cc_statement_after_close')}</span>
+                  <span>{formatMoney(cardAdvances.statement.postCloseSpend, account.currency)}</span>
                 </div>
               )}
               <div className="flex justify-between pt-1 border-t border-cream-hairline text-ink-400">

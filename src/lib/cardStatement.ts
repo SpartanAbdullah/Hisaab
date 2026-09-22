@@ -22,7 +22,7 @@ import { daysUntilDayOfMonth, lastDayOfMonthOccurrence } from './inboxInfo';
 // imports, so pulling it in here carries none of the thisWeek↔cardStatement
 // import-cycle risk the old inlined copy was dodging).
 import { localIso } from './localDate';
-import type { Account, EmiSchedule, Loan } from '../db';
+import type { Account, EmiSchedule, Loan, Transaction } from '../db';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -88,7 +88,16 @@ export interface CardStatement {
   revolving: number;
   /** This cycle's instalment(s) due across the card's cash-advance plans. */
   instalmentDue: number;
-  /** The honest monthly bill = revolving + this cycle's instalment. The
+  /** Card spending dated AFTER the last statement close (cycleStartIso) —
+   *  it belongs to the NEXT statement, so it is not part of statementDue.
+   *  0 when no transactions were passed or the card has no distinct
+   *  statement-close day (see buildCardStatement's rule). */
+  postCloseSpend: number;
+  /** The revolving share of THIS statement still owed:
+   *  max(0, revolving − postCloseSpend). Equals `revolving` when
+   *  postCloseSpend is 0. */
+  statementRevolving: number;
+  /** The honest monthly bill = statementRevolving + this cycle's instalment. The
    *  FUTURE instalment principal (the rest of Σ remaining) is NOT here — that's
    *  what makes it smaller than the full balance for a financed card. */
   statementDue: number;
@@ -97,8 +106,55 @@ export interface CardStatement {
   hasLimit: boolean;
 }
 
-/** Compute a card's current statement — balance-derived, no transactions
- *  needed. `advanceLoans` are the card's ACTIVE cash-advance loans (caller
+/** How much a transaction ADDED to this card's revolving debt, in the card's
+ *  currency (0 if it didn't debit the card, or doesn't count as spending).
+ *  Mirrors the per-type balance arithmetic in transactionStore's delete
+ *  reversal, so the figure is exactly what the row took off the card:
+ *    expense / loan_given / transfer-out   → amount (source currency)
+ *    repayment / goal_contribution /
+ *    investment_buy (source = card)        → amount ÷ conversionRate when set
+ *  Deliberately NOT spending:
+ *    loan_taken (cash advance)  — its principal sits in Σ(advance remaining)
+ *                                 and is already excluded from `revolving`;
+ *    adjustment                 — "Correct balance" is bookkeeping repair of
+ *                                 unknown date, not a dated purchase, so it
+ *                                 stays with the statement (never hides debt). */
+export function cardSpendOf(txn: Transaction, cardId: string): number {
+  if (txn.deletedAt) return 0;
+  if (txn.sourceAccountId !== cardId) return 0;
+  const amt = Number.isFinite(txn.amount) ? Math.max(0, txn.amount) : 0;
+  switch (txn.type) {
+    case 'expense':
+    case 'loan_given':
+    case 'transfer':
+      return round2(amt);
+    case 'repayment':
+    case 'goal_contribution':
+    case 'investment_buy':
+      return txn.conversionRate ? round2(amt / txn.conversionRate) : round2(amt);
+    default:
+      return 0;
+  }
+}
+
+/** Σ card spending dated strictly AFTER `closeIso` (local calendar day). A
+ *  purchase ON the statement day is inside that statement, like a bank's
+ *  "transactions up to and including the statement date". */
+export function cardSpendAfter(cardId: string, transactions: Transaction[], closeIso: string): number {
+  let sum = 0;
+  for (const t of transactions) {
+    const spend = cardSpendOf(t, cardId);
+    if (spend <= 0) continue;
+    const at = new Date(t.createdAt);
+    if (!Number.isFinite(at.getTime())) continue;
+    if (localIso(at) <= closeIso) continue;
+    sum = round2(sum + spend);
+  }
+  return sum;
+}
+
+/** Compute a card's current statement — balance-derived; transactions are
+ *  optional (they only sharpen the revolving share, see below). `advanceLoans` are the card's ACTIVE cash-advance loans (caller
  *  derives them via cardFundedLoanIds); `schedules` is the full EMI-schedule
  *  list (filtered by loanId here). Returns null for a non-card or a card with
  *  no statement day configured.
@@ -106,12 +162,44 @@ export interface CardStatement {
  *  Honest bill = everything you owe EXCEPT the not-yet-due instalment
  *  principal. A plain card (no instalment plan) bills its whole balance; a
  *  card financing a cash advance bills only its purchases + this cycle's
- *  instalment. */
+ *  instalment.
+ *
+ *  STATEMENT-CLOSE RULE (backlog 2026-09-22 #4 — Mashreq: the bank's statement
+ *  of 21 Sep said 5,898.15, Hisaab also billed ~711 spent after the 21st):
+ *
+ *    postCloseSpend     = Σ card spending (cardSpendOf) dated after the last
+ *                         statement close (cycleStartIso)
+ *    statementRevolving = max(0, revolving − postCloseSpend)
+ *    statementDue       = min(totalOwed, statementRevolving + instalmentDue)
+ *
+ *  Why this is the whole story with the existing model:
+ *    • revolving (now) = revolving at close + spend since close − credits since
+ *      close. Removing the spend leaves "balance at close − every credit since"
+ *      — i.e. the statement balance minus what has already been paid toward it.
+ *    • Credits after the close (bill-payment `transfer`s into the card, refunds,
+ *      repayments) therefore REDUCE what is still due — a payment made after
+ *      the statement is issued pays that statement. They are never subtracted
+ *      a second time.
+ *    • The instalment share of a bill payment moves `used` and Σ(remaining) in
+ *      lockstep (revolving untouched) and flips the instalment to paid, so it
+ *      leaves instalmentDue via the schedule — not double-counted here.
+ *    • A cash advance after the close raises `used` and Σ(remaining) equally,
+ *      so it never reaches revolving; adjustments stay with the statement.
+ *    • Clamped at 0: paying the statement in full and then spending leaves 0
+ *      due now (the new spend is next statement's).
+ *
+ *  Applied ONLY when the card has a statement-close day distinct from its due
+ *  day. A single-date card (no statementDay, or statementDay === dueDay) has no
+ *  knowable close, so it keeps the old behaviour — the whole revolving balance
+ *  is due. No `transactions` passed → postCloseSpend 0 → old behaviour. */
 export function buildCardStatement(inp: {
   card: Account;
   advanceLoans: Loan[];
   schedules: EmiSchedule[];
   today: Date;
+  /** Optional: the user's transactions (any accounts; filtered here). Enables
+   *  the statement-close rule above. */
+  transactions?: Transaction[];
 }): CardStatement | null {
   const { card } = inp;
   if (card.type !== 'credit_card') return null;
@@ -159,11 +247,21 @@ export function buildCardStatement(inp: {
   // Σ remaining and is financed, so it's excluded here.
   const sumRemaining = round2(inp.advanceLoans.reduce((s, l) => s + l.remainingAmount, 0));
   const revolving = hasLimit ? Math.max(0, round2(totalOwed - sumRemaining)) : 0;
+  // Statement-close rule (see the doc comment): only with a DISTINCT close day.
+  const hasDistinctClose = dayOfMonthOrNull(card.metadata?.statementDay) !== null && statementDay !== dueDay;
+  const postCloseSpend =
+    hasLimit && hasDistinctClose && inp.transactions && cycleStart
+      ? cardSpendAfter(card.id, inp.transactions, cycleStartIso)
+      : 0;
+  const statementRevolving = Math.max(0, round2(revolving - postCloseSpend));
   const statementDue = hasLimit
-    ? Math.min(totalOwed, round2(revolving + instalmentDue))
+    ? Math.min(totalOwed, round2(statementRevolving + instalmentDue))
     : round2(instalmentDue);
 
-  return { dueDay, statementDay, cycleStartIso, daysUntilDue, revolving, instalmentDue, statementDue, totalOwed, hasLimit };
+  return {
+    dueDay, statementDay, cycleStartIso, daysUntilDue, revolving, instalmentDue,
+    postCloseSpend, statementRevolving, statementDue, totalOwed, hasLimit,
+  };
 }
 
 export interface AdvanceForAllocation {
@@ -265,4 +363,74 @@ export function billAdvancesAsOf(inp: {
     const dueThisCycle = next && next.dueDate <= nextDueIso ? next.amount : 0;
     return { loanId: l.id, remaining: l.remainingAmount, dueThisCycle, createdAt: l.createdAt };
   });
+}
+
+export interface ReanchorUpdate {
+  id: string;
+  oldDue: string;
+  newDue: string;
+}
+
+/** Plan the "Align to statement day" re-dating for ONE cash-advance plan.
+ *  Date-only — amounts never change.
+ *
+ *  Rule (backlog 2026-09-22 #4 — on the RAK card Align was pressed before the
+ *  payments were recorded and every instalment slid a month late):
+ *    • FROZEN — keeps its date: a paid instalment, or an unpaid one already
+ *      BILLED, i.e. due on/before the upcoming payment-due day (it is on the
+ *      statement being paid now, or overdue from an earlier one).
+ *    • MOVABLE — every other unpaid instalment moves to the FIRST due-day on or
+ *      after its current date, so it stays on the same bill it was already
+ *      going to be billed on (buildCardStatement bills an instalment on the
+ *      first due day ≥ its date). Never earlier, never a whole month later.
+ *    • MONOTONIC — walking the plan in instalment order, a moved instalment
+ *      must land in a calendar month strictly after the previous instalment's
+ *      month (frozen or moved); if its target would share or precede it, it
+ *      is bumped to the next free month. No two instalments share a month.
+ *  Returns only the rows whose date actually changes ([] = already aligned). */
+export function planStatementReanchor(inp: {
+  /** One loan's schedule rows (any order). */
+  schedules: Array<Pick<EmiSchedule, 'id' | 'status' | 'installmentNumber' | 'dueDate'>>;
+  /** Card metadata.dueDay (1–31). */
+  dueDay: number;
+  today: Date;
+}): ReanchorUpdate[] {
+  const { dueDay } = inp;
+  if (!Number.isFinite(dueDay) || dueDay < 1 || dueDay > 31) return [];
+  const dIn = daysUntilDayOfMonth(dueDay, inp.today);
+  if (dIn === null) return [];
+  const upcomingDueIso = localIso(
+    new Date(inp.today.getFullYear(), inp.today.getMonth(), inp.today.getDate() + dIn),
+  );
+  const monthKey = (iso: string): number => {
+    const y = parseInt(iso.slice(0, 4), 10);
+    const m = parseInt(iso.slice(5, 7), 10) - 1;
+    return y * 12 + m;
+  };
+  const dueDateIn = (key: number): string => {
+    const y = Math.floor(key / 12);
+    const m = key % 12;
+    return localIso(new Date(y, m, Math.min(dueDay, daysInMonth(y, m))));
+  };
+
+  const ordered = [...inp.schedules].sort((a, b) => a.installmentNumber - b.installmentNumber);
+  const out: ReanchorUpdate[] = [];
+  let prevKey: number | null = null;
+  for (const s of ordered) {
+    const current = s.dueDate.slice(0, 10);
+    const frozen = s.status === 'paid' || current <= upcomingDueIso;
+    if (frozen) {
+      const k = monthKey(current);
+      prevKey = prevKey === null ? k : Math.max(prevKey, k);
+      continue;
+    }
+    // First due-day on/after the current date — the same bill it's already on.
+    let key = monthKey(current);
+    if (dueDateIn(key) < current) key += 1;
+    if (prevKey !== null && key <= prevKey) key = prevKey + 1;
+    prevKey = key;
+    const newDue = dueDateIn(key);
+    if (newDue !== current) out.push({ id: s.id, oldDue: s.dueDate, newDue });
+  }
+  return out;
 }

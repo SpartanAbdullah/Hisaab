@@ -149,8 +149,10 @@ export function planNotifications(inp: PlanInputs): PlannedNotification[] {
     const advanceLoans = inp.loans.filter(
       (l) => l.status === 'active' && inp.cardFundedLoanIds?.get(l.id) === a.id,
     );
+    // Transactions (when the caller has them) keep spend made after the
+    // statement closed out of this bill — it belongs to the next one.
     const statement = buildCardStatement({
-      card: a, advanceLoans, schedules: inp.schedules, today: inp.now,
+      card: a, advanceLoans, schedules: inp.schedules, today: inp.now, transactions: inp.transactions,
     });
     // Only a card WITH a limit can have a computable statement of 0 = "paid".
     // A no-limit card's statementDue is 0 because the amount is UNKNOWABLE, not

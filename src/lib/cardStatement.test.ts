@@ -3,10 +3,12 @@ import {
   allocateBillPayment,
   billAdvancesAsOf,
   buildCardStatement,
+  cardSpendOf,
+  planStatementReanchor,
   statementInstalmentDates,
   type AdvanceForAllocation,
 } from './cardStatement';
-import type { Account, EmiSchedule, Loan } from '../db';
+import type { Account, EmiSchedule, Loan, Transaction } from '../db';
 
 const card = (over: Partial<Account> = {}): Account => ({
   id: 'card1', name: 'RAK Titanium', type: 'credit_card', currency: 'AED',
@@ -260,5 +262,241 @@ describe('billAdvancesAsOf — "this cycle" is decided by the PAYMENT date', () 
     // Nothing due this cycle → purchases first (500), then 1000 prepays the advance.
     expect(alloc.purchasesApplied).toBe(500);
     expect(alloc.perLoan).toEqual([{ loanId: 'l1', principalApplied: 1000 }]);
+  });
+});
+
+// ── Item 4 (backlog 2026-09-22): "due this statement" excludes post-close spend
+const txn = (over: Partial<Transaction> = {}): Transaction => ({
+  id: 't', type: 'expense', amount: 100, currency: 'AED', sourceAccountId: 'card1',
+  destinationAccountId: null, relatedPerson: null, relatedLoanId: null, relatedGoalId: null,
+  conversionRate: null, category: 'food', notes: '', createdAt: '2026-09-25T10:00:00', ...over,
+});
+
+describe('buildCardStatement — statement-close rule', () => {
+  // Mashreq-style: statement CLOSES the 21st, payment DUE the 17th. Today 25 Sep.
+  // Limit 20,000, balance 13,390.85 → used 6,609.15 (5,898.15 statement + 711 since).
+  const mashreq = card({
+    id: 'card1', balance: 13390.85,
+    metadata: { creditLimit: '20000', statementDay: '21', dueDay: '17' },
+  });
+  const TODAY = new Date(2026, 8, 25, 12);
+  const afterClose = [
+    txn({ id: 'a', amount: 411, createdAt: '2026-09-22T09:00:00' }),
+    txn({ id: 'b', amount: 300, createdAt: '2026-09-24T20:00:00' }),
+  ];
+
+  it('REAL Mashreq: spend after the 21 Sep close is excluded → 5,898.15 due, not 6,609.15', () => {
+    const st = buildCardStatement({ card: mashreq, advanceLoans: [], schedules: [], today: TODAY, transactions: afterClose })!;
+    expect(st.cycleStartIso).toBe('2026-09-21');
+    expect(st.revolving).toBe(6609.15);
+    expect(st.postCloseSpend).toBe(711);
+    expect(st.statementRevolving).toBe(5898.15);
+    expect(st.statementDue).toBe(5898.15);
+    expect(st.totalOwed).toBe(6609.15); // the full balance is still shown as owed
+  });
+
+  it('spend ON the statement day belongs to that statement; before it too', () => {
+    const st = buildCardStatement({
+      card: mashreq, advanceLoans: [], schedules: [], today: TODAY,
+      transactions: [
+        txn({ id: 'on', amount: 50, createdAt: '2026-09-21T23:30:00' }),
+        txn({ id: 'before', amount: 70, createdAt: '2026-09-10T10:00:00' }),
+        ...afterClose,
+      ],
+    })!;
+    expect(st.postCloseSpend).toBe(711);
+    expect(st.statementDue).toBe(5898.15);
+  });
+
+  it('a payment after the close reduces what is still due on that statement', () => {
+    // Paid 2,000 on 23 Sep → balance up by 2,000, used 4,609.15.
+    const paid = card({ ...mashreq, balance: 15390.85 });
+    const st = buildCardStatement({
+      card: paid, advanceLoans: [], schedules: [], today: TODAY,
+      transactions: [
+        ...afterClose,
+        txn({ id: 'pay', type: 'transfer', amount: 2000, sourceAccountId: 'bank', destinationAccountId: 'card1', createdAt: '2026-09-23T10:00:00' }),
+      ],
+    })!;
+    expect(st.postCloseSpend).toBe(711); // the payment is a credit, never "spend"
+    expect(st.statementDue).toBe(3898.15); // 5,898.15 − 2,000
+  });
+
+  it('statement paid in full, then more spend → nothing due now (clamped at 0)', () => {
+    // Paid 5,898.15 → used = 711 (only the post-close spend).
+    const cleared = card({ ...mashreq, balance: 19289 });
+    const st = buildCardStatement({ card: cleared, advanceLoans: [], schedules: [], today: TODAY, transactions: afterClose })!;
+    expect(st.revolving).toBe(711);
+    expect(st.statementDue).toBe(0);
+  });
+
+  it('keeps instalmentDue on top of the statement revolving (financed card)', () => {
+    // used 6,609.15 = 3,000 advance remaining + 3,609.15 revolving (711 post-close).
+    const st = buildCardStatement({
+      card: mashreq,
+      advanceLoans: [loan({ remainingAmount: 3000 })],
+      schedules: [emi({ dueDate: '2026-10-17', amount: 1000 })],
+      today: TODAY,
+      transactions: afterClose,
+    })!;
+    expect(st.revolving).toBe(3609.15);
+    expect(st.statementRevolving).toBe(2898.15);
+    expect(st.instalmentDue).toBe(1000);
+    expect(st.statementDue).toBe(3898.15);
+  });
+
+  it('ignores other accounts, deleted rows, cash advances, adjustments and credits', () => {
+    const st = buildCardStatement({
+      card: mashreq, advanceLoans: [], schedules: [], today: TODAY,
+      transactions: [
+        txn({ id: 'other', amount: 999, sourceAccountId: 'bank' }),
+        txn({ id: 'del', amount: 999, deletedAt: '2026-09-25T00:00:00Z' }),
+        txn({ id: 'ca', type: 'loan_taken', amount: 999, relatedLoanId: 'l9' }),
+        txn({ id: 'adj', type: 'adjustment', amount: 999 }),
+        txn({ id: 'refund', type: 'income', amount: 999, sourceAccountId: null, destinationAccountId: 'card1' }),
+      ],
+    })!;
+    expect(st.postCloseSpend).toBe(0);
+    expect(st.statementDue).toBe(6609.15);
+  });
+
+  it('no statementDay → falls back to dueDay and keeps the old behaviour (no exclusion)', () => {
+    const single = card({ ...mashreq, metadata: { creditLimit: '20000', dueDay: '17' } });
+    const st = buildCardStatement({ card: single, advanceLoans: [], schedules: [], today: TODAY, transactions: afterClose })!;
+    expect(st.statementDay).toBe(17);
+    expect(st.postCloseSpend).toBe(0);
+    expect(st.statementDue).toBe(6609.15);
+    // statementDay === dueDay is the same single-date card.
+    const same = card({ ...mashreq, metadata: { creditLimit: '20000', dueDay: '17', statementDay: '17' } });
+    expect(buildCardStatement({ card: same, advanceLoans: [], schedules: [], today: TODAY, transactions: afterClose })!.statementDue).toBe(6609.15);
+  });
+
+  it('no transactions passed → exactly the old behaviour', () => {
+    const st = buildCardStatement({ card: mashreq, advanceLoans: [], schedules: [], today: TODAY })!;
+    expect(st.postCloseSpend).toBe(0);
+    expect(st.statementRevolving).toBe(st.revolving);
+    expect(st.statementDue).toBe(6609.15);
+  });
+
+  it('no-limit card is unchanged (amount unknowable → instalment only)', () => {
+    const noLimit = card({ ...mashreq, metadata: { statementDay: '21', dueDay: '17' } });
+    const st = buildCardStatement({ card: noLimit, advanceLoans: [], schedules: [], today: TODAY, transactions: afterClose })!;
+    expect(st.hasLimit).toBe(false);
+    expect(st.postCloseSpend).toBe(0);
+    expect(st.statementDue).toBe(0);
+  });
+
+  it('before this month’s close, the previous close is the boundary', () => {
+    // Today 15 Oct → last close 21 Sep; spend on 10 Oct is post-close.
+    const st = buildCardStatement({
+      card: mashreq, advanceLoans: [], schedules: [], today: new Date(2026, 9, 15, 12),
+      transactions: [txn({ id: 'x', amount: 711, createdAt: '2026-10-10T10:00:00' })],
+    })!;
+    expect(st.cycleStartIso).toBe('2026-09-21');
+    expect(st.statementDue).toBe(5898.15);
+  });
+});
+
+describe('cardSpendOf', () => {
+  it('converts foreign-currency legs the way the store deducted them', () => {
+    expect(cardSpendOf(txn({ type: 'repayment', amount: 7600, conversionRate: 76 }), 'card1')).toBe(100);
+    expect(cardSpendOf(txn({ type: 'investment_buy', amount: 50, conversionRate: 0.5 }), 'card1')).toBe(100);
+    expect(cardSpendOf(txn({ type: 'transfer', amount: 100, conversionRate: 76, destinationAccountId: 'pk' }), 'card1')).toBe(100);
+    expect(cardSpendOf(txn({ type: 'loan_given', amount: 250 }), 'card1')).toBe(250);
+  });
+});
+
+describe('planStatementReanchor — Align never moves billed instalments', () => {
+  const row = (n: number, dueDate: string, status: EmiSchedule['status'] = 'upcoming') =>
+    ({ id: `i${n}`, installmentNumber: n, dueDate, status });
+
+  it('REAL RAK bug: Align pressed before recording payments keeps billed instalments put', () => {
+    // Due day 27. Plan on the 26th. Today 28 Sep: #5 (26 Sep) unpaid because
+    // the payment isn't recorded yet; #6 (26 Oct) is on the upcoming 27 Oct bill.
+    const updates = planStatementReanchor({
+      schedules: [row(4, '2026-08-26', 'paid'), row(5, '2026-09-26'), row(6, '2026-10-26'), row(7, '2026-11-26'), row(8, '2026-12-26')],
+      dueDay: 27,
+      today: new Date(2026, 8, 28, 12),
+    });
+    // Old code slid #5 → 27 Oct, #6 → 27 Nov … (a month late). Now:
+    expect(updates).toEqual([
+      { id: 'i7', oldDue: '2026-11-26', newDue: '2026-11-27' },
+      { id: 'i8', oldDue: '2026-12-26', newDue: '2026-12-27' },
+    ]);
+  });
+
+  it('paid instalments never move, even with future dates', () => {
+    const updates = planStatementReanchor({
+      schedules: [row(1, '2026-11-05', 'paid'), row(2, '2026-12-05')],
+      dueDay: 17,
+      today: new Date(2026, 8, 22, 12),
+    });
+    expect(updates).toEqual([{ id: 'i2', oldDue: '2026-12-05', newDue: '2026-12-17' }]);
+  });
+
+  it('moves each future instalment to the first due day on/after it — the same bill, never a month late', () => {
+    // Due 17th, today 22 Sep → upcoming due 17 Oct. #1 (5 Oct) is billed → frozen.
+    const updates = planStatementReanchor({
+      schedules: [row(1, '2026-10-05'), row(2, '2026-11-05'), row(3, '2026-12-30')],
+      dueDay: 17,
+      today: new Date(2026, 8, 22, 12),
+    });
+    expect(updates).toEqual([
+      { id: 'i2', oldDue: '2026-11-05', newDue: '2026-11-17' },
+      { id: 'i3', oldDue: '2026-12-30', newDue: '2027-01-17' },
+    ]);
+  });
+
+  it('keeps months monotonic — no two instalments share a month after re-dating', () => {
+    // Due 5th, today 28 Sep → upcoming due 5 Oct (nothing frozen).
+    // #1 (2 Nov) → 5 Nov; #2 (20 Nov) → 5 Dec; #3 (2 Dec) → 5 Dec would share
+    // Dec with #2 → bumped to 5 Jan.
+    const bumped = planStatementReanchor({
+      schedules: [row(1, '2026-11-02'), row(2, '2026-11-20'), row(3, '2026-12-02')],
+      dueDay: 5,
+      today: new Date(2026, 8, 28, 12),
+    });
+    expect(bumped.map((u) => u.newDue)).toEqual(['2026-11-05', '2026-12-05', '2027-01-05']);
+    const months = bumped.map((u) => u.newDue.slice(0, 7));
+    expect(new Set(months).size).toBe(months.length);
+  });
+
+  it('a moved instalment never lands in the month of a frozen one before it', () => {
+    // Due 27th, today 28 Sep → upcoming due 27 Oct. #2 (20 Oct) and #3
+    // (21 Oct) are on that bill → frozen in Oct; #4 (10 Nov) → 27 Nov.
+    const updates = planStatementReanchor({
+      schedules: [row(1, '2026-09-26', 'paid'), row(2, '2026-10-20'), row(3, '2026-10-21'), row(4, '2026-11-10')],
+      dueDay: 27,
+      today: new Date(2026, 8, 28, 12),
+    });
+    expect(updates).toEqual([{ id: 'i4', oldDue: '2026-11-10', newDue: '2026-11-27' }]);
+    // A frozen (paid) instalment in Dec pushes a later-numbered unpaid one past it.
+    const past = planStatementReanchor({
+      schedules: [row(1, '2026-12-01', 'paid'), row(2, '2026-11-15')],
+      dueDay: 27,
+      today: new Date(2026, 8, 28, 12),
+    });
+    expect(past).toEqual([{ id: 'i2', oldDue: '2026-11-15', newDue: '2027-01-27' }]);
+  });
+
+  it('an already-aligned plan needs nothing', () => {
+    expect(planStatementReanchor({
+      schedules: [row(1, '2026-10-27'), row(2, '2026-11-27')],
+      dueDay: 27,
+      today: new Date(2026, 8, 28, 12),
+    })).toEqual([]);
+  });
+
+  it('clamps a 31st due day to short months', () => {
+    const updates = planStatementReanchor({
+      schedules: [row(1, '2027-02-10')],
+      dueDay: 31,
+      today: new Date(2026, 8, 28, 12),
+    });
+    expect(updates).toEqual([{ id: 'i1', oldDue: '2027-02-10', newDue: '2027-02-28' }]);
+  });
+
+  it('rejects an invalid due day', () => {
+    expect(planStatementReanchor({ schedules: [row(1, '2026-12-01')], dueDay: 0, today: new Date(2026, 8, 28) })).toEqual([]);
   });
 });
