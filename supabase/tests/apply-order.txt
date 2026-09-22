@@ -175,6 +175,8 @@ supabase-migration-p3-account-deletion-balance-gate.sql
 #   ((SELECT auth.uid())), so the initplan sweep has nothing left to do. Before
 #   the grants sweep, whose allowlists name set_group_admin / is_group_admin.
 supabase-migration-group-admins.sql
+# ↓ daily-close markers: a new self-only table, no functions, no dependencies
+supabase-migration-daily-close.sql
 # ↓ reconciliation reads every table above
 supabase-migration-p3-invariant-monitoring.sql
 # ↓ TRULY LAST — the least-privilege sweep over public.* functions. It is a

@@ -23,6 +23,33 @@ type CanGoBackFn = () => boolean;
 
 let initialised = false;
 
+// "Nothing today" from the notification: close the day, then say so. The
+// action launches the app (possibly cold), so wait for the stored session
+// before the write — an early call would reach the server unauthenticated.
+async function closeTodayFromNotification(): Promise<void> {
+  const [{ supabase }, { useDailyCloseStore }, { useTransactionStore }, { computeCloseStreak }, { useToast }, { tStatic }] =
+    await Promise.all([
+      import('./supabase'),
+      import('../stores/dailyCloseStore'),
+      import('../stores/transactionStore'),
+      import('./dailyClose'),
+      import('../components/Toast'),
+      import('./i18n'),
+    ]);
+  try {
+    await supabase.auth.getSession();
+    await useDailyCloseStore.getState().closeDay('no_spend');
+    const streak = computeCloseStreak(
+      useTransactionStore.getState().transactions,
+      useDailyCloseStore.getState().closes,
+      new Date().toISOString(),
+    ).streak;
+    useToast.getState().show({ type: 'success', title: tStatic('close_toast_closed').replace('{n}', String(streak)) });
+  } catch {
+    useToast.getState().show({ type: 'error', title: tStatic('close_save_failed') });
+  }
+}
+
 export async function initNativeBridge(opts: {
   navigate: NavigateFn;
   canGoBack: CanGoBackFn;
@@ -135,6 +162,18 @@ export async function initNativeBridge(opts: {
     try {
       const { LocalNotifications } = await import('@capacitor/local-notifications');
       void LocalNotifications.addListener('localNotificationActionPerformed', (event) => {
+        // The evening nudge's buttons (planner section 7). 'tap' (the body)
+        // falls through to the href below like every other reminder.
+        if (event.actionId === 'log') {
+          opts.navigate('/?add=expense');
+          track('notification_opened', { type: 'reminder' });
+          return;
+        }
+        if (event.actionId === 'none') {
+          void closeTodayFromNotification();
+          track('notification_opened', { type: 'reminder' });
+          return;
+        }
         const href = (event.notification.extra as { href?: string } | undefined)?.href;
         // Mirrors pushRegistration.ts's hrefForPush guard: only an in-app
         // absolute path is navigable — a full URL or a protocol-relative

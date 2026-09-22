@@ -91,6 +91,12 @@ export interface QuickEntryPreset {
   cashAdvanceCardId?: string;
   lockContact?: boolean;
   lockAccount?: boolean;
+  // Pre-fill from a "usual item" chip (daily close sheet): the user lands on
+  // the amount step with last time's amount, category and note already in —
+  // one tap to confirm, or adjust. Never locked.
+  amount?: number;
+  category?: string;
+  notes?: string;
 }
 
 interface Props {
@@ -398,7 +404,7 @@ export function QuickEntry({
           : 1,
     );
     setIntent(preset?.intent ?? null);
-    setAmount('');
+    setAmount(preset?.amount && preset.amount > 0 ? String(preset.amount) : '');
     setType(preset?.intent === 'group_expense' ? 'group_expense' : (preset?.type ?? 'expense'));
     setRepaymentDirection(preset?.repaymentDirection ?? null);
     setCashAdvance(!!preset?.cashAdvanceCardId);
@@ -419,8 +425,8 @@ export function QuickEntry({
     setContact(preset?.contact ?? { id: null, name: '' });
     setRepayTarget(null);
     setExpandedGroupKey('');
-    setCategory('');
-    setNotes('');
+    setCategory(preset?.category ?? '');
+    setNotes(preset?.notes ?? '');
     setConversionRate('');
     setSplitPlan(null);
     splitSheetAutoOpened.current = false;

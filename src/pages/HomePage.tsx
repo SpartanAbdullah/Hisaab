@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Users } from "lucide-react";
 import { useAccountStore } from "../stores/accountStore";
 import { useTransactionStore } from "../stores/transactionStore";
@@ -63,7 +63,11 @@ import { GettingStartedCard } from "../components/GettingStartedCard";
 import { CoachCards } from "../components/CoachCards";
 import { buildCoachCards } from "../lib/coachInsights";
 import { AddAccountStepper } from "./AddAccountStepper";
-import { QuickEntry } from "./QuickEntry";
+import { QuickEntry, type QuickEntryPreset } from "./QuickEntry";
+import { DailyCloseSheet } from "../components/DailyCloseSheet";
+import { useDailyCloseStore } from "../stores/dailyCloseStore";
+import { computeCloseStreak, dayActivity } from "../lib/dailyClose";
+import { localIso } from "../lib/localDate";
 import { formatMoney, formatSignedMoney } from "../lib/constants";
 import { marketColorFor } from "../lib/marketColors";
 import { currencyMeta } from "../lib/design-tokens";
@@ -130,8 +134,16 @@ export function HomePage() {
     loadBalances,
   } = useSplitStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const t = useT();
   const [showAddAccount, setShowAddAccount] = useState(false);
+  // Daily close — the evening sheet, and the QuickEntry its chips open
+  // (full tracker; the splits_only IOU entry below has its own).
+  const [showClose, setShowClose] = useState(false);
+  const [closeEntryPreset, setCloseEntryPreset] = useState<QuickEntryPreset | null>(null);
+  const closes = useDailyCloseStore((s) => s.closes);
+  const closesLoaded = useDailyCloseStore((s) => s.loaded);
+  const loadCloses = useDailyCloseStore((s) => s.load);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   // Tapping a recent transaction opens it for editing (previously inert).
   const [selectedTxn, setSelectedTxn] = useState<Transaction | null>(null);
@@ -348,6 +360,33 @@ export function HomePage() {
     [loans, emiSchedules, transactions, recurringTemplates, committees, committeePayments, accounts, cardFundedLoanIds, renderNowMs],
   );
   const checkDays = daysSince(checkStampIso, new Date(renderNowMs));
+
+  // Daily close tile: today's entries + the forgiving streak.
+  useEffect(() => {
+    if (mode === "full_tracker" && !closesLoaded) void loadCloses();
+  }, [mode, closesLoaded, loadCloses]);
+  const todayIso = localIso(new Date(renderNowMs));
+  const closeToday = useMemo(() => dayActivity(transactions, closes, todayIso), [transactions, closes, todayIso]);
+  const closeStreak = useMemo(() => computeCloseStreak(transactions, closes, todayIso), [transactions, closes, todayIso]);
+  // Evening surface: from 17:00, or earlier once something is logged today.
+  const showCloseTile =
+    new Date(renderNowMs).getHours() >= 17 || closeToday.loggedToday || closeToday.closedToday !== null;
+
+  // Links from the evening nudge: `?close=today` opens the sheet, `?check=1`
+  // the weekly Hisaab check. Stripped once handled so Back doesn't reopen it.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const wantsClose = params.get("close") === "today";
+    const wantsCheck = params.get("check") === "1";
+    if (!wantsClose && !wantsCheck) return;
+    params.delete("close");
+    params.delete("check");
+    const rest = params.toString();
+    navigate(`/${rest ? `?${rest}` : ""}`, { replace: true });
+    if (mode === "splits_only") return;
+    if (wantsCheck) setShowCheck(true);
+    else setShowClose(true);
+  }, [location.search, mode, navigate]);
 
   // Portfolio totals per currency — shown as its OWN card, not folded into
   // "Where I Stand": holdings are volatile and price-dependent, liquid money
@@ -1399,6 +1438,24 @@ export function HomePage() {
           // flips the ritual tile to mint so keeping the ritual is visibly
           // rewarded.
           <div className="space-y-3">
+            {showCloseTile && (
+              <Tile3D
+                tint={closeToday.closedToday ? "mint" : "sky"}
+                icon="flame"
+                title={t("home_close_title")}
+                subtitle={
+                  closeToday.closedToday
+                    ? t("home_close_done").replace("{s}", String(closeStreak.streak))
+                    : closeToday.entriesToday.length === 0
+                      ? t("home_close_open")
+                      : (closeToday.entriesToday.length === 1
+                          ? t("home_close_entries_one")
+                          : t("home_close_entries").replace("{n}", String(closeToday.entriesToday.length))
+                        ).replace("{s}", String(closeStreak.streak))
+                }
+                onClick={() => setShowClose(true)}
+              />
+            )}
             <Tile3D
               tint={checkDays === 0 ? "mint" : "accent"}
               icon="tick"
@@ -1726,6 +1783,20 @@ export function HomePage() {
         payable={meraPrimary?.payable ?? 0}
         thisWeekRows={thisWeekRows}
         onStamped={(iso) => setCheckStampIso(iso)}
+      />
+      <DailyCloseSheet
+        open={showClose}
+        ready={dataReady}
+        onClose={() => setShowClose(false)}
+        onAdd={(preset) => {
+          setShowClose(false);
+          setCloseEntryPreset(preset);
+        }}
+      />
+      <QuickEntry
+        open={closeEntryPreset !== null}
+        onClose={() => setCloseEntryPreset(null)}
+        preset={closeEntryPreset}
       />
     </main>
   );

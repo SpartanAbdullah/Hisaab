@@ -19,7 +19,8 @@ import { paymentsForRound, roundDate } from './committeeMath';
 import { localIso } from './thisWeek';
 import { buildCardStatement } from './cardStatement';
 import { formatMoney } from './constants';
-import { tStatic } from './i18n';
+import { tStatic, type I18nKey } from './i18n';
+import { dayActivity, quietDays, type DailyClose } from './dailyClose';
 import type {
   Account,
   Budget,
@@ -43,6 +44,20 @@ export interface PlannedNotification {
   /** Route to open when the user taps the notification. */
   href: string;
   priority: number;
+  /** Registered action-button set (the evening nudge's Add / Nothing today). */
+  actionTypeId?: string;
+  /** Fire through Doze — only the evening nudge, whose whole point is its time. */
+  allowWhileIdle?: boolean;
+}
+
+/** The evening "daily close" nudge (section 7). Present only when the user
+ *  switched it on; full-tracker only — ledger-only mode has no expenses. */
+export interface DailyClosePlanInput {
+  hour: number;
+  minute: number;
+  closes: DailyClose[];
+  /** Last Hisaab-check day (YYYY-MM-DD), null if never done. */
+  lastCheckIso: string | null;
 }
 
 export interface PlanInputs {
@@ -59,6 +74,7 @@ export interface PlanInputs {
   budgets?: Budget[];
   transactions?: Transaction[];
   cardFundedLoanIds?: Map<string, string>;
+  dailyClose?: DailyClosePlanInput;
   now: Date;
 }
 
@@ -77,6 +93,27 @@ export function notificationId(key: string): number {
     h = Math.imul(h, 0x01000193);
   }
   return (h >>> 0) % 2147483646 + 1;
+}
+
+export const DAILY_CLOSE_ACTION_TYPE = 'daily_close';
+// Evening nudge: a week ahead (the scheduler rebuilds on every entry and
+// every resume, so logging anything cancels that evening's nudge).
+const CLOSE_HORIZON_DAYS = 7;
+const CLOSE_TEMPLATES = 5;
+const CHECK_EVERY_DAYS = 7;
+
+/** Should the nudge ring on a day the user will have been quiet for `quiet`
+ *  days? Backs off instead of nagging someone who's stopped listening:
+ *  daily for the first 2 quiet days, every other day up to a week, then
+ *  about twice a week. Any log or close resets `quiet` to 0. */
+export function closeNudgeDue(quiet: number): boolean {
+  if (quiet < 3) return true;
+  if (quiet < 7) return (quiet - 3) % 2 === 0;
+  return (quiet - 7) % 3 === 0;
+}
+
+function dayNumber(dayIso: string): number {
+  return Math.round(Date.parse(`${dayIso}T00:00:00Z`) / 86_400_000);
 }
 
 function fireTime(now: Date, daysFromToday: number): number {
@@ -307,6 +344,62 @@ export function planNotifications(inp: PlanInputs): PlannedNotification[] {
     }
   }
 
+  // 7. Daily close — the evening "log today" nudge (opt-in, separate switch).
+  //    Its own lane: it is never squeezed out by the 10:00 obligation cap,
+  //    and at most one per evening.
+  const evening: PlannedNotification[] = [];
+  if (inp.dailyClose) {
+    const dc = inp.dailyClose;
+    const txns = inp.transactions ?? [];
+    const today = dayActivity(txns, dc.closes, todayIso);
+    const activeToday = today.loggedToday || today.closedToday !== null;
+    const quietNow = quietDays(txns, dc.closes, todayIso) ?? 0;
+    let checkOffered = false;
+    for (let i = 0; i < CLOSE_HORIZON_DAYS; i += 1) {
+      if (i === 0 && activeToday) continue;
+      const atMs = new Date(
+        inp.now.getFullYear(), inp.now.getMonth(), inp.now.getDate() + i, dc.hour, dc.minute, 0,
+      ).getTime();
+      if (atMs <= nowMs + 60_000) continue;
+      // Projected quiet days on that evening, assuming nothing gets logged
+      // in between (if something does, this plan is rebuilt anyway).
+      const quiet = activeToday ? i : quietNow + i;
+      if (!closeNudgeDue(quiet)) continue;
+      const dayIso = localIso(new Date(atMs));
+      const checkDue = !checkOffered && (
+        dc.lastCheckIso === null || dayNumber(dayIso) - dayNumber(dc.lastCheckIso) >= CHECK_EVERY_DAYS
+      );
+      if (checkDue) {
+        checkOffered = true;
+        evening.push({
+          id: notificationId(`close:${dayIso}`),
+          key: `close:${dayIso}`,
+          title: tStatic('notif_check_title'),
+          body: tStatic('notif_check_body'),
+          atMs,
+          href: '/?check=1',
+          priority: 65,
+          allowWhileIdle: true,
+        });
+        continue;
+      }
+      // Rotate the wording by calendar day — consecutive evenings never
+      // repeat (a template seen every night stops being read).
+      const n = (dayNumber(dayIso) % CLOSE_TEMPLATES) + 1;
+      evening.push({
+        id: notificationId(`close:${dayIso}`),
+        key: `close:${dayIso}`,
+        title: tStatic(`notif_close_t${n}` as I18nKey),
+        body: tStatic(`notif_close_b${n}` as I18nKey),
+        atMs,
+        href: '/?close=today',
+        priority: 65,
+        actionTypeId: DAILY_CLOSE_ACTION_TYPE,
+        allowWhileIdle: true,
+      });
+    }
+  }
+
   // Daily cap: the most important few win; the rest stay in-app. Then a
   // global cap to stay well inside Android's pending-alarm budget.
   const byDay = new Map<string, PlannedNotification[]>();
@@ -321,6 +414,7 @@ export function planNotifications(inp: PlanInputs): PlannedNotification[] {
     list.sort((a, b) => b.priority - a.priority);
     capped.push(...list.slice(0, MAX_PER_DAY));
   }
+  capped.push(...evening);
   return capped
     .sort((a, b) => a.atMs - b.atMs || b.priority - a.priority)
     .slice(0, MAX_TOTAL);

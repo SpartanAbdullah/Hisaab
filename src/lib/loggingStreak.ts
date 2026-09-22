@@ -18,7 +18,7 @@ const BARE_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 // logged at 22:30 local-late in this app's UTC+4/+5 markets can already be
 // past UTC midnight, and slicing would silently attribute it to the wrong
 // day, breaking the streak a day early (or extending it a day late).
-function dayOf(iso: string): string {
+export function dayOf(iso: string): string {
   const s = (iso ?? '').trim();
   if (!s) return '';
   if (BARE_DAY_RE.test(s)) return s;
@@ -27,7 +27,7 @@ function dayOf(iso: string): string {
   return localIso(d);
 }
 
-function shiftDay(dayIso: string, delta: number): string {
+export function shiftDay(dayIso: string, delta: number): string {
   const d = new Date(`${dayIso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + delta);
   return d.toISOString().slice(0, 10);

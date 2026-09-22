@@ -12,7 +12,8 @@ import { useAccountStore } from "../stores/accountStore";
 import { useAuthStore } from "../stores/authStore";
 import { useToast } from "../components/Toast";
 import { isNativeRuntime } from "../lib/runtime";
-import { enableRemindersFlow, remindersEnabled, rescheduleNotifications, REMINDERS_KEY } from "../lib/notificationScheduler";
+import { enableDailyCloseFlow, enableRemindersFlow, remindersEnabled, rescheduleNotifications, REMINDERS_KEY } from "../lib/notificationScheduler";
+import { DAILY_CLOSE_KEY, dailyCloseEnabled, dailyCloseTime, setDailyCloseTime } from "../lib/dailyClosePrefs";
 import { requestPushPermissionAndRegister } from "../lib/pushRegistration";
 import { MyPhoneField, PhoneDiscoverySection } from "../components/PhoneDiscoverySection";
 import { TelemetryConsentToggle } from "../components/TelemetryConsentToggle";
@@ -233,6 +234,11 @@ export function SettingsPage() {
   // the toggle drives REMINDERS_KEY and the permission flow.
   const [remindersOn, setRemindersOn] = useState(() => remindersEnabled());
   const [remindersBusy, setRemindersBusy] = useState(false);
+  // Daily close — the evening "log today" nudge. Its own opt-in, same
+  // permission flow as payment reminders.
+  const [closeOn, setCloseOn] = useState(() => dailyCloseEnabled());
+  const [closeTime, setCloseTime] = useState(() => dailyCloseTime());
+  const [closeBusy, setCloseBusy] = useState(false);
   // M5 quiet hours + real push opt-in (docs/notifications.md §8.2, audit N-6).
   // Quiet hours mirror `notification_prefs`' global row through the store;
   // both null (no window configured yet) shows the DEFAULT_QUIET_* fallback
@@ -1026,6 +1032,71 @@ export function SettingsPage() {
               />
             </div>
           )}
+
+          {/* Daily close — the evening nudge to log today (full tracker only:
+              ledger-only mode has no expenses). Native schedules it; on the
+              web the Home "Close today" tile is the whole habit, and we say so. */}
+          {mode === "full_tracker" && (isNativeRuntime() ? (
+            <div>
+              <div className={rowClass}>
+                <RowIcon glyph="flame" tone="gold" />
+                <RowText title={t("settings_close")} sub={t("settings_close_desc")} />
+                <button
+                  type="button"
+                  role="switch"
+                  disabled={closeBusy}
+                  onClick={() => {
+                    void (async () => {
+                      setCloseBusy(true);
+                      try {
+                        if (!closeOn) {
+                          // The flow OWNS the key write (see enableRemindersFlow).
+                          const enabled = await enableDailyCloseFlow();
+                          setCloseOn(enabled);
+                          if (!enabled) toast.show({ type: "error", title: t("settings_reminders_denied") });
+                        } else {
+                          try {
+                            localStorage.setItem(DAILY_CLOSE_KEY, "false");
+                          } catch { /* storage off */ }
+                          setCloseOn(false);
+                          await rescheduleNotifications({ force: true });
+                        }
+                      } finally {
+                        setCloseBusy(false);
+                      }
+                    })();
+                  }}
+                  aria-checked={closeOn}
+                  aria-label={t("settings_close")}
+                  className="m-switch"
+                />
+              </div>
+              {closeOn && (
+                <div className="px-4 pb-4 animate-fade-in">
+                  <label className="block max-w-[180px]">
+                    <span className="form-label">{t("settings_close_time")}</span>
+                    <input
+                      type="time"
+                      step={300}
+                      disabled={closeBusy}
+                      value={closeTime}
+                      onChange={(e) => {
+                        if (!setDailyCloseTime(e.target.value)) return;
+                        setCloseTime(e.target.value);
+                        void rescheduleNotifications({ force: true });
+                      }}
+                      className="input-field py-2.5 tabular-nums disabled:opacity-50"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className={rowClass}>
+              <RowIcon glyph="flame" tone="gold" />
+              <RowText title={t("settings_close")} sub={t("settings_close_web")} />
+            </div>
+          ))}
 
           {/* Global mute — M5 (docs/notifications.md §8.2). Same server-side
               row as the per-group mute in GroupDetailPage, just group_id null:

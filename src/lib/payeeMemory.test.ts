@@ -34,7 +34,7 @@ describe('buildPayeeProfiles + matchPayee', () => {
       tx({ notes: 'careem ', category: 'Transport', amount: 55, sourceAccountId: 'wallet', createdAt: '2026-07-10T10:00:00Z' }),
     ]);
     const match = matchPayee(profiles, 'CAREEM');
-    expect(match).toMatchObject({ category: 'Transport', accountId: 'wallet', typicalAmount: 45, count: 2 });
+    expect(match).toMatchObject({ category: 'Transport', accountId: 'wallet', typicalAmount: 45, lastAmount: 55, count: 2 });
   });
 
   it('one use is a coincidence, not a habit — no profile', () => {

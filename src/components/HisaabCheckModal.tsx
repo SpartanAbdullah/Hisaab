@@ -11,6 +11,8 @@ import { Glyph } from './Glyph';
 import { Modal } from './Modal';
 import { StepIndicator } from './StepIndicator';
 import { PaymentReminderModal } from './PaymentReminderModal';
+import { CheckBalancesStep } from './CheckBalancesStep';
+import { useAccountStore } from '../stores/accountStore';
 import { useLoanStore } from '../stores/loanStore';
 import { useTransactionStore } from '../stores/transactionStore';
 import { usePersonStore } from '../stores/personStore';
@@ -65,6 +67,8 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
   const transactions = useTransactionStore((s) => s.transactions);
   const loans = useLoanStore((s) => s.loans);
   const persons = usePersonStore((s) => s.persons);
+  // The Balances step only exists when there are accounts to check.
+  const hasAccounts = useAccountStore((s) => s.accounts.some((a) => !a.deletedAt));
 
   const [step, setStep] = useState(0);
   const [now] = useState(() => new Date());
@@ -109,13 +113,17 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
       // Storage off — the walk still completes, it just won't be remembered.
     }
     onStamped?.(dateIso);
-    setStep(4);
+    setStep(5);
   };
 
   const signed = (n: number) => `${n >= 0 ? '+' : '−'}${formatMoney(Math.abs(n), currency)}`;
   const noDelta = delta !== null && Math.abs(delta.receivable) < 0.005 && Math.abs(delta.payable) < 0.005;
 
-  const stepLabels = [t('check_step_flow'), t('check_step_people'), t('check_step_week'), t('check_step_action')];
+  // Steps: 0 flow · 1 people · 2 balances · 3 week ahead · 4 one action · 5 done.
+  // With no accounts the Balances step is stepped over in both directions.
+  const stepLabels = [t('check_step_flow'), t('check_step_people'), t('check_step_balances'), t('check_step_week'), t('check_step_action')];
+  const next = (from: number) => (from === 1 && !hasAccounts ? 3 : from + 1);
+  const prev = (from: number) => (from === 3 && !hasAccounts ? 1 : from - 1);
 
   return (
     <>
@@ -124,18 +132,18 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
       onClose={onClose}
       title={t('check_entry_title')}
       footer={
-        step < 4 ? (
+        step < 5 ? (
           <div className="flex gap-2">
             {step > 0 && (
-              <button onClick={() => setStep(step - 1)} className="cta-secondary flex-1">
+              <button onClick={() => setStep(prev(step))} className="cta-secondary flex-1">
                 {t('check_back')}
               </button>
             )}
             <button
-              onClick={() => (step === 3 ? finishCheck() : setStep(step + 1))}
+              onClick={() => (step === 4 ? finishCheck() : setStep(next(step)))}
               className="cta-primary flex-1"
             >
-              {step === 3 ? t('check_finish') : t('check_next')}
+              {step === 4 ? t('check_finish') : t('check_next')}
             </button>
           </div>
         ) : (
@@ -145,7 +153,7 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
         )
       }
     >
-      {step < 4 && (
+      {step < 5 && (
         <div className="mb-4">
           <StepIndicator steps={stepLabels} current={step} />
         </div>
@@ -227,8 +235,11 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
         </div>
       )}
 
+      {/* Balances — does each account still match the bank app? */}
+      {step === 2 && <CheckBalancesStep />}
+
       {/* 3 — the week ahead: Home's thisWeek rows, read-only. */}
-      {step === 2 && (
+      {step === 3 && (
         <div className="animate-fade-in space-y-3">
           <p className="text-[14px] font-semibold text-ink-900 tracking-tight">{t('check_week_title')}</p>
           {thisWeekRows.length === 0 ? (
@@ -275,7 +286,7 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
       {/* 4 — one action: the person who has owed you longest, for their
           whole balance, WhatsApp one tap away. Nothing nag-worthy → say so
           and let the user finish clean. */}
-      {step === 3 && (
+      {step === 4 && (
         <div className="animate-fade-in space-y-3">
           <p className="text-[14px] font-semibold text-ink-900 tracking-tight">{t('check_action_title')}</p>
           {suggested ? (
@@ -311,7 +322,7 @@ function CheckModalWalk({ open, onClose, currency, receivable, payable, thisWeek
           confetti, though: the burst is reserved for a debt actually closing
           (ConfirmationSheet `settled`), and one that fired every day would
           turn into a tic. */}
-      {step === 4 && (
+      {step === 5 && (
         <div className="animate-fade-in flex flex-col items-center text-center py-6">
           <CelebrationMark size={56} className="mb-3" burst={false} />
           <p className="text-[17px] font-bold text-ink-900 tracking-tight">{t('check_done_title')}</p>

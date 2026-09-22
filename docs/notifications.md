@@ -78,6 +78,18 @@ What that costs the user, stated plainly:
 
 The in-app Inbox "Info" card (`inboxInfo.ts:140-152`) remains the cross-device signal.
 
+### 2.4 Daily close — the evening "log today" nudge (DEVICE-LOCAL, own opt-in)
+
+Planner section 7 (`src/lib/notificationPlanner.ts`), added 2026-09-22 after the founder's balance reconciliation showed how far unlogged days drift. Like section 6 it is a scheduled *local* notification, never a server row or a push.
+
+- **Opt-in of its own:** `hisaab_daily_close_enabled` + `hisaab_daily_close_time` (`src/lib/dailyClosePrefs.ts`, default 21:30), set in Settings → Daily close via `enableDailyCloseFlow()`. Payment reminders (`REMINDERS_KEY`, sections 1-6) are independent: either can be on alone. Full tracker only.
+- **Never stale:** one entry per evening for the next 7 (`close:<YYYY-MM-DD>`), skipped for a day already logged (any non-bookkeeping transaction) or closed (`daily_closes` row, `supabase-migration-daily-close.sql`). Every transaction write and every close/reopen forces a reschedule, so logging at 20:00 silences 21:30.
+- **Backs off:** daily for the first 2 quiet days, every other day up to a week, then every third day (`closeNudgeDue`). Any log or close resets it. Five wordings rotate by calendar day.
+- **Weekly check swap:** when the Hisaab check is 7+ days old, one evening's nudge becomes the check (`/?check=1`).
+- **Own lane:** exempt from the 3-per-day cap on 10:00 reminders; `allowWhileIdle` (inexact — no exact-alarm permission).
+- **Buttons** (`actionTypeId: 'daily_close'`, registered in `notificationScheduler.ts`): **Add expense** → `/?add=expense` (QuickEntry on the amount step); **Nothing today** → closes the day (`no_spend`) and toasts the streak. Both launch the app; `nativeBridge.ts` reads `actionId`. Tapping the body opens `/?close=today` (the Close-day sheet).
+- **Web:** no scheduled nudge; the Home "Close today" tile (from 17:00, or once something is logged) is the habit's surface.
+
 ---
 
 ## 3. Preferences model

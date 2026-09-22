@@ -15,6 +15,19 @@ export interface CheckStamp {
   currency: string;
 }
 
+/** Day of the last completed Hisaab check, or null (never / unreadable).
+ *  The evening planner uses it to swap in the weekly check nudge. */
+export function readCheckStampDay(): string | null {
+  try {
+    const raw = localStorage.getItem(CHECK_STAMP_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CheckStamp>;
+    return typeof parsed?.dateIso === 'string' ? parsed.dateIso : null;
+  } catch {
+    return null;
+  }
+}
+
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const DAY_MS = 24 * 60 * 60 * 1000;
 

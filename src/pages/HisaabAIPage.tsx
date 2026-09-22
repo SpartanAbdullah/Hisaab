@@ -25,7 +25,8 @@ import type { ParsedGroupExpense } from '../lib/nlGroupExpenseParser';
 import { equalSplits } from '../lib/splitMath';
 import { parseAmountExpression } from '../lib/parseAmountExpression';
 import { upcomingRenewals, detectGhosts, describeGhost } from '../lib/subscriptionMetrics';
-import { computeLoggingStreak } from '../lib/loggingStreak';
+import { computeCloseStreak } from '../lib/dailyClose';
+import { useDailyCloseStore } from '../stores/dailyCloseStore';
 import { suggestCategory, type HistoryTxn } from '../lib/categorySuggest';
 import { getPersona, setPersona, flavor, type Persona } from '../lib/persona';
 import { spendAnchor } from '../lib/spendAnchor';
@@ -199,11 +200,16 @@ export function HisaabAIPage() {
   }, [isFull, transactions, accounts, loans, groups]);
 
   // Gentle nudges + streak (Full Tracker feed only). All on-device.
+  // Same forgiving streak as the daily close: a day counts when something was
+  // logged OR the user closed it ("nothing spent today" is honest, not a gap).
   const todayIso = localIso(new Date());
-  const streak = useMemo(
-    () => computeLoggingStreak(transactions.filter((t) => t.type === 'expense').map((t) => t.createdAt), todayIso),
-    [transactions, todayIso],
-  );
+  const closes = useDailyCloseStore((s) => s.closes);
+  const closesLoaded = useDailyCloseStore((s) => s.loaded);
+  const loadCloses = useDailyCloseStore((s) => s.load);
+  useEffect(() => {
+    if (isFull && !closesLoaded) void loadCloses();
+  }, [isFull, closesLoaded, loadCloses]);
+  const streak = useMemo(() => computeCloseStreak(transactions, closes, todayIso), [transactions, closes, todayIso]);
   const renewals = useMemo(() => upcomingRenewals(templates, todayIso, 7), [templates, todayIso]);
   const ghosts = useMemo(() => detectGhosts(templates, todayIso), [templates, todayIso]);
 
@@ -754,8 +760,7 @@ export function HisaabAIPage() {
               <Glyph name="flame" size={16} tone="violet" />
             </span>
             <p className="text-[12.5px] text-ink-600">
-              <span className="font-semibold text-ink-900">{streak.streak}-day</span> logging streak
-              {streak.loggedToday ? ' — nice work.' : ' — log one today to keep it going.'}
+              {(streak.activeToday ? t('ai_streak_done') : t('ai_streak_keep')).replace('{n}', String(streak.streak))}
             </p>
           </div>
         )}

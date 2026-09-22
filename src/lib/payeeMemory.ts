@@ -18,6 +18,8 @@ export interface PayeeProfile {
   accountId: string | null;
   /** Median amount across uses, 2dp. */
   typicalAmount: number;
+  /** Amount of the newest use — what the daily-close chips offer back. */
+  lastAmount: number;
   count: number;
   lastUsedAt: string;
 }
@@ -81,6 +83,7 @@ export function buildPayeeProfiles(transactions: Transaction[]): Map<string, Pay
       category,
       accountId: sorted.find((txn) => txn.sourceAccountId)?.sourceAccountId ?? null,
       typicalAmount: median(txns.map((txn) => txn.amount)),
+      lastAmount: sorted[0].amount,
       count: txns.length,
       lastUsedAt: sorted[0].createdAt,
     });

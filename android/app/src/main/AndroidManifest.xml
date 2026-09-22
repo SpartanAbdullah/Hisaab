@@ -66,6 +66,11 @@
                 <data android:pathPrefix="/kameti/witness/" />
             </intent-filter>
 
+            <!-- Launcher long-press shortcuts: Add expense, Close today (res/xml/shortcuts.xml). -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+
         </activity>
 
         <provider

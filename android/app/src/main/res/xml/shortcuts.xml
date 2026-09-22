@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Launcher long-press shortcuts (daily close, 2026-09-22). Each is an EXPLICIT
+  VIEW intent at MainActivity carrying an https URL, so no intent-filter is
+  needed: Capacitor's App plugin hands the URL to JS (getLaunchUrl on a cold
+  start, appUrlOpen on a warm one) and nativeBridge routes it —
+    /?add=expense  → App.tsx opens QuickEntry on the amount step
+    /?close=today  → HomePage opens the daily-close sheet
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="add_expense"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_add_expense"
+        android:shortcutLongLabel="@string/shortcut_add_expense">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.usehisaab.app"
+            android:targetClass="com.usehisaab.app.MainActivity"
+            android:data="https://usehisaab.com/?add=expense" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="close_today"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_close_today"
+        android:shortcutLongLabel="@string/shortcut_close_today">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.usehisaab.app"
+            android:targetClass="com.usehisaab.app.MainActivity"
+            android:data="https://usehisaab.com/?close=today" />
+    </shortcut>
+</shortcuts>

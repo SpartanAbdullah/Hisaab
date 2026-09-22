@@ -114,6 +114,7 @@ import { shouldShowDailyQuote } from './lib/dailyQuotePrefs';
 import type { WrapStats } from './lib/monthlyWrap';
 import type { RecurringDueDetail } from './lib/recurringRunner';
 import type { RecurringTransaction, SplitGroup } from './db';
+import type { QuickEntryPreset } from './pages/QuickEntry';
 
 function PageLoader() {
   return <AppLoadingScreen />;
@@ -299,6 +300,9 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showQuickEntry, setShowQuickEntry] = useState(false);
+  // Set when QuickEntry is opened from a link (`?add=expense` — the evening
+  // nudge's "Add expense" button, the launcher shortcut); null from the FAB.
+  const [quickEntryPreset, setQuickEntryPreset] = useState<QuickEntryPreset | null>(null);
   // QuickEntry → Group expense bridge: when the user picks a group inside
   // QuickEntry, we close it and open AddGroupExpenseModal with the
   // already-typed amount. When they pick "Create new group" instead,
@@ -349,6 +353,21 @@ function AppContent() {
       savePendingInvite(location.pathname.replace('/join/', ''));
     }
   }, [location.pathname, user]);
+
+  // `?add=expense` opens QuickEntry straight on the amount step. Waits for a
+  // signed-in, onboarded user (the param survives until then), and strips
+  // itself so Back or a reload doesn't reopen the sheet. Ledger-only mode has
+  // no expense type, so there it opens the plain picker.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('add') !== 'expense' || !user || !completed) return;
+    params.delete('add');
+    const rest = params.toString();
+    navigate(`${location.pathname}${rest ? `?${rest}` : ''}`, { replace: true });
+    setQuickEntryPreset(mode === 'full_tracker' ? { type: 'expense' } : null);
+    setQuickEntryMounted(true);
+    setShowQuickEntry(true);
+  }, [location.search, location.pathname, user, completed, mode, navigate]);
 
   // Capacitor native bridge — initialised once after the router is available.
   // No-op on web. Wires status bar, splash, hardware back button, deep links.
@@ -951,6 +970,7 @@ function AppContent() {
       </Suspense>
       <BottomNav
         onQuickEntry={() => {
+          setQuickEntryPreset(null);
           setQuickEntryMounted(true);
           setShowQuickEntry(true);
         }}
@@ -969,6 +989,7 @@ function AppContent() {
           <QuickEntry
             open={showQuickEntry}
             onClose={() => setShowQuickEntry(false)}
+            preset={quickEntryPreset}
             onPickGroupExpense={(group, amount) => {
               setShowQuickEntry(false);
               setGroupExpenseTarget({ group, amount });

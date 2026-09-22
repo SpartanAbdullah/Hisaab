@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { notificationId, planNotifications, type PlanInputs } from './notificationPlanner';
+import { closeNudgeDue, notificationId, planNotifications, type PlanInputs } from './notificationPlanner';
 import type { Account, Budget, Committee, EmiSchedule, Loan, RecurringTransaction, Transaction, UpcomingExpense } from '../db';
 
 // 09:00 on 24 Jul — before the 10:00 fire slot, so same-day (T-0) entries
@@ -203,5 +203,80 @@ describe('planNotifications — budget breach', () => {
 
   it('produces nothing when the caller passes no budgets (older callers)', () => {
     expect(planNotifications(inputs()).filter((p) => p.key.startsWith('budget:'))).toHaveLength(0);
+  });
+});
+
+describe('planNotifications — daily close (section 7)', () => {
+  // 24 Jul 2026, 09:00 local. The evening slot is 21:30.
+  const expenseOn = (day: string): Transaction => ({
+    id: `x-${day}`, type: 'expense', amount: 12, currency: 'AED', sourceAccountId: 'cash',
+    destinationAccountId: null, relatedPerson: null, personId: null, relatedLoanId: null,
+    relatedGoalId: null, conversionRate: null, category: 'Food', notes: '', createdAt: `${day}T08:00:00Z`,
+  });
+  const dc = (over: Partial<NonNullable<PlanInputs['dailyClose']>> = {}): PlanInputs['dailyClose'] => ({
+    hour: 21, minute: 30, closes: [], lastCheckIso: '2026-07-23', ...over,
+  });
+  const closeKeys = (inp: PlanInputs) => planNotifications(inp).filter((p) => p.key.startsWith('close:'));
+
+  it('is off unless the caller passes dailyClose', () => {
+    expect(closeKeys(inputs({ transactions: [expenseOn('2026-07-23')] }))).toHaveLength(0);
+  });
+
+  it('nudges every evening at the chosen time, with the action buttons — thinning out only if nothing gets logged', () => {
+    // Last logged yesterday. The plan assumes nothing more is logged: daily
+    // for 3 evenings, then every other day (any entry rebuilds the plan).
+    const plan = closeKeys(inputs({ transactions: [expenseOn('2026-07-23')], dailyClose: dc() }));
+    expect(plan.map((p) => p.key)).toEqual([
+      'close:2026-07-24', 'close:2026-07-25', 'close:2026-07-26',
+      'close:2026-07-28', 'close:2026-07-30',
+    ]);
+    const first = plan[0];
+    expect(new Date(first.atMs).getHours()).toBe(21);
+    expect(new Date(first.atMs).getMinutes()).toBe(30);
+    expect(first.actionTypeId).toBe('daily_close');
+    expect(first.allowWhileIdle).toBe(true);
+    expect(first.href).toBe('/?close=today');
+  });
+
+  it('skips tonight once today is logged or closed', () => {
+    const logged = closeKeys(inputs({ transactions: [expenseOn('2026-07-24')], dailyClose: dc() }));
+    expect(logged[0].key).toBe('close:2026-07-25');
+    const closed = closeKeys(inputs({ dailyClose: dc({ closes: [{ day: '2026-07-24', kind: 'no_spend' }] }) }));
+    expect(closed[0].key).toBe('close:2026-07-25');
+  });
+
+  it('never schedules tonight once the time has passed', () => {
+    const late = new Date(2026, 6, 24, 22, 0, 0);
+    const plan = closeKeys(inputs({ now: late, transactions: [expenseOn('2026-07-23')], dailyClose: dc() }));
+    expect(plan[0].key).toBe('close:2026-07-25');
+  });
+
+  it('backs off for someone who has gone quiet', () => {
+    expect([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(closeNudgeDue)).toEqual(
+      [true, true, true, true, false, true, false, true, false, false, true],
+    );
+    // Last activity 10 days ago → quiet 10 tonight: only 10, 13 in the week.
+    const plan = closeKeys(inputs({ transactions: [expenseOn('2026-07-14')], dailyClose: dc() }));
+    expect(plan.map((p) => p.key)).toEqual(['close:2026-07-24', 'close:2026-07-27', 'close:2026-07-30']);
+  });
+
+  it('consecutive evenings never share the same wording', () => {
+    const plan = closeKeys(inputs({ transactions: [expenseOn('2026-07-23')], dailyClose: dc() }));
+    for (let i = 1; i < 4; i += 1) expect(plan[i].title + plan[i].body).not.toBe(plan[i - 1].title + plan[i - 1].body);
+  });
+
+  it('swaps in the weekly Hisaab check once, on the first evening it is due', () => {
+    const plan = closeKeys(inputs({ transactions: [expenseOn('2026-07-23')], dailyClose: dc({ lastCheckIso: '2026-07-19' }) }));
+    const checks = plan.filter((p) => p.href === '/?check=1');
+    expect(checks.map((p) => p.key)).toEqual(['close:2026-07-26']);
+    expect(checks[0].actionTypeId).toBeUndefined();
+  });
+
+  it('is not squeezed out by the 10:00 obligation cap', () => {
+    const many = Array.from({ length: 5 }, (_, i) => emi({ id: `e${i}`, dueDate: '2026-07-24' }));
+    const plan = planNotifications(inputs({
+      loans: [loan()], schedules: many, transactions: [expenseOn('2026-07-23')], dailyClose: dc(),
+    }));
+    expect(plan.some((p) => p.key === 'close:2026-07-24')).toBe(true);
   });
 });

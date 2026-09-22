@@ -4,4 +4,6 @@
     <string name="title_activity_main">Hisaab</string>
     <string name="package_name">com.usehisaab.app</string>
     <string name="custom_url_scheme">com.usehisaab.app</string>
+    <string name="shortcut_add_expense">Add expense</string>
+    <string name="shortcut_close_today">Close today</string>
 </resources>

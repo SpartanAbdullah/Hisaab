@@ -11,6 +11,10 @@
   "orientation": "portrait",
   "lang": "en",
   "categories": ["finance", "productivity"],
+  "shortcuts": [
+    { "name": "Add expense", "short_name": "Add expense", "url": "/?add=expense", "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }] },
+    { "name": "Close today", "short_name": "Close today", "url": "/?close=today", "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }] }
+  ],
   "icons": [
     {
       "src": "./icon-192.png",

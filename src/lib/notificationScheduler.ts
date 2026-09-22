@@ -3,9 +3,13 @@
 // then re-derives it from live store state via the pure planner — so a bill
 // paid five minutes ago can never ring, by construction. No-op on web.
 import { isNativeRuntime } from './runtime';
-import { planNotifications } from './notificationPlanner';
+import { DAILY_CLOSE_ACTION_TYPE, planNotifications } from './notificationPlanner';
 import { notificationChannelDefs } from './notificationContent';
 import { tStatic } from './i18n';
+import { DAILY_CLOSE_KEY, dailyCloseEnabled, dailyCloseTime, parseCloseTime } from './dailyClosePrefs';
+import { readCheckStampDay } from './hisaabCheck';
+import { useAppModeStore } from '../stores/appModeStore';
+import { useDailyCloseStore } from '../stores/dailyCloseStore';
 import { useBudgetStore } from '../stores/budgetStore';
 import { useAccountStore } from '../stores/accountStore';
 import { useLoanStore } from '../stores/loanStore';
@@ -43,6 +47,8 @@ async function ensureLoaded(): Promise<void> {
   if (useTransactionStore.getState().transactions.length === 0) jobs.push(useTransactionStore.getState().loadTransactions());
   // Budgets drive the device-local breach reminder (planner section 6).
   if (useBudgetStore.getState().budgets.length === 0) jobs.push(useBudgetStore.getState().loadBudgets());
+  // Close markers decide whether tonight's evening nudge is still needed.
+  if (!useDailyCloseStore.getState().loaded) jobs.push(useDailyCloseStore.getState().load());
   await Promise.all(jobs.map((j) => j.catch(() => {})));
 }
 
@@ -66,6 +72,27 @@ async function ensureLocalChannels(): Promise<void> {
   }
 }
 
+// The evening nudge's two buttons. Android launches the app for either (the
+// plugin's action PendingIntent is an activity intent); nativeBridge reads
+// `actionId`. Titles are localized at registration time and re-registered on
+// every run, so a language switch is picked up on the next reschedule.
+async function ensureActionTypes(): Promise<void> {
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    await LocalNotifications.registerActionTypes({
+      types: [{
+        id: DAILY_CLOSE_ACTION_TYPE,
+        actions: [
+          { id: 'log', title: tStatic('notif_close_action_log') },
+          { id: 'none', title: tStatic('notif_close_action_none') },
+        ],
+      }],
+    });
+  } catch (err) {
+    console.error('[notifications] action types failed (non-fatal)', err);
+  }
+}
+
 // Drops every pending local notification. Shared by the reschedule path
 // (which must start from a clean slate) and by the sign-out path.
 async function cancelPending(): Promise<void> {
@@ -86,12 +113,18 @@ async function runReschedule(): Promise<void> {
     // was just disabled or permission was revoked.
     await cancelPending();
 
-    if (!remindersEnabled()) return;
+    // Two independent opt-ins: payment reminders (sections 1-6) and the
+    // evening daily close (section 7, full tracker only - ledger-only mode
+    // has no expenses to log).
+    const paymentsOn = remindersEnabled();
+    const closeOn = dailyCloseEnabled() && useAppModeStore.getState().mode === 'full_tracker';
+    if (!paymentsOn && !closeOn) return;
     const perm = await LocalNotifications.checkPermissions();
     if (perm.display !== 'granted') return;
 
     await ensureLoaded();
     await ensureLocalChannels();
+    if (closeOn) await ensureActionTypes();
 
     // Cash-advance loans keyed to their funding card (loan_taken origin) —
     // same derivation as HomePage/InboxPage.
@@ -103,18 +136,27 @@ async function runReschedule(): Promise<void> {
     }
 
     const plan = planNotifications({
-      accounts: useAccountStore.getState().accounts,
-      loans: useLoanStore.getState().loans,
-      schedules: useEmiStore.getState().schedules,
-      templates: useRecurringStore.getState().templates,
-      upcoming: useUpcomingExpenseStore.getState().expenses,
-      committees: useCommitteeStore.getState().committees,
-      committeePayments: useCommitteeStore.getState().payments,
+      // With payment reminders off, sections 1-6 see empty inputs and plan
+      // nothing; transactions stay in for the evening section.
+      accounts: paymentsOn ? useAccountStore.getState().accounts : [],
+      loans: paymentsOn ? useLoanStore.getState().loans : [],
+      schedules: paymentsOn ? useEmiStore.getState().schedules : [],
+      templates: paymentsOn ? useRecurringStore.getState().templates : [],
+      upcoming: paymentsOn ? useUpcomingExpenseStore.getState().expenses : [],
+      committees: paymentsOn ? useCommitteeStore.getState().committees : [],
+      committeePayments: paymentsOn ? useCommitteeStore.getState().payments : [],
       // Device-local budget breach reminders (audit N-11). Nothing here
       // reaches the server: no notifications row, no push, this phone only.
-      budgets: useBudgetStore.getState().budgets,
+      budgets: paymentsOn ? useBudgetStore.getState().budgets : [],
       transactions: useTransactionStore.getState().transactions,
       cardFundedLoanIds,
+      dailyClose: closeOn
+        ? {
+            ...parseCloseTime(dailyCloseTime()),
+            closes: useDailyCloseStore.getState().closes,
+            lastCheckIso: readCheckStampDay(),
+          }
+        : undefined,
       now: new Date(),
     });
     if (plan.length === 0) return;
@@ -124,8 +166,9 @@ async function runReschedule(): Promise<void> {
         id: p.id,
         title: p.title,
         body: p.body,
-        schedule: { at: new Date(p.atMs) },
+        schedule: { at: new Date(p.atMs), allowWhileIdle: p.allowWhileIdle },
         extra: { href: p.href },
+        actionTypeId: p.actionTypeId,
         smallIcon: 'ic_stat_hisaab',
         // Every planned entry is a device-local reminder the user opted into
         // in Settings — its own channel, separate from cross-user money and
@@ -200,10 +243,19 @@ export function cancelAllScheduledNotifications(): Promise<void> {
 
 /** Settings-toggle flow: request permission (Android 13+ runtime prompt),
  *  persist the opt-in, then schedule immediately so the user sees the
- *  effect. OWNS the REMINDERS_KEY write — the flag must be true BEFORE the
+ *  effect. OWNS the opt-in key's write — the flag must be true BEFORE the
  *  internal reschedule runs, or that run cancels everything and schedules
  *  nothing (a lying green toggle). Returns whether reminders ended up on. */
-export async function enableRemindersFlow(): Promise<boolean> {
+export function enableRemindersFlow(): Promise<boolean> {
+  return enableNotificationFlow(REMINDERS_KEY);
+}
+
+/** Same flow for the evening daily-close nudge (its own opt-in key). */
+export function enableDailyCloseFlow(): Promise<boolean> {
+  return enableNotificationFlow(DAILY_CLOSE_KEY);
+}
+
+async function enableNotificationFlow(key: string): Promise<boolean> {
   if (!isNativeRuntime()) return false;
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
@@ -212,10 +264,10 @@ export async function enableRemindersFlow(): Promise<boolean> {
       perm = await LocalNotifications.requestPermissions();
     }
     if (perm.display !== 'granted') {
-      try { localStorage.setItem(REMINDERS_KEY, 'false'); } catch { /* storage off */ }
+      try { localStorage.setItem(key, 'false'); } catch { /* storage off */ }
       return false;
     }
-    try { localStorage.setItem(REMINDERS_KEY, 'true'); } catch { /* storage off */ }
+    try { localStorage.setItem(key, 'true'); } catch { /* storage off */ }
     await rescheduleNotifications({ force: true });
     return true;
   } catch (err) {

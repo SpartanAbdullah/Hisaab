@@ -46,6 +46,7 @@ import {
 import { fetchAllPages, type PagedFetchResult } from './pagedFetch';
 import { shouldStopWindowPaging } from './historyWindow';
 import type { KeysetCursor } from './listPaging';
+import type { DailyClose, DailyCloseKind } from './dailyClose';
 import type { DailySeriesRow, MonthlySummaryRow, TopExpenseRow } from './analytics';
 import type { RecordSettlementResult } from './groupSettlementResult';
 // Audit G5/O10 edit history. Types only — the renderer is pure and stays out
@@ -2122,6 +2123,34 @@ export const notificationPrefsDb = {
     const { error } = await supabase
       .from('notification_prefs')
       .insert({ user_id: userId, group_id: null, muted: false, ...patch });
+    if (error) throw error;
+  },
+};
+
+// Daily close markers (supabase-migration-daily-close.sql). One row per local
+// day the user explicitly closed. Reads tolerate the table being absent
+// (migration not applied yet) — that reads as "no closes", never an error.
+export const dailyClosesDb = {
+  async listSince(dayIso: string): Promise<DailyClose[]> {
+    const { data, error } = await supabase
+      .from('daily_closes').select('day, kind')
+      .eq('user_id', getUserId())
+      .gte('day', dayIso)
+      .order('day', { ascending: false });
+    if (error) return [];
+    return (data ?? []).map((r) => ({ day: String(r.day), kind: r.kind as DailyCloseKind }));
+  },
+  async upsert(dayIso: string, kind: DailyCloseKind): Promise<void> {
+    const { error } = await supabase
+      .from('daily_closes')
+      .upsert({ user_id: getUserId(), day: dayIso, kind }, { onConflict: 'user_id,day' });
+    if (error) throw error;
+  },
+  async remove(dayIso: string): Promise<void> {
+    const { error } = await supabase
+      .from('daily_closes').delete()
+      .eq('user_id', getUserId())
+      .eq('day', dayIso);
     if (error) throw error;
   },
 };
