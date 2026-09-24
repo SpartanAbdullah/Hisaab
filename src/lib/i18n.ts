@@ -218,6 +218,10 @@ const S = {
   // Credit Card
   cc_issuer: { ur: "Bank / Issuer", en: "Issuer Bank" },
   cc_last4: { ur: "Last 4 Digits", en: "Last 4 Digits" },
+  cc_last4_hint: {
+    ur: "Card ke aakhri 4 hindse — bank ke messages inhi se is card se milaye jayenge.",
+    en: "Your card's last 4 digits — bank messages are matched to this card by them.",
+  },
   cc_limit: { ur: "Credit Limit", en: "Credit Limit" },
   cc_due_day: { ur: "Due Date (Day of Month)", en: "Due Date (Day of Month)" },
   cc_owed: { ur: "Abhi kitna dena hai? (optional)", en: "Currently owed (optional)" },

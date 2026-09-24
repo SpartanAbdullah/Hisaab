@@ -125,6 +125,11 @@ export function AccountDetailPage() {
   const [limitInput, setLimitInput] = useState('');
   const [dueDayInput, setDueDayInput] = useState('');
   const [statementDayInput, setStatementDayInput] = useState('');
+  // The card's last 4 digits were only ever settable when the card was
+  // added; a card created with the wrong digits kept them forever (founder,
+  // 2026-09-24: CBD ••••4599 and EI ••••5828 both stored "1234"). Bank
+  // alerts are matched to cards by these digits.
+  const [last4Input, setLast4Input] = useState('');
   const [showRename, setShowRename] = useState(false);
   const [newName, setNewName] = useState('');
   const [showCorrect, setShowCorrect] = useState(false);
@@ -772,6 +777,7 @@ export function AccountDetailPage() {
                 setLimitInput(account.metadata.creditLimit ?? '');
                 setDueDayInput(account.metadata.dueDay ?? '');
                 setStatementDayInput(account.metadata.statementDay ?? '');
+                setLast4Input(account.metadata.last4 ?? '');
                 setShowCardSettings(true);
               }}
               className="m-tile px-3 py-3.5 flex items-center justify-center gap-2 text-[12.5px] font-semibold text-ink-800"
@@ -910,6 +916,16 @@ export function AccountDetailPage() {
                   onDueDay={setDueDayInput}
                 />
               </div>
+              <label className="form-label">{t('cc_last4')}</label>
+              <input
+                value={last4Input}
+                onChange={(e) => setLast4Input(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                placeholder="e.g. 4521"
+                maxLength={4}
+                inputMode="numeric"
+                className="input-field text-center font-bold tracking-[0.3em] tabular-nums"
+              />
+              <p className="text-[11px] text-ink-500 mt-1.5 mb-4 leading-relaxed">{t('cc_last4_hint')}</p>
               <div className="flex gap-2.5">
                 <button
                   onClick={() => setShowCardSettings(false)}
@@ -921,6 +937,8 @@ export function AccountDetailPage() {
                   disabled={(() => {
                     const lim = parseFloat(limitInput);
                     if (!Number.isFinite(lim) || lim <= 0) return true;
+                    // Exactly 4 digits, or blank to clear.
+                    if (last4Input !== '' && !/^\d{4}$/.test(last4Input)) return true;
                     if (dueDayInput.trim() !== '') {
                       const d = parseInt(dueDayInput, 10);
                       if (!Number.isInteger(d) || d < 1 || d > 31) return true;
@@ -930,12 +948,21 @@ export function AccountDetailPage() {
                   onClick={async () => {
                     try {
                       const sdRaw = parseInt(statementDayInput, 10);
+                      const oldLast4 = account.metadata.last4 ?? '';
                       await updateMetadata(account.id, {
                         creditLimit: String(parseFloat(limitInput)),
                         dueDay: dueDayInput.trim() === '' ? '' : String(parseInt(dueDayInput, 10)),
                         // Blank clears it → the model falls back to the due day.
                         statementDay: Number.isFinite(sdRaw) && sdRaw >= 1 && sdRaw <= 31 ? String(sdRaw) : '',
+                        // Blank deletes the key (updateMetadata semantics).
+                        last4: last4Input,
                       });
+                      // A card named from its digits ("CBD ••••1234", the
+                      // add-card default) follows the correction; a name the
+                      // user wrote themselves is left alone.
+                      if (oldLast4 && last4Input && oldLast4 !== last4Input && account.name.includes(`••••${oldLast4}`)) {
+                        await renameAccount(account.id, account.name.replace(`••••${oldLast4}`, `••••${last4Input}`));
+                      }
                       toast.show({ type: 'success', title: t('cc_settings_saved') });
                       setShowCardSettings(false);
                     } catch (err) {
