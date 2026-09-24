@@ -57,6 +57,10 @@ const TITLE_KEYS: Record<string, I18nKey> = {
   // guard.sql §6a. Params: { groupId, groupName, currency, actorName }.
   group_archived: 'ntf_group_archived_title',
   group_unarchived: 'ntf_group_unarchived_title',
+  // _lsr_notify_info, supabase-migration-settlement-receiver-records.sql §3.
+  // type 'linked_info'. Params: { actorName, amount, currency, requestId }.
+  lsr_recorded: 'ntf_lsr_recorded_title',
+  lsr_undone: 'ntf_lsr_undone_title',
 };
 
 const BODY_KEYS: Record<string, I18nKey> = {
@@ -73,6 +77,8 @@ const BODY_KEYS: Record<string, I18nKey> = {
   settlement_deleted: 'ntf_settlement_deleted_body',
   group_archived: 'ntf_group_archived_body',
   group_unarchived: 'ntf_group_unarchived_body',
+  lsr_recorded: 'ntf_lsr_recorded_body',
+  lsr_undone: 'ntf_lsr_undone_body',
 };
 
 // Amount is optional on the money templates: an expense whose params predate
@@ -292,7 +298,9 @@ export function notificationChannel(n: {
   const stored = typeof n.channelId === 'string' ? n.channelId.trim() : '';
   if (CHANNEL_SET.has(stored)) return stored as NotificationChannel;
   if (n.type === 'kameti' || (n.template ?? '').startsWith('kameti_')) return 'kameti';
-  if (n.type === 'linked_request' || n.type === 'linked_settlement') return 'money';
+  // 'linked_info' rows are stamped channel_id='money' server-side; this is the
+  // fallback for a build that meets a row without it.
+  if (n.type === 'linked_request' || n.type === 'linked_settlement' || n.type === 'linked_info') return 'money';
   return 'groups';
 }
 

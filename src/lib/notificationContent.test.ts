@@ -155,6 +155,9 @@ describe('renderNotificationContent — templated rendering', () => {
       // M5 event gaps (p2-notification-maturity.sql §4 and §6, audit N-11).
       'member_left',
       'kameti_draw_completed', 'kameti_round_due', 'kameti_payout_due',
+      // linked_info (settlement-receiver-records.sql §3): the receiver
+      // recorded / removed the reader's repayment.
+      'lsr_recorded', 'lsr_undone',
     ];
     for (const template of templates) {
       for (const translate of [en, ur]) {
@@ -177,6 +180,26 @@ describe('renderNotificationContent — templated rendering', () => {
         expect(out.body, template).not.toMatch(/^ntf_/);
       }
     }
+  });
+});
+
+describe('linked_info — the receiver recorded your repayment', () => {
+  it("reads in the reader's own language with the actor and the money", () => {
+    const row = {
+      title: 'Repayment recorded', body: 'server body', template: 'lsr_recorded',
+      params: { actorName: 'Founder', amount: 3000, currency: 'AED', requestId: 'r1' },
+    };
+    const english = renderNotificationContent(row, en);
+    expect(english.title).toBe('Repayment recorded');
+    expect(english.body).toContain('Founder');
+    expect(english.body).toContain('3,000');
+    const urdu = renderNotificationContent(row, ur);
+    expect(urdu.body).toContain('Founder');
+    expect(urdu.body).not.toBe(english.body);
+  });
+
+  it('rides the money channel even without a stamped channel_id', () => {
+    expect(notificationChannel({ type: 'linked_info', template: 'lsr_recorded' })).toBe('money');
   });
 });
 

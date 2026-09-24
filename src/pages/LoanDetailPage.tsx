@@ -36,6 +36,17 @@ import { skeletonDelay } from '../lib/material';
 import { useT } from '../lib/i18n';
 import { RepaymentModal } from './RepaymentModal';
 import { SettleLinkedLoanModal } from './SettleLinkedLoanModal';
+import { AddToAccountSheet, type AddToAccountTarget } from '../components/AddToAccountSheet';
+import { useUndoCountdown } from '../hooks/useUndoCountdown';
+import {
+  canApplyNow,
+  canAttachAccount,
+  formatUndoLeft,
+  myAccountId,
+  myRepaymentTxnId,
+  settlementDisplayStatus,
+} from '../lib/settlementStatus';
+import { friendlyLinkedError } from '../lib/linkedErrorMap';
 import { resolvePersonName } from '../lib/resolvePersonName';
 import { getOldestIsoDate } from '../lib/paymentReminders';
 import { uncoveredToPaidIds } from '../lib/emiCoverage';
@@ -53,12 +64,17 @@ export function LoanDetailPage() {
   const linkedRequests = useLinkedRequestStore((s) => s.requests);
   const settlementRequests = useSettlementRequestStore((s) => s.requests);
   const cancelSettlement = useSettlementRequestStore((s) => s.cancel);
+  const applySettlementNow = useSettlementRequestStore((s) => s.applyNow);
+  const undoSettlementRecord = useSettlementRequestStore((s) => s.undo);
   const persons = usePersonStore((s) => s.persons);
   const currentUserId = useSupabaseAuthStore((s) => s.user?.id ?? '');
   const appMode = useAppModeStore((s) => s.mode);
   const t = useT();
   const toast = useToast();
   const [cancellingSettlementId, setCancellingSettlementId] = useState<string | null>(null);
+  // Apply now / Undo on a settlement row (2026-09-24 model) share one busy id.
+  const [settlementBusyId, setSettlementBusyId] = useState<string | null>(null);
+  const [addToAccount, setAddToAccount] = useState<AddToAccountTarget | null>(null);
   const [reconciling, setReconciling] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showEditDetails, setShowEditDetails] = useState(false);
@@ -397,6 +413,29 @@ export function LoanDetailPage() {
       });
     } finally {
       setCancellingSettlementId(null);
+    }
+  };
+
+  // The receiver's own pending request / own record: Apply now and Undo.
+  const runSettlementAction = async (request: SettlementRequest, action: 'apply' | 'undo') => {
+    setSettlementBusyId(request.id);
+    try {
+      if (action === 'apply') {
+        await applySettlementNow(request.id);
+        toast.show({ type: 'success', title: t('stl_applied_title') });
+      } else {
+        await undoSettlementRecord(request.id);
+        toast.show({ type: 'info', title: t('stl_undone_title') });
+      }
+      refreshLoanDetail();
+    } catch (err) {
+      toast.show({
+        type: 'error',
+        title: t('error'),
+        subtitle: err instanceof Error ? friendlyLinkedError(err.message) : undefined,
+      });
+    } finally {
+      setSettlementBusyId(null);
     }
   };
 
@@ -801,19 +840,42 @@ export function LoanDetailPage() {
             ) : (
               <div className="space-y-2.5">
                 {settlementHistory.map((s) => {
-                  const appliedFromName =
-                    s.requesterAccountId && s.fromUserId === currentUserId
-                      ? accounts.find((a) => a.id === s.requesterAccountId)?.name ?? null
+                  // MY side only — either side can send, so read the account
+                  // column that belongs to me (the other side's id means
+                  // nothing on this device).
+                  const mine = myAccountId(s, currentUserId);
+                  const appliedFromName = mine ? accounts.find((a) => a.id === mine)?.name ?? null : null;
+                  const recordOnlyNote =
+                    appMode === 'full_tracker' && !mine && s.status === 'accepted'
+                      ? (loan.type === 'taken' ? t('stl_outgoing_no_account') : t('stl_incoming_no_account'))
                       : null;
+                  const txnId = myRepaymentTxnId(s, currentUserId);
                   return (
                     <SettlementHistoryRow
                       key={s.id}
                       request={s}
                       currency={loan.currency}
+                      myId={currentUserId}
                       appliedFromAccountName={appliedFromName}
+                      recordOnlyNote={recordOnlyNote}
                       canCancel={s.status === 'pending' && s.fromUserId === currentUserId}
                       cancelling={cancellingSettlementId === s.id}
                       onCancel={() => handleCancelSettlement(s)}
+                      canApplyNow={canApplyNow(s, currentUserId, loan.type)}
+                      canAddToAccount={canAttachAccount(s, currentUserId, appMode === 'full_tracker')}
+                      busy={settlementBusyId === s.id}
+                      onApplyNow={() => void runSettlementAction(s, 'apply')}
+                      onUndo={() => void runSettlementAction(s, 'undo')}
+                      onAddToAccount={() => {
+                        if (!txnId) return;
+                        setAddToAccount({
+                          txnId,
+                          amount: s.amount,
+                          currency: loan.currency,
+                          direction: loan.type,
+                          contactName: loan.personName,
+                        });
+                      }}
                     />
                   );
                 })}
@@ -971,6 +1033,14 @@ export function LoanDetailPage() {
           loan={loan}
         />
       )}
+      <AddToAccountSheet
+        open={!!addToAccount}
+        target={addToAccount}
+        onClose={() => {
+          setAddToAccount(null);
+          refreshLoanDetail();
+        }}
+      />
     </main>
   );
 }
@@ -978,30 +1048,52 @@ export function LoanDetailPage() {
 function SettlementHistoryRow({
   request,
   currency,
+  myId,
   appliedFromAccountName,
+  recordOnlyNote = null,
   canCancel = false,
   cancelling = false,
   onCancel,
+  canApplyNow: applyNowOffered = false,
+  canAddToAccount = false,
+  busy = false,
+  onApplyNow,
+  onUndo,
+  onAddToAccount,
 }: {
   request: SettlementRequest;
   currency: string;
+  myId: string;
   appliedFromAccountName?: string | null;
+  /** "Record only — …" for an applied row whose my-side has no account. */
+  recordOnlyNote?: string | null;
   // True only when this is a pending request the current user sent — the only
   // case where it can still be withdrawn.
   canCancel?: boolean;
   cancelling?: boolean;
   onCancel?: () => void;
+  canApplyNow?: boolean;
+  canAddToAccount?: boolean;
+  busy?: boolean;
+  onApplyNow?: () => void;
+  onUndo?: () => void;
+  onAddToAccount?: () => void;
 }) {
   const t = useT();
-  const statusKey = (`stl_status_${request.status}`) as
-    | 'stl_status_pending' | 'stl_status_accepted' | 'stl_status_rejected' | 'stl_status_cancelled';
-  // Pending = violet (it lives in the Inbox), accepted = green, closed = neutral.
+  const display = settlementDisplayStatus(request);
+  const statusKey = (`stl_status_${display}`) as
+    | 'stl_status_pending' | 'stl_status_accepted' | 'stl_status_rejected' | 'stl_status_cancelled'
+    | 'stl_status_recorded' | 'stl_status_undone';
+  // Pending = violet (it lives in the Inbox), applied = green, closed = neutral.
   const statusChip = {
     pending:   'm-chip-violet',
     accepted:  'm-chip-receive',
+    recorded:  'm-chip-receive',
     rejected:  'm-chip-neutral',
     cancelled: 'm-chip-neutral',
-  }[request.status];
+    undone:    'm-chip-neutral',
+  }[display];
+  const undoLeft = useUndoCountdown(request, myId);
   return (
     <div className="m-card p-3.5">
       <div className="flex items-center gap-3">
@@ -1016,6 +1108,9 @@ function SettlementHistoryRow({
           <p className="text-[10.5px] text-accent-600 mt-0.5">
             {t('stl_applied_account').replace('{account}', appliedFromAccountName)}
           </p>
+        )}
+        {recordOnlyNote && (
+          <p className="text-[10.5px] text-ink-500 mt-0.5">{recordOnlyNote}</p>
         )}
         {request.note && (
           <p className="text-[11px] text-ink-600 italic mt-1 truncate">&ldquo;{request.note}&rdquo;</p>
@@ -1035,15 +1130,52 @@ function SettlementHistoryRow({
       </div>
       {/* Withdraw a still-pending request you sent — the coral-tinted
           secondary: calm, but clearly destructive. */}
+      {/* I received this money: apply my own pending request now. */}
+      {applyNowOffered && onApplyNow && (
+        <button
+          type="button"
+          onClick={onApplyNow}
+          disabled={busy}
+          className="m-btn m-btn-primary mt-3.5 w-full text-[12.5px]"
+        >
+          {t('stl_apply_now')}
+        </button>
+      )}
       {canCancel && onCancel && (
         <button
           type="button"
           onClick={onCancel}
           disabled={cancelling}
-          className="m-btn m-btn-danger mt-3.5 w-full text-[12.5px]"
+          className="m-btn m-btn-danger mt-2.5 w-full text-[12.5px]"
         >
           {cancelling ? t('ltr_cancelling') : t('loan_cancel_request')}
         </button>
+      )}
+      {(undoLeft > 0 || canAddToAccount) && (
+        <div className="flex gap-2 mt-3">
+          {undoLeft > 0 && onUndo && (
+            <button
+              type="button"
+              onClick={onUndo}
+              disabled={busy}
+              className="m-btn m-btn-plain px-4 text-[12.5px] gap-1.5 tabular-nums"
+            >
+              <Glyph name="undo" size={14} />
+              {t('stl_undo_left').replace('{time}', formatUndoLeft(undoLeft))}
+            </button>
+          )}
+          {canAddToAccount && onAddToAccount && (
+            <button
+              type="button"
+              onClick={onAddToAccount}
+              disabled={busy}
+              className="m-btn m-btn-primary flex-1 px-4 text-[12.5px] gap-1.5"
+            >
+              <Glyph name="wallet" size={14} />
+              {t('stl_add_to_account')}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

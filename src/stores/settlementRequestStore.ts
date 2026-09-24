@@ -6,6 +6,8 @@ import { translateLinkedWriteError, isDuplicateKeyError } from '../lib/linkedErr
 import { useLoanStore } from './loanStore';
 import { useTransactionStore } from './transactionStore';
 import { useAccountStore } from './accountStore';
+import { useEmiStore } from './emiStore';
+import { useActivityStore } from './activityStore';
 import { reportError } from '../lib/errorReporter';
 
 interface CreateInput {
@@ -26,11 +28,31 @@ interface CreateInput {
   requestId?: string;
 }
 
+// The receiver's record (2026-09-24 settlement model). Same shape as a
+// request, but it applies to both ledgers at once — no confirmation.
+interface RecordInput {
+  loanPairId: string;
+  requesterLoanId: string;
+  responderLoanId: string;
+  toUserId: string;
+  amount: number;
+  currency: Currency;
+  note?: string;
+  // Where the money landed. Null ⇒ record only (the user chose that
+  // explicitly — SettlementAccountChoice never defaults to it).
+  requesterAccountId: string | null;
+  requestId?: string;
+}
+
 interface SettlementRequestState {
   requests: SettlementRequest[];
   loading: boolean;
   loadRequests: () => Promise<void>;
   createRequest: (input: CreateInput) => Promise<SettlementRequest>;
+  recordReceived: (input: RecordInput) => Promise<SettlementRequest>;
+  applyNow: (requestId: string) => Promise<SettlementRequest>;
+  undo: (requestId: string) => Promise<SettlementRequest>;
+  attachAccount: (txnId: string, accountId: string) => Promise<number>;
   accept: (requestId: string, responderAccountId?: string | null) => Promise<SettlementRequest>;
   reject: (requestId: string, reason?: string) => Promise<SettlementRequest>;
   cancel: (requestId: string) => Promise<SettlementRequest>;
@@ -51,6 +73,22 @@ function upsert(list: SettlementRequest[], next: SettlementRequest): SettlementR
   const copy = list.slice();
   copy[idx] = next;
   return copy;
+}
+
+// Every server-side settlement write moves loans, repayment rows, possibly an
+// account, and EMI coverage. emi_schedules is on neither realtime transport,
+// so it has to be reloaded explicitly or LoanDetail shows stale instalments.
+// Best-effort: the money is already committed; a failed refresh is reported,
+// never thrown back at the user.
+async function reloadMoneyAfterSettlement(feature: string, id: string): Promise<void> {
+  try {
+    await useLoanStore.getState().loadLoans();
+    await useTransactionStore.getState().loadTransactions();
+    await useAccountStore.getState().loadAccounts();
+    await useEmiStore.getState().loadSchedules();
+  } catch (err) {
+    reportError(err, { feature, extra: { id } });
+  }
 }
 
 export const useSettlementRequestStore = create<SettlementRequestState>((set, get) => ({
@@ -107,19 +145,102 @@ export const useSettlementRequestStore = create<SettlementRequestState>((set, ge
     return inserted;
   },
 
+  recordReceived: async (input) => {
+    const id = input.requestId ?? uuid();
+    let recorded: SettlementRequest | null = null;
+    try {
+      recorded = await settlementRequestsDb.recordReceived({
+        id,
+        loanPairId: input.loanPairId,
+        requesterLoanId: input.requesterLoanId,
+        responderLoanId: input.responderLoanId,
+        toUserId: input.toUserId,
+        amount: input.amount,
+        currency: input.currency,
+        note: input.note ?? '',
+        requesterAccountId: input.requesterAccountId,
+      });
+    } catch (err) {
+      // Same idempotency contract as createRequest: our intent id already
+      // exists ⇒ this exact record landed on an earlier (double) fire.
+      if (!isDuplicateKeyError(err)) {
+        reportError(err, { feature: 'settlementRequestStore.recordReceived', extra: { requestId: id } });
+        throw translateLinkedWriteError(err, 'settlement');
+      }
+    }
+    if (recorded) {
+      const row = recorded;
+      set((s) => ({ requests: upsert(s.requests, row) }));
+    }
+    // The money is committed server-side; a failed refresh must not read as a
+    // failed record (a retry would then duplicate-key harmlessly anyway).
+    try {
+      await get().loadRequests();
+    } catch (err) {
+      reportError(err, { feature: 'settlementRequestStore.recordReceived.requests', extra: { requestId: id } });
+    }
+    await reloadMoneyAfterSettlement('settlementRequestStore.recordReceived.reload', id);
+    const row = get().requests.find((r) => r.id === id) ?? recorded;
+    if (!row) throw new Error('Repayment recorded but could not be reloaded');
+    return row;
+  },
+
+  applyNow: async (requestId) => {
+    const updated = await settlementRequestsDb.applyNow(requestId);
+    set((s) => ({ requests: upsert(s.requests, updated) }));
+    await reloadMoneyAfterSettlement('settlementRequestStore.applyNow.reload', requestId);
+    return updated;
+  },
+
+  undo: async (requestId) => {
+    const updated = await settlementRequestsDb.undo(requestId);
+    set((s) => ({ requests: upsert(s.requests, updated) }));
+    await reloadMoneyAfterSettlement('settlementRequestStore.undo.reload', requestId);
+    return updated;
+  },
+
+  attachAccount: async (txnId, accountId) => {
+    const balance = await settlementRequestsDb.attachAccount(txnId, accountId);
+    // Adopt the balance the SERVER computed at once (never recompute it
+    // locally), then reload so the request's account line and the
+    // transaction's leg catch up too.
+    useAccountStore.setState((s) => ({
+      accounts: s.accounts.map((a) =>
+        a.id === accountId ? { ...a, balance, updatedAt: new Date().toISOString() } : a,
+      ),
+    }));
+    try {
+      await get().loadRequests();
+    } catch (err) {
+      reportError(err, { feature: 'settlementRequestStore.attachAccount.requests', extra: { txnId } });
+    }
+    await reloadMoneyAfterSettlement('settlementRequestStore.attachAccount.reload', txnId);
+    // Account ids are not tracked by record_edits, so leave a trail here.
+    // Post-commit and best-effort, like loanStore's derived activity rows.
+    try {
+      const account = useAccountStore.getState().accounts.find((a) => a.id === accountId);
+      const txn = useTransactionStore.getState().transactions.find((t) => t.id === txnId);
+      const what = txn ? `${txn.currency} ${txn.amount}` : 'a repayment';
+      await useActivityStore.getState().logActivity(
+        'transaction_modified',
+        `Repayment of ${what} added to ${account?.name ?? 'an account'}`,
+        txnId,
+        'transaction',
+      );
+    } catch (err) {
+      reportError(err, { feature: 'settlementRequestStore.attachAccount.activity', extra: { txnId } });
+    }
+    return balance;
+  },
+
   accept: async (requestId, responderAccountId) => {
     const updated = await settlementRequestsDb.accept(requestId, responderAccountId ?? null);
     set((s) => ({ requests: upsert(s.requests, updated) }));
-    try {
-      await useLoanStore.getState().loadLoans();
-      await useTransactionStore.getState().loadTransactions();
-      // Unconditionally refresh accounts. A no-op for ledger-only
-      // settlements; picks up the sender's opted-in effect and the
-      // receiver's landing account chosen just now.
-      await useAccountStore.getState().loadAccounts();
-    } catch (err) {
-      reportError(err, { feature: 'settlementRequestStore.accept.reload', extra: { requestId } });
-    }
+    // Unconditionally refresh accounts (a no-op for ledger-only settlements;
+    // picks up the sender's opted-in effect and the receiver's landing
+    // account chosen just now) — and EMIs, which accept marks paid
+    // server-side.
+    await reloadMoneyAfterSettlement('settlementRequestStore.accept.reload', requestId);
     return updated;
   },
 

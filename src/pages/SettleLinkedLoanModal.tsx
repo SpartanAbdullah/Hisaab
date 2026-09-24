@@ -1,18 +1,21 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '../components/Modal';
 import { confirmDestructive } from '../components/ConfirmDestructiveSheet';
+import { SettlementAccountChoice, landingAccountId } from '../components/SettlementAccountChoice';
 import { useSettlementRequestStore } from '../stores/settlementRequestStore';
 import { useLinkedRequestStore } from '../stores/linkedRequestStore';
 import { usePersonStore } from '../stores/personStore';
 import { useAccountStore } from '../stores/accountStore';
 import { useAppModeStore } from '../stores/appModeStore';
+import { useSupabaseAuthStore } from '../stores/supabaseAuthStore';
 import { useToast } from '../components/Toast';
-import { formatMoney, formatSignedMoney } from '../lib/constants';
-import { currencyMeta } from '../lib/design-tokens';
+import { formatMoney } from '../lib/constants';
 import { useT } from '../lib/i18n';
 import { useSubmitGuard, useSubmitIntentId } from '../lib/useSubmitGuard';
 import { resolveSettlementSides } from '../lib/settlementSides';
-import { isFriendlyLinkedError } from '../lib/linkedErrorMap';
+import { friendlyLinkedError, isFriendlyLinkedError } from '../lib/linkedErrorMap';
+import { lastSettlementAccountId, possibleDuplicateClaim } from '../lib/settlementStatus';
+import { buildWhatsAppUrl } from '../lib/whatsappReminder';
 import type { Loan } from '../db';
 
 interface Props {
@@ -21,14 +24,32 @@ interface Props {
   loan: Loan;
 }
 
-// Phase 2C-A: linked settlement request. Either side can send it; the other
-// linked user must confirm before both mirrored loans are repaid.
+function errorText(err: unknown): string {
+  if (err instanceof Error) return friendlyLinkedError(err.message);
+  if (typeof err === 'string') return friendlyLinkedError(err);
+  return '';
+}
+
+// A repayment on ONE linked loan. Two paths, by who received the money
+// (the 2026-09-24 settlement model):
+//   · my loan is GIVEN — they paid ME: I record it and both ledgers update at
+//     once (record_received_repayment). They are only notified; Undo for 10
+//     minutes.
+//   · my loan is TAKEN — I paid THEM: it goes to them to confirm (their
+//     receivable is at stake), exactly as before.
+// Either way, Full Tracker asks where the money went — never a silent
+// "record only" default.
 export function SettleLinkedLoanModal({ open, onClose, loan }: Props) {
-  const { createRequest } = useSettlementRequestStore();
+  const createRequest = useSettlementRequestStore((s) => s.createRequest);
+  const recordReceived = useSettlementRequestStore((s) => s.recordReceived);
+  const acceptSettlement = useSettlementRequestStore((s) => s.accept);
+  const undoRecord = useSettlementRequestStore((s) => s.undo);
+  const settlementRequests = useSettlementRequestStore((s) => s.requests);
   const linkedRequests = useLinkedRequestStore((s) => s.requests);
   const persons = usePersonStore((s) => s.persons);
   const { accounts, loadAccounts } = useAccountStore();
   const appMode = useAppModeStore((s) => s.mode);
+  const currentUserId = useSupabaseAuthStore((s) => s.user?.id ?? '');
   const toast = useToast();
   const t = useT();
   const submitGuard = useSubmitGuard();
@@ -37,10 +58,10 @@ export function SettleLinkedLoanModal({ open, onClose, loan }: Props) {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  // Phase 2C-B: sender-side optional apply-to-balance.
-  const [applyToBalance, setApplyToBalance] = useState(false);
-  const [selectedAccountId, setSelectedAccountId] = useState('');
+  // '' = not chosen · RECORD_ONLY · an account id (SettlementAccountChoice).
+  const [landing, setLanding] = useState('');
   const isGiven = loan.type === 'given';
+  const fullTracker = appMode === 'full_tracker';
 
   useEffect(() => {
     if (open) {
@@ -48,43 +69,30 @@ export function SettleLinkedLoanModal({ open, onClose, loan }: Props) {
       setAmount(String(loan.remainingAmount));
       setNote('');
       setError('');
-      setApplyToBalance(false);
-      setSelectedAccountId('');
-      if (appMode === 'full_tracker') void loadAccounts();
+      setLanding('');
+      if (fullTracker) void loadAccounts();
     }
-  }, [appMode, open, loan.remainingAmount, loadAccounts]);
+  }, [fullTracker, open, loan.remainingAmount, loadAccounts]);
 
-  // Currency-strict filter: only the loan's currency is eligible.
-  const eligibleAccounts = useMemo(
-    () => accounts.filter((a) => a.currency === loan.currency),
-    [accounts, loan.currency],
-  );
-  const hasEligibleAccounts = appMode === 'full_tracker' && eligibleAccounts.length > 0;
-
-  // Resolve the counterparty name for the header.
-  const counterpartyName = (() => {
-    if (loan.personId) {
-      const p = persons.find((x) => x.id === loan.personId);
-      if (p) return p.name;
-    }
-    return loan.personName || t('ltr_unknown_person');
-  })();
+  const person = loan.personId ? persons.find((x) => x.id === loan.personId) : undefined;
+  const counterpartyName = person?.name || loan.personName || t('ltr_unknown_person');
 
   // Resolve the accepted linked pair + settlement side mapping via the shared
   // helper (same one the bulk settlement path uses, so they can't drift).
   const sides = resolveSettlementSides(loan.id, linkedRequests);
+
+  const preferredAccountId = useMemo(
+    () => lastSettlementAccountId(settlementRequests, currentUserId, sides?.toUserId),
+    [settlementRequests, currentUserId, sides?.toUserId],
+  );
 
   const canSubmit = (() => {
     const amt = parseFloat(amount);
     if (!Number.isFinite(amt) || amt <= 0) return false;
     if (amt - loan.remainingAmount > 0.00001) return false;
     if (!sides) return false;
-    // If opt-in is on, an eligible account must be selected. Otherwise the
-    // submit is ledger-only and always allowed.
-    if (applyToBalance) {
-      if (!selectedAccountId) return false;
-      if (!eligibleAccounts.some((a) => a.id === selectedAccountId)) return false;
-    }
+    // Full Tracker: an account OR an explicit "record only" is required.
+    if (fullTracker && !landing) return false;
     return true;
   })();
 
@@ -94,10 +102,19 @@ export function SettleLinkedLoanModal({ open, onClose, loan }: Props) {
 
   // One request id per submit intent — a double tap or an unchanged retry
   // reuses it, so the duplicate insert collides on the primary key instead of
-  // queueing a second settlement the counterparty could also accept.
-  const nextRequestId = useSubmitIntentId(
-    [open, loan.id, amount, note, applyToBalance, selectedAccountId].join('|'),
-  );
+  // queueing a second settlement (or a second record).
+  const nextRequestId = useSubmitIntentId([open, loan.id, amount, note, landing].join('|'));
+
+  const showError = (err: unknown, headline: string) => {
+    console.error('linked settlement failed', err);
+    // An already-localized failure (e.g. the database hasn't taken
+    // supabase-migration-audit-p0-currencies.sql yet and rejected the
+    // currency) reads as its own sentence — don't bracket it behind the
+    // generic headline.
+    if (isFriendlyLinkedError(err)) { setError(err.message); return; }
+    const detail = errorText(err);
+    setError(detail ? `${headline} (${detail})` : headline);
+  };
 
   const runSubmit = async () => {
     if (!sides) {
@@ -109,10 +126,121 @@ export function SettleLinkedLoanModal({ open, onClose, loan }: Props) {
       setError(t('stl_amount_invalid'));
       return;
     }
+    const money = formatMoney(amt, loan.currency);
+    const accountId = fullTracker ? landingAccountId(landing) : null;
+    const account = accountId ? accounts.find((a) => a.id === accountId) : undefined;
+    const landingLine = !fullTracker
+      ? ''
+      : account
+        ? t(isGiven ? 'stl_confirm_lands' : 'stl_confirm_leaves').replace('{amount}', money).replace('{account}', account.name)
+        : t('stl_confirm_record_only');
 
+    if (isGiven) {
+      // ── They paid me: record it now. First, is this money already on its
+      // way in? A pending claim from them for the same amount should be
+      // confirmed instead of recorded twice.
+      const dup = possibleDuplicateClaim(settlementRequests, {
+        loanPairId: sides.loanPairId,
+        amount: amt,
+        myUserId: currentUserId,
+        nowMs: Date.now(),
+      });
+      if (dup?.kind === 'their_pending_claim') {
+        const confirmTheirs = await confirmDestructive({
+          title: t('stl_dup_their_claim_title')
+            .replace('{name}', counterpartyName)
+            .replace('{amount}', formatMoney(dup.request.amount, dup.request.currency)),
+          description: t('stl_dup_their_claim_body'),
+          confirmLabel: t('stl_dup_confirm_theirs'),
+          cancelLabel: t('cancel'),
+          tone: 'warning',
+        });
+        if (!confirmTheirs) return;
+        setSaving(true);
+        setError('');
+        try {
+          await acceptSettlement(dup.request.id, accountId);
+          toast.show({
+            type: 'success',
+            title: t('stl_recorded_title'),
+            subtitle: t('stl_recorded_subtitle').replace('{name}', counterpartyName),
+          });
+          onClose();
+        } catch (err) {
+          showError(err, t('stl_accept_error'));
+        } finally {
+          setSaving(false);
+        }
+        return;
+      }
+      if (dup?.kind === 'already_recorded') {
+        const when = new Date(dup.request.respondedAt ?? dup.request.createdAt)
+          .toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+        const different = await confirmDestructive({
+          title: t('stl_dup_already_title')
+            .replace('{amount}', formatMoney(dup.request.amount, dup.request.currency))
+            .replace('{date}', when),
+          description: t('stl_dup_already_body'),
+          confirmLabel: t('stl_dup_different'),
+          cancelLabel: t('stl_dup_same_stop'),
+          tone: 'warning',
+        });
+        if (!different) return;
+      }
+
+      const ok = await confirmDestructive({
+        title: t('stl_record_confirm_title').replace('{amount}', money),
+        description: [
+          t('stl_record_confirm_body').replace('{name}', counterpartyName).replace('{amount}', money),
+          landingLine,
+        ].filter(Boolean).join(' '),
+        confirmLabel: t('stl_record_cta'),
+        cancelLabel: t('cancel'),
+        tone: 'warning',
+      });
+      if (!ok) return;
+
+      setSaving(true);
+      setError('');
+      try {
+        const row = await recordReceived({
+          loanPairId: sides.loanPairId,
+          requesterLoanId: sides.requesterLoanId,
+          responderLoanId: sides.responderLoanId,
+          toUserId: sides.toUserId,
+          amount: amt,
+          currency: loan.currency,
+          note,
+          requesterAccountId: accountId,
+          requestId: nextRequestId(),
+        });
+        toast.show({
+          type: 'success',
+          title: t('stl_recorded_title'),
+          subtitle: t('stl_recorded_subtitle').replace('{name}', counterpartyName),
+          action: {
+            label: t('stl_undo'),
+            onPress: () => {
+              undoRecord(row.id)
+                .then(() => toast.show({ type: 'info', title: t('stl_undone_title') }))
+                .catch((err: unknown) =>
+                  toast.show({ type: 'error', title: t('error'), subtitle: errorText(err) || t('toast_error_generic') }));
+            },
+          },
+        });
+        onClose();
+      } catch (err) {
+        showError(err, t('stl_create_error'));
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    // ── I paid them: their receivable is at stake, so they confirm.
     const ok = await confirmDestructive({
       title: t('stl_confirm_title'),
-      description: `${t('stl_confirm_body').replace('{amount}', formatMoney(amt, loan.currency))}${applyToBalance ? ' ' + t('stl_confirm_balance_note') : ''}`,
+      description: [t('stl_confirm_body').replace('{amount}', money), landingLine].filter(Boolean).join(' '),
       confirmLabel: t('stl_confirm_cta'),
       cancelLabel: t('cancel'),
       tone: 'warning',
@@ -122,7 +250,6 @@ export function SettleLinkedLoanModal({ open, onClose, loan }: Props) {
     setSaving(true);
     setError('');
     try {
-      const requesterAccountId = applyToBalance && selectedAccountId ? selectedAccountId : null;
       await createRequest({
         loanPairId: sides.loanPairId,
         requesterLoanId: sides.requesterLoanId,
@@ -131,53 +258,60 @@ export function SettleLinkedLoanModal({ open, onClose, loan }: Props) {
         amount: amt,
         currency: loan.currency,
         note,
-        requesterAccountId,
+        requesterAccountId: accountId,
         requestId: nextRequestId(),
       });
-      toast.show({ type: 'success', title: t('stl_sent_title'), subtitle: t('stl_sent_subtitle') });
+      // A web counterparty gets no push — one tap tells them on WhatsApp.
+      const text = t('req_remind_settlement').replace('{name}', counterpartyName).replace('{amount}', money);
+      toast.show({
+        type: 'success',
+        title: t('stl_sent_title'),
+        subtitle: t('stl_sent_subtitle'),
+        action: {
+          label: t('stl_tell_whatsapp').replace('{name}', counterpartyName),
+          onPress: () => { window.open(buildWhatsAppUrl(person?.phone ?? null, text), '_blank', 'noopener,noreferrer'); },
+        },
+      });
       onClose();
     } catch (err) {
-      console.error('settlement request create failed', err);
-      // An already-localized failure (e.g. the database hasn't taken
-      // supabase-migration-audit-p0-currencies.sql yet and rejected the
-      // currency) reads as its own sentence — don't bracket it behind the
-      // generic headline.
-      if (isFriendlyLinkedError(err)) { setError(err.message); return; }
-      const detail = err instanceof Error ? err.message : '';
-      setError(detail ? `${t('stl_create_error')} (${detail})` : t('stl_create_error'));
+      showError(err, t('stl_create_error'));
     } finally {
       setSaving(false);
     }
   };
 
+  const submitLabel = saving
+    ? (isGiven ? t('stl_recording') : t('stl_sending'))
+    : (isGiven ? t('stl_record_cta') : t('stl_send'));
+
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={t('stl_title').replace('{name}', counterpartyName)}
+      title={isGiven
+        ? t('stl_record_title').replace('{name}', counterpartyName)
+        : t('stl_title').replace('{name}', counterpartyName)}
       footer={
         <button
           onClick={handleSubmit}
           disabled={saving || !canSubmit}
           className="cta-primary"
         >
-          {saving ? t('stl_sending') : t('stl_send')}
+          {submitLabel}
         </button>
       }
     >
       <div className="space-y-4">
-        {/* What this request says, on the violet every linked surface wears. */}
+        {/* What this does, on the violet every linked surface wears. */}
         <div className="m-card m-violet p-3.5">
           <p className="text-[13px] text-ink-800 leading-relaxed">
-            {(isGiven ? t('stl_direction_receiving_from') : t('stl_direction_paying_to'))
-              .replace('{name}', counterpartyName)
-              .replace('{amount}', formatMoney(parseFloat(amount) || 0, loan.currency))}
+            {isGiven
+              ? t('stl_record_intro').split('{name}').join(counterpartyName)
+              : t('stl_direction_paying_to')
+                .replace('{name}', counterpartyName)
+                .replace('{amount}', formatMoney(parseFloat(amount) || 0, loan.currency))}
           </p>
         </div>
-
-        <p className="m-inset text-[12px] text-ink-600 p-3 leading-relaxed">
-          {t('money_not_moved_notice')}
-        </p>
 
         <div>
           <label className="form-label">
@@ -202,6 +336,18 @@ export function SettleLinkedLoanModal({ open, onClose, loan }: Props) {
           )}
         </div>
 
+        {/* Where the money went — asked every time in Full Tracker. */}
+        {fullTracker && (
+          <SettlementAccountChoice
+            direction={isGiven ? 'given' : 'taken'}
+            currency={loan.currency}
+            accounts={accounts}
+            value={landing}
+            onChange={setLanding}
+            preferredAccountId={preferredAccountId}
+          />
+        )}
+
         <div>
           <label className="form-label">
             {t('stl_note_label')}
@@ -213,80 +359,6 @@ export function SettleLinkedLoanModal({ open, onClose, loan }: Props) {
             placeholder=""
           />
         </div>
-
-        {appMode === 'full_tracker' && (
-        <>
-        {/* Phase 2C-B: sender-side opt-in toggle + account picker. The whole
-            row is the switch (role="switch"), so the label is its name and
-            the tap target is the full row. */}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={applyToBalance}
-          disabled={!hasEligibleAccounts}
-          onClick={() => {
-            const next = !applyToBalance;
-            setApplyToBalance(next);
-            if (!next) setSelectedAccountId('');
-          }}
-          className="m-card w-full flex items-center gap-3 px-4 py-3 text-left disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          <span className="text-[13px] text-ink-800 font-medium flex-1">
-            {t('stl_apply_toggle_label')}
-          </span>
-          <span aria-hidden className={`m-switch block ${applyToBalance ? 'is-on' : ''}`} />
-        </button>
-
-        {hasEligibleAccounts ? (
-          <p className="text-[11px] text-ink-600 -mt-2">{t('stl_apply_toggle_hint')}</p>
-        ) : (
-          <p className="text-[11px] text-warn-600 -mt-2">{t('stl_apply_no_eligible')}</p>
-        )}
-
-        {applyToBalance && hasEligibleAccounts ? (
-          <div>
-            <label className="form-label">
-              {t('stl_apply_pick_account')}
-            </label>
-            <div className="space-y-2">
-              {eligibleAccounts.map((a) => {
-                const meta = currencyMeta[a.currency];
-                const isSelected = selectedAccountId === a.id;
-                return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => setSelectedAccountId(a.id)}
-                    className={isSelected ? 'selector-base selector-selected' : 'selector-base'}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">{meta?.flag}</span>
-                      <div>
-                        <p className="text-[13px] font-semibold text-ink-800">{a.name}</p>
-                        <p className="text-[10px] text-ink-500 capitalize">{a.type.replace('_', ' ')}</p>
-                      </div>
-                    </div>
-                    <p className="text-[13px] font-bold text-ink-800 tabular-nums">
-                      {formatSignedMoney(a.balance, a.currency)}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
-        {applyToBalance && selectedAccountId ? (
-          <p className="m-card m-violet text-[12px] text-accent-text p-3 leading-relaxed">
-            {isGiven ? t('stl_apply_increase_hint') : t('stl_apply_reduce_hint')}
-          </p>
-        ) : (
-          <p className="m-card m-violet text-[12px] text-iris-text p-3 leading-relaxed">
-            {t('stl_ledger_only_hint')}
-          </p>
-        )}
-        </>
-        )}
 
         {appMode === 'splits_only' ? (
           <p className="m-card m-violet text-[12px] text-iris-text p-3 leading-relaxed">

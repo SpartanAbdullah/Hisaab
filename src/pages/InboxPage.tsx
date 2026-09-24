@@ -50,6 +50,16 @@ import { useSubmitGuard } from '../lib/useSubmitGuard';
 import { confirmDestructive } from '../components/ConfirmDestructiveSheet';
 import { EditTransactionModal } from '../components/EditTransactionModal';
 import { AcceptIntoAccountSheet, type AcceptIntoAccountRequest } from '../components/AcceptIntoAccountSheet';
+import { AddToAccountSheet, type AddToAccountTarget } from '../components/AddToAccountSheet';
+import { useUndoCountdown } from '../hooks/useUndoCountdown';
+import {
+  canApplyNow,
+  canAttachAccount,
+  formatUndoLeft,
+  myRepaymentTxnId,
+  settlementDisplayStatus,
+  type SettlementDisplayStatus,
+} from '../lib/settlementStatus';
 import { formatMoney } from '../lib/constants';
 import { approxOther, plausibilityCheck } from '../lib/currencyValidation';
 import { friendlyLinkedError } from '../lib/linkedErrorMap';
@@ -77,6 +87,8 @@ export function InboxPage() {
   const acceptSettlement = useSettlementRequestStore((s) => s.accept);
   const rejectSettlement = useSettlementRequestStore((s) => s.reject);
   const cancelSettlement = useSettlementRequestStore((s) => s.cancel);
+  const applySettlementNow = useSettlementRequestStore((s) => s.applyNow);
+  const undoSettlementRecord = useSettlementRequestStore((s) => s.undo);
   const persons = usePersonStore((s) => s.persons);
   // Persons must be warm here: phone numbers power the outgoing-request
   // "Remind" WhatsApp deep link (same reason LoansPage loads them).
@@ -143,6 +155,10 @@ export function InboxPage() {
   const cancelGuard = useSubmitGuard();
   const rejectSettlementGuard = useSubmitGuard();
   const cancelSettlementGuard = useSubmitGuard();
+  const applyNowGuard = useSubmitGuard();
+  const undoGuard = useSubmitGuard();
+  // "Add to an account" on an applied, record-only settlement (full tracker).
+  const [addToAccount, setAddToAccount] = useState<AddToAccountTarget | null>(null);
   // Block / report target for the sheet. `contextId` is the inbox row the
   // action was raised from, so the operator's Studio query can find it.
   const [safety, setSafety] = useState<
@@ -675,6 +691,63 @@ export function InboxPage() {
     }
   };
 
+  // My own pending request where I RECEIVED the money: apply it now — a
+  // repayment that only helps the payer needs no one's OK (2026-09-24 model).
+  const handleApplyNow = (id: string) => applyNowGuard.run(async () => {
+    setBusyId(id);
+    try {
+      await applySettlementNow(id);
+      toast.show({ type: 'success', title: t('stl_applied_title') });
+    } catch (err) {
+      console.error('[inbox] apply-now failed', err);
+      toast.show({ type: 'error', title: t('error'), subtitle: errorSubtitle(err) });
+    } finally {
+      setBusyId(null);
+    }
+  });
+
+  // Undo my own receiver record (server-enforced 10-minute window).
+  const handleUndoRecord = (id: string) => undoGuard.run(async () => {
+    setBusyId(id);
+    try {
+      await undoSettlementRecord(id);
+      toast.show({ type: 'info', title: t('stl_undone_title') });
+    } catch (err) {
+      console.error('[inbox] undo record failed', err);
+      toast.show({ type: 'error', title: t('error'), subtitle: errorSubtitle(err) });
+    } finally {
+      setBusyId(null);
+    }
+  });
+
+  function myLoanTypeFor(r: SettlementRequest): 'given' | 'taken' | null {
+    const myLoanId = r.fromUserId === myId ? r.requesterLoanId : r.responderLoanId;
+    return loans.find((l) => l.id === myLoanId)?.type ?? null;
+  }
+
+  const openAddToAccount = (r: SettlementRequest) => {
+    const txnId = myRepaymentTxnId(r, myId);
+    const direction = myLoanTypeFor(r);
+    if (!txnId || !direction) return;
+    setAddToAccount({
+      txnId,
+      amount: r.amount,
+      currency: r.currency,
+      direction,
+      contactName: contactNameForSettlement(r),
+    });
+  };
+
+  // "Not right?" on a repayment the OTHER person recorded for me: a WhatsApp
+  // message to them — the fix is theirs to make (Undo, or a correction).
+  function notRightUrlFor(r: SettlementRequest): string {
+    const phone = persons.find((x) => x.linkedProfileId === r.fromUserId)?.phone ?? null;
+    const message = t('stl_not_right_message')
+      .replaceAll('{name}', contactNameForSettlement(r))
+      .replaceAll('{amount}', formatMoney(r.amount, r.currency));
+    return buildWhatsAppUrl(phone, message);
+  }
+
   function contactNameForSettlement(r: SettlementRequest): string {
     if (r.fromUserId === myId) {
       const p = persons.find((x) => x.linkedProfileId === r.toUserId);
@@ -727,8 +800,13 @@ export function InboxPage() {
     }
     // My side stayed ledger-only. Say so once the card matters (pending
     // outgoing / any accepted) — rejected & cancelled history stays quiet.
-    if (mine) return r.status === 'pending' || r.status === 'accepted' ? t('stl_outgoing_no_account') : null;
-    return r.status === 'accepted' ? t('stl_incoming_no_account') : null;
+    // The wording follows MY loan, not who sent the row: since either side
+    // can send, a lender's own outgoing settlement is money that did NOT
+    // land, not money that "didn't leave".
+    const relevant = r.status === 'accepted' || (mine && r.status === 'pending');
+    if (!relevant) return null;
+    const myLoan = loans.find((l) => l.id === (mine ? r.requesterLoanId : r.responderLoanId));
+    return myLoan?.type === 'taken' ? t('stl_outgoing_no_account') : t('stl_incoming_no_account');
   }
 
   // Same for linked LOAN cards. Direction from the request kind and which
@@ -813,9 +891,16 @@ export function InboxPage() {
         remindUrl={remindUrlFor(entry)}
         accountLine={settlementAccountLine(entry.item)}
         fullTracker={appMode === 'full_tracker'}
+        myId={myId}
+        canApplyNow={canApplyNow(entry.item, myId, myLoanTypeFor(entry.item))}
+        canAddToAccount={canAttachAccount(entry.item, myId, appMode === 'full_tracker')}
+        notRightUrl={entry.item.toUserId === myId && entry.item.recordedByReceiver ? notRightUrlFor(entry.item) : null}
         onAccept={() => handleAcceptSettlement(entry.item.id)}
         onReject={() => handleRejectSettlement(entry.item.id)}
         onCancel={() => handleCancelSettlement(entry.item.id)}
+        onApplyNow={() => handleApplyNow(entry.item.id)}
+        onUndo={() => handleUndoRecord(entry.item.id)}
+        onAddToAccount={() => openAddToAccount(entry.item as SettlementRequest)}
         onReport={tab === 'incoming'
           ? () => setSafety({ mode: 'report', userId: entry.item.fromUserId, name: contactNameForSettlement(entry.item as SettlementRequest), contextId: entry.item.id })
           : undefined}
@@ -1077,6 +1162,12 @@ export function InboxPage() {
           // record-only; the error toast already explains what went wrong.
           if (ok) setAcceptSheet(null);
         }}
+      />
+
+      <AddToAccountSheet
+        open={!!addToAccount}
+        target={addToAccount}
+        onClose={() => setAddToAccount(null)}
       />
 
       {/* Block / report the SENDER of an inbox item (audit M17). */}
@@ -1359,6 +1450,8 @@ const NOTIF_ICON: Record<AppNotification['type'], NotifIcon> = {
   group_update: GROUP_NOTIF_ICON,
   linked_request: { glyph: 'link', tone: 'violet', tint: 'm-violet' },
   linked_settlement: { glyph: 'link', tone: 'violet', tint: 'm-violet' },
+  // "{name} recorded your repayment" — money, but nothing to act on.
+  linked_info: { glyph: 'banknote', tone: 'violet', tint: 'm-violet' },
 };
 
 // Glyph + tone derive from the structured content kind; the words come from
@@ -1542,9 +1635,9 @@ function ContactAskCard({
 /** Status chip for a request / settlement card. A pending ask waiting on YOU
  *  is violet (Inbox business); one waiting on the other side is neutral;
  *  accepted is green; rejected / cancelled step back to neutral. */
-function statusChipClass(status: 'pending' | 'accepted' | 'rejected' | 'cancelled', waitingOnMe: boolean): string {
+function statusChipClass(status: SettlementDisplayStatus, waitingOnMe: boolean): string {
   if (status === 'pending') return waitingOnMe ? 'm-chip-violet' : 'm-chip-neutral';
-  if (status === 'accepted') return 'm-chip-receive';
+  if (status === 'accepted' || status === 'recorded') return 'm-chip-receive';
   return 'm-chip-neutral';
 }
 
@@ -1560,7 +1653,9 @@ function waitingLabel(createdAtIso: string, t: (key: I18nKey) => string): string
 }
 
 function SettlementCard({
-  request, tab, busy, contactName, typeKind, remindUrl, accountLine, fullTracker, onAccept, onReject, onCancel, onReport, onBlock,
+  request, tab, busy, contactName, typeKind, remindUrl, accountLine, fullTracker, myId,
+  canApplyNow: applyNowOffered, canAddToAccount, notRightUrl,
+  onAccept, onReject, onCancel, onApplyNow, onUndo, onAddToAccount, onReport, onBlock,
 }: {
   request: SettlementRequest;
   tab: Tab;
@@ -1573,32 +1668,49 @@ function SettlementCard({
   // null when there's nothing to say. Built by settlementAccountLine.
   accountLine: string | null;
   fullTracker: boolean;
+  myId: string;
+  /** My own pending request, and I'm the one who received the money. */
+  canApplyNow: boolean;
+  /** Applied, and my side is record-only (full tracker). */
+  canAddToAccount: boolean;
+  /** WhatsApp link for "Not right?" on a repayment the other side recorded. */
+  notRightUrl: string | null;
   onAccept: () => void;
   onReject: () => void;
   onCancel: () => void;
+  onApplyNow: () => void;
+  onUndo: () => void;
+  onAddToAccount: () => void;
   /** Incoming only — a per-SENDER escape hatch, not a per-item one. */
   onReport?: () => void;
   onBlock?: () => void;
 }) {
   const t = useT();
   const isPending = request.status === 'pending';
+  const display = settlementDisplayStatus(request);
+  const recorded = display === 'recorded' || display === 'undone';
+  // Undo countdown — ticks only while this card actually offers Undo.
+  const undoLeft = useUndoCountdown(request, myId);
   // The "will NOT change your account balances" promise only holds where
   // accounts can't be involved: the sender stayed ledger-only (outgoing),
   // or the viewer is in simple mode (incoming). A full-tracker acceptor is
   // about to be ASKED about an account — don't promise them otherwise.
   const showLedgerHint =
     tab === 'outgoing' ? !request.requesterAccountId : !fullTracker;
-  const title = (tab === 'outgoing' ? t('stl_card_outgoing') : t('stl_card_incoming')).replace(
-    '{name}', contactName,
-  );
+  const title = (recorded
+    ? (tab === 'outgoing' ? t('stl_card_recorded_by_me') : t('stl_card_recorded_by_them'))
+    : (tab === 'outgoing' ? t('stl_card_outgoing') : t('stl_card_incoming'))
+  ).replace('{name}', contactName);
 
-  const statusKey = (`stl_status_${request.status}`) as
-    | 'stl_status_pending' | 'stl_status_accepted' | 'stl_status_rejected' | 'stl_status_cancelled';
+  const statusKey = (`stl_status_${display}`) as
+    | 'stl_status_pending' | 'stl_status_accepted' | 'stl_status_rejected' | 'stl_status_cancelled'
+    | 'stl_status_recorded' | 'stl_status_undone';
   const waitingOnMe = tab === 'incoming';
   // This card can't tell which way the money went (that lives on the loan
   // pair), so the figure stays neutral rather than guess green or coral.
   // Closed-out history steps back to muted ink.
   const amountColor = isPending || request.status === 'accepted' ? 'text-ink-900' : 'text-ink-600';
+  const applied = request.status === 'accepted';
 
   return (
     // A pending settlement wears the handoff's violet ring (an inset outline,
@@ -1629,16 +1741,67 @@ function SettlementCard({
             ) : null}
           </p>
         </div>
-        <span className={`m-chip m-chip-caps shrink-0 px-[9px] py-[3px] ${statusChipClass(request.status, waitingOnMe)}`}>
+        <span className={`m-chip m-chip-caps shrink-0 px-[9px] py-[3px] ${statusChipClass(display, waitingOnMe)}`}>
           {t(statusKey)}
         </span>
       </div>
+
+      {/* Applied settlements: the receiver's record says there is nothing to
+          confirm; my record-only side can still be put in an account; my own
+          record can be undone for 10 minutes; the payer can say "Not right?". */}
+      {applied && (
+        <>
+          {display === 'recorded' && tab === 'incoming' && (
+            <p className="text-[11px] text-receive-text mt-2.5 leading-relaxed">{t('stl_card_recorded_note')}</p>
+          )}
+          {(undoLeft > 0 || canAddToAccount || notRightUrl) && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {undoLeft > 0 && (
+                <button
+                  onClick={onUndo}
+                  disabled={busy}
+                  className="m-btn m-btn-plain px-4 text-[12.5px] gap-1.5 tabular-nums"
+                >
+                  <Glyph name="undo" size={14} />
+                  {t('stl_undo_left').replace('{time}', formatUndoLeft(undoLeft))}
+                </button>
+              )}
+              {canAddToAccount && (
+                <button
+                  onClick={onAddToAccount}
+                  disabled={busy}
+                  className="m-btn m-btn-primary flex-1 px-4 text-[12.5px] gap-1.5"
+                >
+                  <Glyph name="wallet" size={14} />
+                  {t('stl_add_to_account')}
+                </button>
+              )}
+              {notRightUrl && (
+                <a
+                  href={notRightUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="m-btn m-btn-plain px-4 text-[12.5px] gap-1.5"
+                >
+                  <Glyph name="whatsapp" size={15} tone="green" />
+                  {t('stl_not_right')}
+                </a>
+              )}
+            </div>
+          )}
+        </>
+      )}
 
       {isPending ? (
         <>
           {showLedgerHint && (
             <p className="text-[11px] text-accent-600 bg-accent-50 rounded-xl p-2.5 mt-3 leading-relaxed">
               {t('stl_ledger_only_hint')}
+            </p>
+          )}
+          {applyNowOffered && (
+            <p className="text-[11px] text-ink-600 mt-3 leading-relaxed">
+              {t('stl_apply_now_hint').replace('{name}', contactName)}
             </p>
           )}
           <div className="flex gap-2 mt-3.5">
@@ -1661,18 +1824,30 @@ function SettlementCard({
               </>
             ) : (
               <>
-                {/* Remind: one-tap WhatsApp nudge — the defined way to chase
-                    a request the other side hasn't confirmed yet. Rendered as
-                    an anchor so Android hands it to the WhatsApp intent. */}
-                <a
-                  href={remindUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="m-btn m-btn-plain flex-1 px-4 text-[12.5px] gap-1.5"
-                >
-                  <Glyph name="whatsapp" size={15} tone="green" />
-                  {t('req_remind_cta')}
-                </a>
+                {/* I received this money: it needs nobody's OK — apply it
+                    now instead of chasing the payer (2026-09-24 model). */}
+                {applyNowOffered ? (
+                  <button
+                    onClick={onApplyNow}
+                    disabled={busy}
+                    className="m-btn m-btn-primary flex-1 px-4 text-[12.5px]"
+                  >
+                    {t('stl_apply_now')}
+                  </button>
+                ) : (
+                  /* Remind: one-tap WhatsApp nudge — the defined way to chase
+                     a request the other side hasn't confirmed yet. Rendered as
+                     an anchor so Android hands it to the WhatsApp intent. */
+                  <a
+                    href={remindUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="m-btn m-btn-plain flex-1 px-4 text-[12.5px] gap-1.5"
+                  >
+                    <Glyph name="whatsapp" size={15} tone="green" />
+                    {t('req_remind_cta')}
+                  </a>
+                )}
                 <button
                   onClick={onCancel}
                   disabled={busy}

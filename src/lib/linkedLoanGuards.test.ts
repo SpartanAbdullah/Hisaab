@@ -4,6 +4,8 @@ import {
   isLinkedLoan,
   assertLinkedLoanEditAllowed,
   assertLinkedLoanDeleteAllowed,
+  isSettlementRepayment,
+  linkedPairIdForLoan,
 } from './linkedLoanGuards';
 
 function loan(over: Partial<Loan> = {}): Loan {
@@ -62,5 +64,49 @@ describe('assertLinkedLoanDeleteAllowed', () => {
   });
   it('allows deleting a local-only loan', () => {
     expect(() => assertLinkedLoanDeleteAllowed(loan({ loanPairId: null }))).not.toThrow();
+  });
+});
+
+describe('linkedPairIdForLoan — the pair comes from the request rows', () => {
+  const rows = [
+    { id: 'pair-1', status: 'accepted', requesterLoanId: 'L1', responderLoanId: 'B1' },
+    { id: 'pair-2', status: 'pending', requesterLoanId: 'L2', responderLoanId: null },
+    { id: 'pair-3', status: 'rejected', requesterLoanId: 'L3', responderLoanId: 'B3' },
+  ];
+
+  it('finds the accepted pair from either side', () => {
+    expect(linkedPairIdForLoan('L1', rows)).toBe('pair-1');
+    expect(linkedPairIdForLoan('B1', rows)).toBe('pair-1');
+  });
+
+  it('a pending or rejected request does not make a loan linked', () => {
+    expect(linkedPairIdForLoan('L2', rows)).toBeNull();
+    expect(linkedPairIdForLoan('L3', rows)).toBeNull();
+    expect(linkedPairIdForLoan('nope', rows)).toBeNull();
+  });
+
+  it('THE FIX: fed the derived pair id, the guards fire on an active linked loan', () => {
+    const loanPairId = linkedPairIdForLoan('L1', rows);
+    expect(() => assertLinkedLoanDeleteAllowed({ loanPairId, status: 'active' })).toThrow();
+    expect(() => assertLinkedLoanEditAllowed(
+      { loanPairId, status: 'active', currency: 'AED', totalAmount: 100 }, { totalAmount: 90 },
+    )).toThrow();
+  });
+});
+
+describe('isSettlementRepayment', () => {
+  const settlements = [
+    { status: 'accepted', requesterTxnId: 'T-mine', responderTxnId: 'T-theirs' },
+    { status: 'cancelled', requesterTxnId: 'T-undone', responderTxnId: 'T-undone-2' },
+  ];
+
+  it('is true for either side of an applied settlement', () => {
+    expect(isSettlementRepayment('T-mine', settlements)).toBe(true);
+    expect(isSettlementRepayment('T-theirs', settlements)).toBe(true);
+  });
+
+  it('is false for undone settlements and ordinary repayments', () => {
+    expect(isSettlementRepayment('T-undone', settlements)).toBe(false);
+    expect(isSettlementRepayment('T-local', settlements)).toBe(false);
   });
 });

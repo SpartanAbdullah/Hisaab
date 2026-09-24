@@ -8,6 +8,43 @@
 
 import type { Loan } from '../db';
 
+export interface LinkedPairRowLike {
+  id: string;
+  status: string;
+  requesterLoanId?: string | null;
+  responderLoanId?: string | null;
+}
+
+/**
+ * The accepted linked pair a loan belongs to, from the linked-request rows.
+ *
+ * Loans carry no pair column: `Loan.loanPairId` is mapped from
+ * `loans.loan_pair_id`, which no migration ever created (the column lives on
+ * linked_transaction_requests only), so it is always null and every guard in
+ * this file silently never fired (found 2026-09-24). Callers pass
+ * `loan.loanPairId ?? linkedPairIdForLoan(loan.id, rows)` instead.
+ */
+export function linkedPairIdForLoan(loanId: string, rows: LinkedPairRowLike[]): string | null {
+  const pair = rows.find(
+    (r) => r.status === 'accepted' && (r.requesterLoanId === loanId || r.responderLoanId === loanId),
+  );
+  return pair?.id ?? null;
+}
+
+/**
+ * True when a repayment row is one side of an APPLIED linked settlement —
+ * the mirror of a row on the other person's books. Deleting it on one side
+ * would split the two ledgers, whatever the loan's status.
+ */
+export function isSettlementRepayment(
+  txnId: string,
+  settlements: Array<{ status: string; requesterTxnId: string | null; responderTxnId: string | null }>,
+): boolean {
+  return settlements.some(
+    (r) => r.status === 'accepted' && (r.requesterTxnId === txnId || r.responderTxnId === txnId),
+  );
+}
+
 export function isLinkedLoan(loan: Pick<Loan, 'loanPairId'>): boolean {
   return !!loan.loanPairId;
 }

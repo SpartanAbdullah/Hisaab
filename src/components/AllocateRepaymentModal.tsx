@@ -11,7 +11,7 @@ import { confirmDestructive } from './ConfirmDestructiveSheet';
 import { formatMoney, formatSignedMoney } from '../lib/constants';
 import { currencyMeta } from '../lib/design-tokens';
 import { useT } from '../lib/i18n';
-import { allocateRepayment, totalRemaining, type Allocation, type AllocationStrategy } from '../lib/repaymentAllocation';
+import { allocateRepayment, orderLoansForStrategy, totalRemaining, type Allocation, type AllocationStrategy } from '../lib/repaymentAllocation';
 import { executeAllocatedRepayments } from '../lib/repaymentExecution';
 import { isLoanRemainingConflict } from '../lib/loanRemainingDelta';
 import { track } from '../lib/telemetry';
@@ -70,10 +70,11 @@ export function AllocateRepaymentModal({ open, onClose, loans, direction, curren
     [accounts, currency],
   );
 
-  // Loans sorted for display (largest first reads naturally).
+  // Loans listed in the order the chosen strategy fills them, so the loan the
+  // lump reaches first is on top. By hand: newest first, like the Loans page.
   const displayLoans = useMemo(
-    () => loans.slice().sort((a, b) => b.remainingAmount - a.remainingAmount),
-    [loans],
+    () => orderLoansForStrategy(loans, strategy === 'manual' ? 'newest' : strategy),
+    [loans, strategy],
   );
 
   const allocations: Allocation[] = useMemo(() => {
@@ -197,6 +198,7 @@ export function AllocateRepaymentModal({ open, onClose, loans, direction, curren
     { value: 'smallest', label: t('alloc_smallest') },
     { value: 'largest', label: t('alloc_largest') },
     { value: 'oldest', label: t('alloc_oldest') },
+    { value: 'newest', label: t('alloc_newest') },
     { value: 'manual', label: t('alloc_manual') },
   ];
 
@@ -224,7 +226,7 @@ export function AllocateRepaymentModal({ open, onClose, loans, direction, curren
                 type="button"
                 onClick={() => setStrategy(s.value)}
                 aria-pressed={strategy === s.value}
-                className={`selector-base justify-center text-[12px] font-semibold text-ink-800 ${strategy === s.value ? 'selector-selected' : ''}`}
+                className={`selector-base justify-center text-[12px] font-semibold text-ink-800 ${s.value === 'manual' ? 'col-span-2' : ''} ${strategy === s.value ? 'selector-selected' : ''}`}
               >
                 {s.label}
               </button>
@@ -304,7 +306,10 @@ export function AllocateRepaymentModal({ open, onClose, loans, direction, curren
                       <p className="text-[12.5px] font-semibold text-ink-900 truncate">
                         {l.notes?.trim() || `${isGiven ? t('loan_receivable') : t('loan_payable')}`}
                       </p>
-                      <p className="text-[10.5px] text-ink-600 tabular-nums mt-0.5">{formatMoney(l.remainingAmount, l.currency)} {t('loan_remaining').toLowerCase()}</p>
+                      <p className="text-[10.5px] text-ink-600 tabular-nums mt-0.5">
+                        {new Date(l.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {' · '}{formatMoney(l.remainingAmount, l.currency)} {t('loan_remaining').toLowerCase()}
+                      </p>
                     </div>
                     {strategy === 'manual' ? (
                       <input

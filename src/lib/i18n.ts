@@ -510,6 +510,19 @@ const S = {
     ur: "{group} ka {from} → {to} settlement undo ho gaya.",
     en: "The {from} → {to} settlement in {group} was undone.",
   },
+  // linked_info notices (supabase-migration-settlement-receiver-records.sql):
+  // the person who received the money recorded / removed a repayment — the
+  // reader has nothing to confirm. Params: { actorName, amount, currency }.
+  ntf_lsr_recorded_title: { ur: "Repayment record ho gayi", en: "Repayment recorded" },
+  ntf_lsr_recorded_body: {
+    ur: "{actor} ne aap ki {amount} ki repayment record kar di. Kuch confirm nahi karna.",
+    en: "{actor} recorded your repayment of {amount}. Nothing to confirm.",
+  },
+  ntf_lsr_undone_title: { ur: "Repayment hata di gayi", en: "Repayment removed" },
+  ntf_lsr_undone_body: {
+    ur: "{actor} ne {amount} ki record ki hui repayment hata di.",
+    en: "{actor} removed the repayment of {amount} they had recorded.",
+  },
   ntf_no_shared_yet: {
     ur: "Abhi tak koi shared notification nahi.",
     en: "No shared notifications yet.",
@@ -562,6 +575,39 @@ const S = {
   lsr_err_not_found: {
     ur: "Yeh request ab mojood nahi (shayad cancel ho gayi). Inbox refresh karein.",
     en: "This request no longer exists (it may have been cancelled). Refresh your inbox.",
+  },
+  // supabase-migration-settlement-receiver-records.sql refusals.
+  lsr_err_undo_window: {
+    ur: "Wapas lena sirf record karne ke 10 minute tak hota hai. Ab theek karna ho to correction bhejein.",
+    en: "Undo only works for 10 minutes after recording. To fix it now, send a correction.",
+  },
+  lsr_err_undo_attached: {
+    ur: "Dusri taraf ne yeh payment apne account mein daal di hai, is liye wapas nahi ho sakti. Pehle un se baat karein.",
+    en: "They've already added this payment to one of their accounts, so it can't be undone. Talk to them first.",
+  },
+  lsr_err_changed: {
+    ur: "Record hone ke baad yeh payment badal gayi, is liye yahan wapas nahi ho sakti.",
+    en: "This payment changed after it was recorded, so it can't be undone here.",
+  },
+  lsr_err_not_receiver: {
+    ur: "Sirf paisa lene wala isay seedha record kar sakta hai. Isay confirmation ke liye bhejein.",
+    en: "Only the person who received the money can record it directly. Send it for confirmation instead.",
+  },
+  lsr_err_already_in_account: {
+    ur: "Yeh payment pehle hi kisi account mein hai.",
+    en: "This payment is already in an account.",
+  },
+  lsr_err_attach_not_settlement: {
+    ur: "Yahan sirf confirm hui linked payment hi account mein daali ja sakti hai.",
+    en: "Only a confirmed linked payment can be added to an account here.",
+  },
+  lsr_err_account_currency: {
+    ur: "Yeh account doosri currency mein hai. Isi currency ka account chunein.",
+    en: "That account is in a different currency. Pick an account in the same currency.",
+  },
+  lsr_err_needs_update: {
+    ur: "Is ke liye server ka naya update abhi laga nahi. Thodi der baad dobara koshish karein.",
+    en: "The server update this needs isn't live yet. Please try again a little later.",
   },
   // Past-record sync refused at accept time (supabase-migration-linked-sync-
   // live-amount.sql): the sender's loan moved while the request sat pending.
@@ -2209,8 +2255,8 @@ const S = {
     en: "Record only — didn't leave any account",
   },
   stl_incoming_no_account: {
-    ur: "Sirf record — aap ke kisi account mein nahi aaya. Agar cash mila hai to account khud update karein.",
-    en: "Record only — didn't land in any of your accounts. If you received cash, update the account yourself.",
+    ur: "Sirf record — aap ke kisi account mein nahi aaya",
+    en: "Record only — didn't land in any of your accounts",
   },
   // Linked LOAN cards wear the same which-account line, loan-flavoured.
   req_from_account: { ur: "{account} se", en: "From {account}" },
@@ -2272,6 +2318,106 @@ const S = {
   },
   // Meta line on sender-side history for accepted settlements with an account.
   stl_applied_account: { ur: "Aap ke {account} par apply hua", en: "Applied to your {account}" },
+
+  // ── 2026-09-24 settlement model (Release A) ─────────────────────────────
+  // Where did the money go? Asked every time in Full Tracker — never a silent
+  // "record only" default (24 Sep: AED 3,000 never reached Mashreq).
+  stl_land_q_given: { ur: "Paisa kis account mein aaya?", en: "Where did the money land?" },
+  stl_land_q_taken: { ur: "Kis account se diye?", en: "Which account did you pay from?" },
+  stl_land_record_only: { ur: "Kisi account mein nahi — sirf record", en: "Not in any account — record only" },
+  stl_land_record_only_hint: {
+    ur: "Maslan cash jo aap Hisaab mein track nahi karte",
+    en: "e.g. cash you don't track in Hisaab",
+  },
+  stl_land_required: { ur: "Pehle batayein paisa kahan gaya", en: "Choose where the money went first" },
+  stl_confirm_lands: { ur: "{amount} {account} mein aayega.", en: "{amount} lands in {account}." },
+  stl_confirm_leaves: { ur: "{amount} {account} se jayega.", en: "{amount} leaves {account}." },
+  stl_confirm_record_only: {
+    ur: "Sirf record — kisi account ka balance nahi badlega.",
+    en: "Record only — no account balance changes.",
+  },
+  // The receiver records: both ledgers update now, the payer is only told.
+  stl_record_title: { ur: "{name} ki payment record karein", en: "Record {name}'s payment" },
+  stl_record_intro: {
+    ur: "{name} ne aap ko paisa diya? Record karein — dono taraf ka hisaab abhi update ho jayega. {name} ko sirf bataya jayega, confirm nahi karna padega.",
+    en: "Got money from {name}? Record it — both sides update right now. {name} is just notified; there's nothing for them to confirm.",
+  },
+  stl_record_cta: { ur: "Payment record karein", en: "Record payment" },
+  stl_record_confirm_title: { ur: "{amount} record karein?", en: "Record {amount}?" },
+  stl_record_confirm_body: {
+    ur: "{name} ka baqaya abhi {amount} kam ho jayega, dono taraf. 10 minute tak wapas le sakte hain.",
+    en: "{name}'s balance drops by {amount} right now, on both sides. You can undo it for 10 minutes.",
+  },
+  stl_recording: { ur: "Record ho raha hai…", en: "Recording…" },
+  stl_recorded_title: { ur: "Payment record ho gayi", en: "Payment recorded" },
+  stl_recorded_subtitle: { ur: "{name} ka hisaab update ho gaya", en: "{name}'s balance is updated" },
+  stl_bulk_record_intro: {
+    ur: "Ek amount likhein — yeh {name} ke qarz aap ki chuni hui tarteeb se utarega. Dono taraf abhi update hoga.",
+    en: "Enter one amount — it clears {name}'s loans in the order you pick. Both sides update right now.",
+  },
+  stl_bulk_record_cta: { ur: "{n} payments record karein", en: "Record {n} payments" },
+  stl_bulk_record_confirm_body: {
+    ur: "{amount}, {n} qarz par. Dono taraf abhi update hoga — {name} ko sirf bataya jayega.",
+    en: "{amount} across {n} loans. Both sides update right now — {name} is just notified.",
+  },
+  stl_bulk_recorded_partial: { ur: "{done} of {total} record hui", en: "Recorded {done} of {total}" },
+  stl_undo: { ur: "Wapas lein", en: "Undo" },
+  stl_undo_all: { ur: "Sab wapas lein", en: "Undo all" },
+  stl_undo_left: { ur: "Wapas lein · {time}", en: "Undo · {time}" },
+  stl_undone_title: { ur: "Payment hata di gayi", en: "Payment removed" },
+  // A receiver's own pending request (sent before this model) can be applied
+  // without waiting on the payer.
+  stl_apply_now: { ur: "Abhi laga dein", en: "Apply now" },
+  stl_apply_now_hint: {
+    ur: "Yeh paisa aap ko mila hai — {name} ki confirmation ki zaroorat nahi.",
+    en: "You received this money — it doesn't need {name}'s OK.",
+  },
+  stl_applied_title: { ur: "Lag gaya — dono taraf update", en: "Applied — both sides updated" },
+  // Status chips + card lines for receiver-recorded rows.
+  stl_status_recorded: { ur: "Record hua", en: "Recorded" },
+  stl_status_undone: { ur: "Wapas liya", en: "Undone" },
+  stl_card_recorded_by_me: { ur: "Aap ne {name} ki payment record ki", en: "You recorded {name}'s payment" },
+  stl_card_recorded_by_them: { ur: "{name} ne aap ki payment record ki", en: "{name} recorded your payment" },
+  stl_card_recorded_note: {
+    ur: "Kuch confirm nahi karna — dono taraf update ho gaya.",
+    en: "Nothing to confirm — both sides are updated.",
+  },
+  stl_not_right: { ur: "Ghalat hai?", en: "Not right?" },
+  stl_not_right_message: {
+    ur: "Salam {name}! Hisaab mein aap ne {amount} ki jo repayment record ki hai woh mujhe theek nahi lag rahi. Ek baar check kar lein?",
+    en: "Salam {name}! The {amount} repayment you recorded on Hisaab doesn't look right to me. Can we check it?",
+  },
+  // Duplicate guard — the same money already on its way in.
+  stl_dup_their_claim_title: {
+    ur: "{name} pehle hi {amount} ki payment record kar chuke hain",
+    en: "{name} already recorded paying you {amount}",
+  },
+  stl_dup_their_claim_body: {
+    ur: "Do baar count na ho, is liye unki claim confirm kar dein.",
+    en: "Confirm their claim instead, so it isn't counted twice.",
+  },
+  stl_dup_confirm_theirs: { ur: "Unki confirm karein", en: "Confirm theirs" },
+  stl_dup_different: { ur: "Yeh alag payment hai", en: "It's a different payment" },
+  stl_dup_already_title: {
+    ur: "Aap {date} ko {amount} record kar chuke hain",
+    en: "You already recorded {amount} on {date}",
+  },
+  stl_dup_already_body: { ur: "Kya yeh wohi payment hai?", en: "Is this the same payment?" },
+  stl_dup_same_stop: { ur: "Wohi hai — record na karein", en: "Same one — don't record" },
+  // "Add to an account" — fixes a record-only side after the fact.
+  stl_add_to_account: { ur: "Account mein daalein", en: "Add to an account" },
+  stl_add_warning: {
+    ur: "Sirf tab jab yeh paisa aap ne kisi aur tareeqay se pehle add na kiya ho — warna do baar count hoga.",
+    en: "Only if you haven't already added this money another way — otherwise it counts twice.",
+  },
+  stl_add_cta: { ur: "{account} mein daalein", en: "Add to {account}" },
+  stl_add_done: { ur: "{account} mein daal diya", en: "Added to {account}" },
+  // After a payer sends settlement requests (web users get no push).
+  stl_tell_whatsapp: { ur: "{name} ko WhatsApp par batayein", en: "Tell {name} on WhatsApp" },
+  stl_tell_whatsapp_text: {
+    ur: "Salam {name}! Maine Hisaab par {amount} ki {n} repayment record ki hain — app khol kar confirm kar dena taake dono ka hisaab barabar rahe 🙂",
+    en: "Salam {name}! I recorded {n} repayment(s) of {amount} on Hisaab — please open the app and confirm so both our books match 🙂",
+  },
 
   // ── Phase G7: minor standalone UI strings ──
   contacts_title: { ur: "Aap ke Contacts", en: "Your Contacts" },
@@ -2772,6 +2918,7 @@ const S = {
   alloc_smallest: { ur: "Chhote pehle", en: "Clear smallest first" },
   alloc_largest: { ur: "Bade pehle", en: "Largest first" },
   alloc_oldest: { ur: "Purane pehle", en: "Oldest first" },
+  alloc_newest: { ur: "Naye pehle", en: "Newest first" },
   alloc_manual: { ur: "Khud chunein", en: "Choose per loan" },
   alloc_account_label: { ur: "Account", en: "From / to account" },
   alloc_preview: { ur: "Yeh laga", en: "This clears" },

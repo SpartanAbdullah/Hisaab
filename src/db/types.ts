@@ -179,6 +179,14 @@ export interface SettlementRequest {
   // Receiver's landing account, picked at accept time. Null ⇒ receiver side
   // ledger-only.
   responderAccountId?: string | null;
+  // 2026-09-24 settlement model (supabase-migration-settlement-receiver-
+  // records.sql): TRUE when the person who RECEIVED the money recorded it — it
+  // applied to both ledgers at once, nobody confirmed anything. Optional so a
+  // row read before the migration is applied maps cleanly (reads as false).
+  recordedByReceiver?: boolean;
+  // Set when that record was undone inside the 10-minute window; the row's
+  // status is then 'cancelled'.
+  undoneAt?: string | null;
   createdAt: string;
   respondedAt: string | null;
 }
@@ -400,7 +408,10 @@ export interface AppNotification {
   // (supabase-migration-p2-notification-maturity.sql §6) for draw-completed,
   // round-due and payout-due — the cross-user kameti gap in audit
   // 08-notifications.md N-11.
-  type: 'group_update' | 'invite' | 'system' | 'linked_request' | 'linked_settlement' | 'contact_linked' | 'kameti';
+  // 'linked_info' (supabase-migration-settlement-receiver-records.sql) is an
+  // informational money notice with nothing to act on — "{name} recorded your
+  // repayment" / "…removed the repayment". Deliberately NOT a request mirror.
+  type: 'group_update' | 'invite' | 'system' | 'linked_request' | 'linked_settlement' | 'linked_info' | 'contact_linked' | 'kameti';
   // Server-composed fallback text. Since the fan-out moved into Postgres
   // triggers (supabase-migration-audit-p0-notifications.sql) these are written
   // ONLY by the database — a client can no longer author notification text for

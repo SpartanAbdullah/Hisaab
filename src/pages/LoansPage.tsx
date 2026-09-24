@@ -936,6 +936,7 @@ export function LoansPage() {
           direction={selectedGroup.direction}
           currency={selectedGroup.currency}
           personName={selectedGroup.name}
+          personPhone={groupPhone(selectedGroup)}
           onDone={() => {
             setShowSettleAll(false);
             setSelectedGroup(null);

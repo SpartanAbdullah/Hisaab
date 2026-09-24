@@ -15,6 +15,22 @@ const LINKED_ERROR_KEYS: Array<{ match: string; key: I18nKey }> = [
   { match: 'ltr: pre_existing loan has been settled or archived', key: 'ltr_err_sync_loan_settled' },
   { match: 'ltr: pre_existing loan no longer available', key: 'ltr_err_sync_loan_gone' },
   { match: 'ltr: pre_existing loan changed currency', key: 'ltr_err_sync_loan_gone' },
+  // Receiver records / Undo / "Add to an account"
+  // (supabase-migration-settlement-receiver-records.sql).
+  { match: 'lsr: the undo window has passed', key: 'lsr_err_undo_window' },
+  { match: 'lsr: they already added it to an account', key: 'lsr_err_undo_attached' },
+  { match: 'lsr: this payment was changed since it was recorded', key: 'lsr_err_changed' },
+  { match: 'lsr: only the person receiving the money can record it', key: 'lsr_err_not_receiver' },
+  { match: 'lsr: this repayment is already in an account', key: 'lsr_err_already_in_account' },
+  { match: 'lsr: only a confirmed settlement repayment can be added to an account', key: 'lsr_err_attach_not_settlement' },
+  { match: "lsr: this repayment can't be added to an account", key: 'lsr_err_attach_not_settlement' },
+  { match: 'lsr: account currency mismatch', key: 'lsr_err_account_currency' },
+  // PostgREST PGRST202 before the migration is applied: the client shipped
+  // first. Say so plainly instead of showing a schema-cache message.
+  { match: 'function public.record_received_repayment', key: 'lsr_err_needs_update' },
+  { match: 'function public.apply_own_settlement_request', key: 'lsr_err_needs_update' },
+  { match: 'function public.undo_received_repayment', key: 'lsr_err_needs_update' },
+  { match: 'function public.set_settlement_repayment_account', key: 'lsr_err_needs_update' },
 ];
 
 export function friendlyLinkedError(raw: string): string {

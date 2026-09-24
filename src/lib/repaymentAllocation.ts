@@ -5,7 +5,9 @@
 // it can be unit-tested and reused; the UI loops the existing single-loan
 // repayment for each returned allocation.
 
-export type AllocationStrategy = 'smallest' | 'largest' | 'oldest';
+// 'newest' (LIFO) was added 2026-09-24: the founder wanted a lump to clear the
+// most recent loan first and had to type per-loan amounts by hand to do it.
+export type AllocationStrategy = 'smallest' | 'largest' | 'oldest' | 'newest';
 
 export interface AllocatableLoan {
   id: string;
@@ -22,6 +24,20 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// The order a strategy fills loans in. Exported so a preview can list the
+// loans in fill order (a newest-first lump reads top-down, like oldest-first).
+export function orderLoansForStrategy<T extends AllocatableLoan>(
+  loans: T[],
+  strategy: AllocationStrategy,
+): T[] {
+  return loans.slice().sort((a, b) => {
+    if (strategy === 'smallest') return a.remainingAmount - b.remainingAmount || a.createdAt.localeCompare(b.createdAt);
+    if (strategy === 'largest') return b.remainingAmount - a.remainingAmount || a.createdAt.localeCompare(b.createdAt);
+    if (strategy === 'newest') return b.createdAt.localeCompare(a.createdAt); // newest first (LIFO)
+    return a.createdAt.localeCompare(b.createdAt); // oldest first (FIFO)
+  });
+}
+
 // Greedily fill loans in the strategy's order until the lump runs out, never
 // over-paying a loan. Returns only loans that receive a positive amount, in
 // fill order. The sum equals min(lump, total remaining), to 2 dp.
@@ -30,12 +46,7 @@ export function allocateRepayment(
   lump: number,
   strategy: AllocationStrategy,
 ): Allocation[] {
-  const order = loans.filter((l) => l.remainingAmount > 0.001).slice();
-  order.sort((a, b) => {
-    if (strategy === 'smallest') return a.remainingAmount - b.remainingAmount || a.createdAt.localeCompare(b.createdAt);
-    if (strategy === 'largest') return b.remainingAmount - a.remainingAmount || a.createdAt.localeCompare(b.createdAt);
-    return a.createdAt.localeCompare(b.createdAt); // oldest first (FIFO)
-  });
+  const order = orderLoansForStrategy(loans.filter((l) => l.remainingAmount > 0.001), strategy);
 
   let pool = round2(lump);
   const out: Allocation[] = [];

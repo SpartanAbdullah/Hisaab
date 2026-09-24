@@ -123,5 +123,8 @@ export function notificationKind(n: { type?: string | null; template?: string | 
     return 'group';
   }
   if (n.type === 'contact_linked') return 'contact';
+  // linked_info (supabase-migration-settlement-receiver-records.sql) always
+  // goes to the PAYER: "{name} recorded / removed your repayment".
+  if (n.type === 'linked_info') return 'paid_back';
   return 'update';
 }

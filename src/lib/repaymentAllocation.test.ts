@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allocateRepayment, previewAllocations, totalRemaining, type AllocatableLoan } from './repaymentAllocation';
+import { allocateRepayment, orderLoansForStrategy, previewAllocations, totalRemaining, type AllocatableLoan } from './repaymentAllocation';
 
 // The scenario from the report: 29, 50, 1000, 6000 owed; pays back 2000.
 const loans: AllocatableLoan[] = [
@@ -43,6 +43,35 @@ describe('allocateRepayment — oldest-first (FIFO)', () => {
       { loanId: 'b', amount: 50 },
       { loanId: 'c', amount: 1 },
     ]);
+  });
+});
+
+describe('allocateRepayment — newest-first (LIFO)', () => {
+  it('fills by reverse creation order — the most recent loan clears first', () => {
+    const out = allocateRepayment(loans, 6050, 'newest');
+    expect(out).toEqual([
+      { loanId: 'd', amount: 6000 },
+      { loanId: 'c', amount: 50 },
+    ]);
+  });
+
+  it('a lump smaller than the newest loan only touches the newest loan', () => {
+    expect(allocateRepayment(loans, 100, 'newest')).toEqual([{ loanId: 'd', amount: 100 }]);
+  });
+});
+
+describe('orderLoansForStrategy', () => {
+  it('lists loans in the order the strategy fills them', () => {
+    expect(orderLoansForStrategy(loans, 'newest').map((l) => l.id)).toEqual(['d', 'c', 'b', 'a']);
+    expect(orderLoansForStrategy(loans, 'oldest').map((l) => l.id)).toEqual(['a', 'b', 'c', 'd']);
+    expect(orderLoansForStrategy(loans, 'smallest').map((l) => l.id)).toEqual(['a', 'b', 'c', 'd']);
+    expect(orderLoansForStrategy(loans, 'largest').map((l) => l.id)).toEqual(['d', 'c', 'b', 'a']);
+  });
+
+  it('does not mutate its input', () => {
+    const copy = loans.map((l) => ({ ...l }));
+    orderLoansForStrategy(loans, 'newest');
+    expect(loans).toEqual(copy);
   });
 });
 

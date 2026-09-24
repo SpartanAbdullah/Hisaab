@@ -293,6 +293,10 @@ DECLARE
   -- contribute_to_goal, pay_card_bill, record_single_leg_entry,
   -- record_investment_trade, apply_goal_saved_delta).
   -- 2026-09-19: + set_group_admin (supabase-migration-group-admins.sql).
+  -- 2026-09-24: + record_received_repayment, apply_own_settlement_request,
+  --   undo_received_repayment, set_settlement_repayment_account
+  --   (supabase-migration-settlement-receiver-records.sql). Its _lsr_* helpers
+  --   are internal and must NEVER be added here.
   v_client_rpcs TEXT[] := ARRAY[
     'accept_group_invite',            'accept_group_membership',
     'accept_linked_request',          'accept_settlement_request',
@@ -300,6 +304,8 @@ DECLARE
     'analytics_daily_series',         'analytics_monthly_summary',
     'analytics_top_expenses',         'apply_account_balance_delta',
     'apply_goal_saved_delta',         'apply_loan_remaining_delta',
+    'apply_own_settlement_request',   'record_received_repayment',
+    'set_settlement_repayment_account', 'undo_received_repayment',
     'archive_contact_if_settled',     'archive_group',
     'cancel_linked_request',          'cancel_settlement_request',
     'contribute_to_goal',             'create_khata_link',
@@ -618,7 +624,9 @@ BEGIN
       'revoke_committee_witness_token','revoke_khata_link',
       'rotate_committee_witness_token','set_group_admin','transfer_between_accounts',
       'transfer_group_ownership','unarchive_contact','unarchive_group',
-      'unlink_contact_profile','update_committee']) AS x(n)
+      'unlink_contact_profile','update_committee',
+      'apply_own_settlement_request','record_received_repayment',
+      'set_settlement_repayment_account','undo_received_repayment']) AS x(n)
    WHERE EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace ns ON ns.oid = p.pronamespace
                   WHERE ns.nspname = 'public' AND p.proname = x.n)
      AND NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace ns ON ns.oid = p.pronamespace

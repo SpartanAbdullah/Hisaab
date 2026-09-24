@@ -75,9 +75,14 @@ export function TransactionItem({ transaction, accountContextId, onClick }: Prop
     ? contextIsSource && !contextIsDestination
     : transaction.type === 'opening_balance'
       ? false
-      : transaction.type === 'repayment' || transaction.type === 'adjustment'
-        ? !!transaction.sourceAccountId
-        : ['expense', 'loan_given', 'transfer', 'goal_contribution', 'investment_buy'].includes(transaction.type);
+      : transaction.type === 'repayment' && !transaction.sourceAccountId && !transaction.destinationAccountId
+        // A record-only repayment has no account leg to read the direction
+        // from — the loan says it: repaying a TAKEN loan is money I paid.
+        // (It used to fall through to "+" for both directions.)
+        ? linkedLoan?.type === 'taken'
+        : transaction.type === 'repayment' || transaction.type === 'adjustment'
+          ? !!transaction.sourceAccountId
+          : ['expense', 'loan_given', 'transfer', 'goal_contribution', 'investment_buy'].includes(transaction.type);
 
   const displayMoney = (() => {
     if (!accountContextId) return { amount: transaction.amount, currency: transaction.currency };

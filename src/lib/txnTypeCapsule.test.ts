@@ -64,6 +64,8 @@ describe('notificationKind', () => {
     [{ type: 'kameti', template: 'kameti_round_due' }, 'kameti'],
     [{ type: 'system', template: 'kameti_draw_completed' }, 'kameti'],
     [{ type: 'contact_linked' }, 'contact'],
+    [{ type: 'linked_info', template: 'lsr_recorded' }, 'paid_back'],
+    [{ type: 'linked_info', template: 'lsr_undone' }, 'paid_back'],
     [{ type: 'system' }, 'update'],
     [{}, 'update'],
   ])('%j → %s', (n, kind) => {

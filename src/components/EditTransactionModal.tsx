@@ -7,6 +7,8 @@ import { ContactPicker, type ContactValue } from './ContactPicker';
 import { useAccountStore } from '../stores/accountStore';
 import { useTransactionStore } from '../stores/transactionStore';
 import { useLoanStore } from '../stores/loanStore';
+import { useSettlementRequestStore } from '../stores/settlementRequestStore';
+import { isSettlementRepayment } from '../lib/linkedLoanGuards';
 import { usePersonStore } from '../stores/personStore';
 import { useToast } from './Toast';
 import { CategoryPicker } from './CategoryPicker';
@@ -34,6 +36,9 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
   const persistReceiptPath = useTransactionStore((s) => s.setReceiptPath);
   const allTransactions = useTransactionStore((s) => s.transactions);
   const loans = useLoanStore((s) => s.loans);
+  // Either side of an applied linked settlement mirrors a row on the other
+  // person's books — it can't be deleted on one side (the store refuses too).
+  const settlementRequests = useSettlementRequestStore((s) => s.requests);
   const toast = useToast();
   const t = useT();
   const guardClose = useDiscardGuard();
@@ -416,6 +421,7 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
   };
 
   if (!isDirectlyEditable) {
+    const lockedBySettlement = transaction.type === 'repayment' && isSettlementRepayment(transaction.id, settlementRequests);
     const source = transaction.sourceAccountId ? accounts.find((account) => account.id === transaction.sourceAccountId) : null;
     const destination = transaction.destinationAccountId ? accounts.find((account) => account.id === transaction.destinationAccountId) : null;
     return (
@@ -440,7 +446,7 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
           ) : (
             <button
               onClick={handleDelete}
-              disabled={saving || groupLive === true}
+              disabled={saving || groupLive === true || lockedBySettlement}
               className="cta-destructive py-3.5 text-[14px]"
             >
               <Glyph name="trash" size={15} />
@@ -468,6 +474,11 @@ export function EditTransactionModal({ open, transaction, onClose }: Props) {
           <p className="m-inset text-[12px] text-ink-600 p-3 leading-relaxed">
             {noteMeta.splitEventId ? t('split_locked_edit') : t('tx_readonly_note')}
           </p>
+          {lockedBySettlement && (
+            <p className="m-card m-violet text-[12px] text-iris-text p-3 leading-relaxed">
+              {t('err_linked_repayment_delete').replace('{person}', transaction.relatedPerson ?? '')}
+            </p>
+          )}
           {noteMeta.splitEventId && (
             <div className="m-card p-3.5 space-y-2">
               <p className="m-label">

@@ -1,8 +1,14 @@
 // Full Money Tracker accept flow for incoming cross-user requests: folds the
 // deliberate "this is irreversible" confirmation and the "which account did
 // the money actually touch?" choice into ONE sheet, so accepting stays a
-// single dialog. "Record only" is the default — picking an account is the
-// opt-in, mirroring the sender-side Phase 2C-B toggle.
+// single dialog.
+//
+// Loan requests: "Record only" is preselected (the 2026-07-25 decision, still
+// under discussion — the founder wants more thought on mixed modes).
+// Settlements (a payment someone says they made to/from me): NOTHING is
+// preselected — the 2026-09-24 settlement model. A silent record-only default
+// is what left a real AED 3,000 repayment outside every account; confirming a
+// payment now means saying where it landed (or explicitly "record only").
 //
 // Simple mode never sees this sheet: InboxPage keeps the plain
 // confirmDestructive path there (payables/receivables only, no accounts).
@@ -46,17 +52,18 @@ export function AcceptIntoAccountSheet({ open, request, onClose, onConfirm }: Pr
   const t = useT();
   const submitGuard = useSubmitGuard();
   const accounts = useAccountStore((s) => s.accounts);
-  // '' = record only. Deliberately the default: an account effect the user
-  // didn't consciously choose is worse than none.
-  const [selectedId, setSelectedId] = useState('');
+  // '' = record only · an account id · null = not chosen yet (settlements
+  // only: the CTA waits for an explicit choice).
+  const requireChoice = request?.flavor === 'settlement';
+  const [selectedId, setSelectedId] = useState<string | null>('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setSelectedId('');
+      setSelectedId(requireChoice ? null : '');
       setSaving(false);
     }
-  }, [open]);
+  }, [open, requireChoice]);
 
   const eligible = useMemo(
     () => (request ? accounts.filter((a) => a.currency === request.currency) : []),
@@ -97,7 +104,7 @@ export function AcceptIntoAccountSheet({ open, request, onClose, onConfirm }: Pr
       title={(request.flavor === 'settlement' ? t('confirm_settle_title') : t('confirm_accept_title'))
         .replace('{amount}', amountText)}
       footer={
-        <button onClick={handleConfirm} disabled={saving} className="cta-primary">
+        <button onClick={handleConfirm} disabled={saving || selectedId === null} className="cta-primary">
           {saving
             ? t('ltr_accepting')
             : request.flavor === 'settlement'
@@ -168,6 +175,9 @@ export function AcceptIntoAccountSheet({ open, request, onClose, onConfirm }: Pr
             <p className="text-[11px] text-ink-600 mt-2">
               {t('acpt_no_eligible').replace('{currency}', request.currency)}
             </p>
+          )}
+          {selectedId === null && (
+            <p className="text-[11px] text-warn-600 font-semibold mt-2">{t('stl_land_required')}</p>
           )}
           {selectedAccount && request.direction !== 'unknown' && (
             <p className="m-card m-gold text-[12px] text-warn-700 p-3 mt-2.5 leading-relaxed tabular-nums">

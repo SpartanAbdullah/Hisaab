@@ -184,6 +184,13 @@ supabase-migration-daily-close.sql
 #   AFTER UPDATE trigger loans_refresh_pending_sync. Creates a function, so it
 #   must precede the grants sweep; reads nothing p3-invariant-monitoring owns.
 supabase-migration-linked-sync-live-amount.sql
+# ↓ 2026-09-24 settlement model ("Receiver records = instant"): two columns on
+#   linked_settlement_requests, the insert validator + notify trigger re-created,
+#   internal _lsr_* helpers and four client RPCs (record_received_repayment,
+#   apply_own_settlement_request, undo_received_repayment,
+#   set_settlement_repayment_account). accept_settlement_request is untouched.
+#   Creates functions, so it must precede the grants sweep.
+supabase-migration-settlement-receiver-records.sql
 # ↓ reconciliation reads every table above
 supabase-migration-p3-invariant-monitoring.sql
 # ↓ TRULY LAST — the least-privilege sweep over public.* functions. It is a

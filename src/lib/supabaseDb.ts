@@ -1066,9 +1066,19 @@ function mapSettlementRequest(r: Record<string, unknown>): SettlementRequest {
     responderTxnId: (r.responder_txn_id as string) ?? null,
     requesterAccountId: (r.requester_account_id as string) ?? null,
     responderAccountId: (r.responder_account_id as string) ?? null,
+    // Absent before supabase-migration-settlement-receiver-records.sql is
+    // applied — maps to "not receiver-recorded", which is exactly right then.
+    recordedByReceiver: r.recorded_by_receiver === true,
+    undoneAt: (r.undone_at as string) ?? null,
     createdAt: r.created_at as string,
     respondedAt: (r.responded_at as string) ?? null,
   };
+}
+
+function settlementRowFrom(data: unknown, rpc: string): SettlementRequest {
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error(`lsr: ${rpc} returned no row`);
+  return mapSettlementRequest(row as Record<string, unknown>);
 }
 
 // ══════════════════════════════════════
@@ -1157,6 +1167,59 @@ export const settlementRequestsDb = {
     const row = Array.isArray(data) ? data[0] : data;
     if (!row) throw new Error('lsr: cancel returned no row');
     return mapSettlementRequest(row as Record<string, unknown>);
+  },
+  // ── 2026-09-24 settlement model (supabase-migration-settlement-receiver-
+  // records.sql). The person who RECEIVED the money records it: both ledgers
+  // update in one server transaction and the payer is only notified.
+  async recordReceived(input: {
+    id: string;
+    loanPairId: string;
+    requesterLoanId: string;
+    responderLoanId: string;
+    toUserId: string;
+    amount: number;
+    currency: Currency;
+    note: string;
+    requesterAccountId: string | null;
+  }): Promise<SettlementRequest> {
+    const { data, error } = await supabase.rpc('record_received_repayment', {
+      p_request_id: input.id,
+      p_loan_pair_id: input.loanPairId,
+      p_requester_loan_id: input.requesterLoanId,
+      p_responder_loan_id: input.responderLoanId,
+      p_to_user_id: input.toUserId,
+      p_amount: input.amount,
+      p_currency: input.currency,
+      p_note: input.note,
+      p_requester_account_id: input.requesterAccountId,
+    });
+    if (error) throw error;
+    return settlementRowFrom(data, 'record');
+  },
+  // The receiver applies their own PENDING request now (no one else's OK is
+  // needed for money that only helps the payer).
+  async applyNow(requestId: string): Promise<SettlementRequest> {
+    const { data, error } = await supabase.rpc('apply_own_settlement_request', { p_request_id: requestId });
+    if (error) throw error;
+    return settlementRowFrom(data, 'apply-now');
+  },
+  // 10-minute undo of a receiver record (server-enforced window).
+  async undo(requestId: string): Promise<SettlementRequest> {
+    const { data, error } = await supabase.rpc('undo_received_repayment', { p_request_id: requestId });
+    if (error) throw error;
+    return settlementRowFrom(data, 'undo');
+  },
+  // "Add to an account" — attach an account to MY side of an accepted,
+  // record-only settlement repayment. Returns the account's new balance.
+  async attachAccount(txnId: string, accountId: string): Promise<number> {
+    const { data, error } = await supabase.rpc('set_settlement_repayment_account', {
+      p_txn_id: txnId,
+      p_account_id: accountId,
+    });
+    if (error) throw error;
+    const balance = Number(Array.isArray(data) ? data[0] : data);
+    if (!Number.isFinite(balance)) throw new Error('lsr: attach returned no balance');
+    return balance;
   },
 };
 

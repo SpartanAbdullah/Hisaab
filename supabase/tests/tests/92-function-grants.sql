@@ -232,7 +232,9 @@ INSERT INTO _client_rpcs VALUES
   ('revoke_committee_witness_token'),('revoke_khata_link'),
   ('rotate_committee_witness_token'),('set_group_admin'),('transfer_between_accounts'),
   ('transfer_group_ownership'),('unarchive_contact'),('unarchive_group'),
-  ('unlink_contact_profile'),('update_committee');
+  ('unlink_contact_profile'),('update_committee'),
+  ('apply_own_settlement_request'),('record_received_repayment'),
+  ('set_settlement_repayment_account'),('undo_received_repayment');
 
 -- Every listed RPC must exist in this corpus. (If one does not, either the
 -- client calls a function nobody wrote, or apply-order.txt lost a file.)

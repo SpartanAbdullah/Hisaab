@@ -3,7 +3,7 @@ import { v4 as uuid } from 'uuid';
 import { db } from '../db';
 import { loansDb, transactionsDb } from '../lib/supabaseDb';
 import { loadCacheFirst, markMirrorStale, mirrorDelete, mirrorPut } from '../lib/mirrorCache';
-import { assertLinkedLoanEditAllowed, assertLinkedLoanDeleteAllowed } from '../lib/linkedLoanGuards';
+import { assertLinkedLoanEditAllowed, assertLinkedLoanDeleteAllowed, linkedPairIdForLoan } from '../lib/linkedLoanGuards';
 import { runSafeMutation } from '../lib/mutationSafety';
 import {
   applyLoanRemainingDelta,
@@ -15,6 +15,7 @@ import { reportError } from '../lib/errorReporter';
 import { tStatic } from '../lib/i18n';
 import type { Loan, LoanType, Currency, Transaction } from '../db';
 import { useActivityStore } from './activityStore';
+import { useLinkedRequestStore } from './linkedRequestStore';
 import { useEmiStore } from './emiStore';
 
 export interface CreateLoanInput {
@@ -112,6 +113,17 @@ async function refetchAfterFailedRollback(): Promise<void> {
   } catch (err) {
     reportError(err, { feature: 'loanStore.refetchAfterFailedRollback' });
   }
+}
+
+// `Loan.loanPairId` is mapped from loans.loan_pair_id, a column no migration
+// ever created — it is always null, so the linked-loan guards never fired
+// until 2026-09-24. The pair lives on the accepted linked-request row; derive
+// it from there at guard time. (Read lazily: linkedRequestStore imports this
+// store, so the lookup must stay inside a function.)
+export function withLinkedPair(loan: Loan): Loan {
+  if (loan.loanPairId) return loan;
+  const loanPairId = linkedPairIdForLoan(loan.id, useLinkedRequestStore.getState().requests);
+  return loanPairId ? { ...loan, loanPairId } : loan;
 }
 
 export const useLoanStore = create<LoanState>((set, get) => ({
@@ -307,7 +319,7 @@ export const useLoanStore = create<LoanState>((set, get) => ({
     if (!loan) throw new Error(`Loan ${loanId} not found`);
     // A mirrored (linked) loan can't have its currency/amount changed on one
     // side — that would diverge from the other user's copy.
-    assertLinkedLoanEditAllowed(loan, changes);
+    assertLinkedLoanEditAllowed(withLinkedPair(loan), changes);
 
     // remainingAmount is the one column that can be raced across devices, so
     // even an absolute edit (loan amount changed, repayment deleted — the
@@ -352,7 +364,7 @@ export const useLoanStore = create<LoanState>((set, get) => ({
 
   deleteLoan: async (loanId) => {
     const existing = get().loans.find((l) => l.id === loanId);
-    if (existing) assertLinkedLoanDeleteAllowed(existing);
+    if (existing) assertLinkedLoanDeleteAllowed(withLinkedPair(existing));
     await loansDb.delete(loanId);
     await mirrorDelete(db.loans, loanId);
     markMirrorStale('loans');

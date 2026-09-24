@@ -41,7 +41,8 @@ import {
 import { addMonths, format } from 'date-fns';
 import type { Transaction, Currency, EmiSchedule, EmiStatus, Loan, ActivityType, InvestmentTrade } from '../db';
 import { useAccountStore } from './accountStore';
-import { useLoanStore, loanDeltaDeps, syncLocalRemaining, type CreateLoanInput } from './loanStore';
+import { useLoanStore, loanDeltaDeps, syncLocalRemaining, withLinkedPair, type CreateLoanInput } from './loanStore';
+import { useSettlementRequestStore } from './settlementRequestStore';
 import { useGoalStore } from './goalStore';
 import { useEmiStore } from './emiStore';
 import { useActivityStore } from './activityStore';
@@ -53,7 +54,7 @@ import { statusSyncToPaid, uncoveredToPaidIds } from '../lib/emiCoverage';
 import { clampCardCredit } from '../lib/cardCredit';
 import { billAdvancesAsOf } from '../lib/cardStatement';
 import { linkedBillPaymentRows, transferEditKeepsMoney } from '../lib/billPaymentEdit';
-import { assertLinkedLoanDeleteAllowed } from '../lib/linkedLoanGuards';
+import { assertLinkedLoanDeleteAllowed, isSettlementRepayment } from '../lib/linkedLoanGuards';
 import { simulateTimeline, validateTradeInput } from '../lib/investmentMath';
 import { rateIsSane } from '../lib/conversionMath';
 import { MAX_MONEY_MAGNITUDE, checkMoneyAmount, type MoneyAmountProblem } from '../lib/currencyValidation';
@@ -4559,7 +4560,14 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
           if (!loan) throw new Error('Loan not found');
           // A repayment on an ACTIVE linked (cross-user) loan exists on both
           // users' books — deleting it one-sided would silently diverge them.
-          if (loan.loanPairId && loan.status === 'active') {
+          // So does either side of an applied settlement, whatever the loan's
+          // status (a settled pair is still a pair). The pair comes from the
+          // linked-request rows: loans.loan_pair_id never existed, so this
+          // guard silently never fired before 2026-09-24.
+          if (
+            (withLinkedPair(loan).loanPairId && loan.status === 'active')
+            || isSettlementRepayment(existing.id, useSettlementRequestStore.getState().requests)
+          ) {
             throw new Error(tStatic('err_linked_repayment_delete').replace('{person}', loan.personName));
           }
           // Ledger-only records (written by loanStore.applyRepayment) carry no
@@ -4701,7 +4709,7 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
     const loan = useLoanStore.getState().getLoan(loanId);
     if (!loan) throw new Error('Loan not found');
     // Linked (cross-user) active loans must not vanish from one side only.
-    assertLinkedLoanDeleteAllowed(loan);
+    assertLinkedLoanDeleteAllowed(withLinkedPair(loan));
 
     const related = get().transactions.filter((t) => t.relatedLoanId === loanId);
     const repayments = related.filter((t) => t.type === 'repayment');
