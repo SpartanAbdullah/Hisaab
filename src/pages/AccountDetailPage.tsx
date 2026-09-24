@@ -836,212 +836,6 @@ export function AccountDetailPage() {
             </div>
           </>
         )}
-        {/* Rename modal (lightweight — kept inline since the Modal helper is
-            optimised for the bottom-sheet pattern, not centred dialogs) */}
-        {showRename && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--m-scrim)] backdrop-blur-sm animate-fade-in"
-            role="presentation"
-            onClick={() => setShowRename(false)}
-          >
-            <div
-              className="m-card m-card-feature p-5 w-[90%] max-w-sm"
-              role="presentation"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-[15px] font-semibold text-ink-900 tracking-tight mb-3">{t('adp_rename_title')}</h3>
-              <input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                autoFocus
-                className="input-field mb-4"
-              />
-              <div className="flex gap-2.5">
-                <button
-                  onClick={() => setShowRename(false)}
-                  className="m-btn m-btn-plain flex-1 text-[13px]"
-                >
-                  {t('cancel')}
-                </button>
-                <button
-                  disabled={!newName.trim() || newName.trim() === account.name}
-                  onClick={async () => {
-                    if (newName.trim() && newName.trim() !== account.name) {
-                      await renameAccount(account.id, newName.trim());
-                      toast.show({ type: 'success', title: t('adp_renamed') });
-                    }
-                    setShowRename(false);
-                  }}
-                  className="m-btn m-btn-primary flex-1 text-[13px]"
-                >
-                  {t('common_save')}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Card settings dialog — the card's limit changes in real life
-            (bank raises/lowers it) and the app must keep up. Same inline
-            centred-dialog pattern as Rename. */}
-        {showCardSettings && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--m-scrim)] backdrop-blur-sm animate-fade-in"
-            role="presentation"
-            onClick={() => setShowCardSettings(false)}
-          >
-            <div
-              className="m-card m-card-feature p-5 w-[90%] max-w-sm max-h-[90dvh] overflow-y-auto"
-              role="presentation"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-[15px] font-semibold text-ink-900 tracking-tight mb-3">{t('cc_settings_title')}</h3>
-              <label className="form-label">
-                {t('cc_settings_limit')} ({account.currency})
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={limitInput}
-                onChange={(e) => setLimitInput(e.target.value)}
-                autoFocus
-                className="input-field tabular-nums mb-3"
-              />
-              <div className="mb-4">
-                <StatementCycleField
-                  statementDay={statementDayInput}
-                  dueDay={dueDayInput}
-                  onStatementDay={setStatementDayInput}
-                  onDueDay={setDueDayInput}
-                />
-              </div>
-              <label className="form-label">{t('cc_last4')}</label>
-              <input
-                value={last4Input}
-                onChange={(e) => setLast4Input(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                placeholder="e.g. 4521"
-                maxLength={4}
-                inputMode="numeric"
-                className="input-field text-center font-bold tracking-[0.3em] tabular-nums"
-              />
-              <p className="text-[11px] text-ink-500 mt-1.5 mb-4 leading-relaxed">{t('cc_last4_hint')}</p>
-              <div className="flex gap-2.5">
-                <button
-                  onClick={() => setShowCardSettings(false)}
-                  className="m-btn m-btn-plain flex-1 text-[13px]"
-                >
-                  {t('cancel')}
-                </button>
-                <button
-                  disabled={(() => {
-                    const lim = parseFloat(limitInput);
-                    if (!Number.isFinite(lim) || lim <= 0) return true;
-                    // Exactly 4 digits, or blank to clear.
-                    if (last4Input !== '' && !/^\d{4}$/.test(last4Input)) return true;
-                    if (dueDayInput.trim() !== '') {
-                      const d = parseInt(dueDayInput, 10);
-                      if (!Number.isInteger(d) || d < 1 || d > 31) return true;
-                    }
-                    return false;
-                  })()}
-                  onClick={async () => {
-                    try {
-                      const sdRaw = parseInt(statementDayInput, 10);
-                      const oldLast4 = account.metadata.last4 ?? '';
-                      await updateMetadata(account.id, {
-                        creditLimit: String(parseFloat(limitInput)),
-                        dueDay: dueDayInput.trim() === '' ? '' : String(parseInt(dueDayInput, 10)),
-                        // Blank clears it → the model falls back to the due day.
-                        statementDay: Number.isFinite(sdRaw) && sdRaw >= 1 && sdRaw <= 31 ? String(sdRaw) : '',
-                        // Blank deletes the key (updateMetadata semantics).
-                        last4: last4Input,
-                      });
-                      // A card named from its digits ("CBD ••••1234", the
-                      // add-card default) follows the correction; a name the
-                      // user wrote themselves is left alone.
-                      if (oldLast4 && last4Input && oldLast4 !== last4Input && account.name.includes(`••••${oldLast4}`)) {
-                        await renameAccount(account.id, account.name.replace(`••••${oldLast4}`, `••••${last4Input}`));
-                      }
-                      toast.show({ type: 'success', title: t('cc_settings_saved') });
-                      setShowCardSettings(false);
-                    } catch (err) {
-                      toast.show({ type: 'error', title: err instanceof Error ? err.message : 'Failed' });
-                    }
-                  }}
-                  className="m-btn m-btn-primary flex-1 text-[13px]"
-                >
-                  {t('save')}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Balance correction: set the balance to the true figure via a
-            visible, reversible adjustment entry — the sanctioned repair for
-            drifted accounts (no more fake income/expense entries). */}
-        {showCorrect && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--m-scrim)] backdrop-blur-sm animate-fade-in"
-            role="presentation"
-            onClick={() => setShowCorrect(false)}
-          >
-            <div
-              className="m-card m-card-feature p-5 w-[90%] max-w-sm"
-              role="presentation"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-[15px] font-semibold text-ink-900 tracking-tight mb-1.5">{t('acct_correct_title')}</h3>
-              <p className="text-[12px] text-ink-600 leading-relaxed mb-3">{t('acct_correct_hint')}</p>
-              <label className="form-label">
-                {isCreditCard ? t('cc_available') : t('label_balance')} ({account.currency})
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                value={correctInput}
-                onChange={(e) => setCorrectInput(e.target.value)}
-                autoFocus
-                className="input-field tabular-nums mb-4"
-              />
-              <div className="flex gap-2.5">
-                <button
-                  onClick={() => setShowCorrect(false)}
-                  className="m-btn m-btn-plain flex-1 text-[13px]"
-                >
-                  {t('cancel')}
-                </button>
-                <button
-                  disabled={savingCorrect || !Number.isFinite(parseFloat(correctInput)) || Math.abs(parseFloat(correctInput) - account.balance) < 0.005}
-                  onClick={() => submitGuard.run(async () => {
-                    setSavingCorrect(true);
-                    try {
-                      await useTransactionStore.getState().processTransaction({
-                        type: 'adjustment',
-                        amount: 0,
-                        accountId: account.id,
-                        targetBalance: parseFloat(correctInput),
-                        notes: t('acct_correct_note'),
-                      });
-                      await Promise.all([loadAccounts(), loadTransactions()]);
-                      toast.show({ type: 'success', title: t('acct_correct_saved') });
-                      setShowCorrect(false);
-                    } catch (err) {
-                      toast.show({ type: 'error', title: err instanceof Error ? err.message : 'Failed' });
-                    } finally {
-                      setSavingCorrect(false);
-                    }
-                  })}
-                  className="m-btn m-btn-primary flex-1 text-[13px]"
-                >
-                  {t('acct_correct_cta')}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* "How this affects Your Money" breakdown. Only renders when the
             user actually has at least one credit card in their portfolio
             — otherwise the math is trivially Balance = Balance and the
@@ -1253,6 +1047,216 @@ export function AccountDetailPage() {
         transaction={selectedTransaction}
         onClose={() => setSelectedTransaction(null)}
       />
+      {/* The three centred dialogs live at the page root, not inside
+          .sukoon-body: that sheet is its own stacking context (z-index 1),
+          so a z-50 dialog inside it painted UNDER the fixed bottom nav
+          (z-40) — the nav covered Card settings' Save button on short
+          screens (found 2026-09-25). */}
+      {/* Rename modal (lightweight — kept inline since the Modal helper is
+          optimised for the bottom-sheet pattern, not centred dialogs) */}
+      {showRename && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--m-scrim)] backdrop-blur-sm animate-fade-in"
+          role="presentation"
+          onClick={() => setShowRename(false)}
+        >
+          <div
+            className="m-card m-card-feature p-5 w-[90%] max-w-sm"
+            role="presentation"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-[15px] font-semibold text-ink-900 tracking-tight mb-3">{t('adp_rename_title')}</h3>
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              autoFocus
+              className="input-field mb-4"
+            />
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => setShowRename(false)}
+                className="m-btn m-btn-plain flex-1 text-[13px]"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                disabled={!newName.trim() || newName.trim() === account.name}
+                onClick={async () => {
+                  if (newName.trim() && newName.trim() !== account.name) {
+                    await renameAccount(account.id, newName.trim());
+                    toast.show({ type: 'success', title: t('adp_renamed') });
+                  }
+                  setShowRename(false);
+                }}
+                className="m-btn m-btn-primary flex-1 text-[13px]"
+              >
+                {t('common_save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Card settings dialog — the card's limit changes in real life
+          (bank raises/lowers it) and the app must keep up. Same inline
+          centred-dialog pattern as Rename. */}
+      {showCardSettings && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--m-scrim)] backdrop-blur-sm animate-fade-in"
+          role="presentation"
+          onClick={() => setShowCardSettings(false)}
+        >
+          <div
+            className="m-card m-card-feature p-5 w-[90%] max-w-sm max-h-[90dvh] overflow-y-auto"
+            role="presentation"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-[15px] font-semibold text-ink-900 tracking-tight mb-3">{t('cc_settings_title')}</h3>
+            <label className="form-label">
+              {t('cc_settings_limit')} ({account.currency})
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={limitInput}
+              onChange={(e) => setLimitInput(e.target.value)}
+              autoFocus
+              className="input-field tabular-nums mb-3"
+            />
+            <div className="mb-4">
+              <StatementCycleField
+                statementDay={statementDayInput}
+                dueDay={dueDayInput}
+                onStatementDay={setStatementDayInput}
+                onDueDay={setDueDayInput}
+              />
+            </div>
+            <label className="form-label">{t('cc_last4')}</label>
+            <input
+              value={last4Input}
+              onChange={(e) => setLast4Input(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              placeholder="e.g. 4521"
+              maxLength={4}
+              inputMode="numeric"
+              className="input-field text-center font-bold tracking-[0.3em] tabular-nums"
+            />
+            <p className="text-[11px] text-ink-500 mt-1.5 mb-4 leading-relaxed">{t('cc_last4_hint')}</p>
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => setShowCardSettings(false)}
+                className="m-btn m-btn-plain flex-1 text-[13px]"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                disabled={(() => {
+                  const lim = parseFloat(limitInput);
+                  if (!Number.isFinite(lim) || lim <= 0) return true;
+                  // Exactly 4 digits, or blank to clear.
+                  if (last4Input !== '' && !/^\d{4}$/.test(last4Input)) return true;
+                  if (dueDayInput.trim() !== '') {
+                    const d = parseInt(dueDayInput, 10);
+                    if (!Number.isInteger(d) || d < 1 || d > 31) return true;
+                  }
+                  return false;
+                })()}
+                onClick={async () => {
+                  try {
+                    const sdRaw = parseInt(statementDayInput, 10);
+                    const oldLast4 = account.metadata.last4 ?? '';
+                    await updateMetadata(account.id, {
+                      creditLimit: String(parseFloat(limitInput)),
+                      dueDay: dueDayInput.trim() === '' ? '' : String(parseInt(dueDayInput, 10)),
+                      // Blank clears it → the model falls back to the due day.
+                      statementDay: Number.isFinite(sdRaw) && sdRaw >= 1 && sdRaw <= 31 ? String(sdRaw) : '',
+                      // Blank deletes the key (updateMetadata semantics).
+                      last4: last4Input,
+                    });
+                    // A card named from its digits ("CBD ••••1234", the
+                    // add-card default) follows the correction; a name the
+                    // user wrote themselves is left alone.
+                    if (oldLast4 && last4Input && oldLast4 !== last4Input && account.name.includes(`••••${oldLast4}`)) {
+                      await renameAccount(account.id, account.name.replace(`••••${oldLast4}`, `••••${last4Input}`));
+                    }
+                    toast.show({ type: 'success', title: t('cc_settings_saved') });
+                    setShowCardSettings(false);
+                  } catch (err) {
+                    toast.show({ type: 'error', title: err instanceof Error ? err.message : 'Failed' });
+                  }
+                }}
+                className="m-btn m-btn-primary flex-1 text-[13px]"
+              >
+                {t('save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Balance correction: set the balance to the true figure via a
+          visible, reversible adjustment entry — the sanctioned repair for
+          drifted accounts (no more fake income/expense entries). */}
+      {showCorrect && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--m-scrim)] backdrop-blur-sm animate-fade-in"
+          role="presentation"
+          onClick={() => setShowCorrect(false)}
+        >
+          <div
+            className="m-card m-card-feature p-5 w-[90%] max-w-sm"
+            role="presentation"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-[15px] font-semibold text-ink-900 tracking-tight mb-1.5">{t('acct_correct_title')}</h3>
+            <p className="text-[12px] text-ink-600 leading-relaxed mb-3">{t('acct_correct_hint')}</p>
+            <label className="form-label">
+              {isCreditCard ? t('cc_available') : t('label_balance')} ({account.currency})
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={correctInput}
+              onChange={(e) => setCorrectInput(e.target.value)}
+              autoFocus
+              className="input-field tabular-nums mb-4"
+            />
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => setShowCorrect(false)}
+                className="m-btn m-btn-plain flex-1 text-[13px]"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                disabled={savingCorrect || !Number.isFinite(parseFloat(correctInput)) || Math.abs(parseFloat(correctInput) - account.balance) < 0.005}
+                onClick={() => submitGuard.run(async () => {
+                  setSavingCorrect(true);
+                  try {
+                    await useTransactionStore.getState().processTransaction({
+                      type: 'adjustment',
+                      amount: 0,
+                      accountId: account.id,
+                      targetBalance: parseFloat(correctInput),
+                      notes: t('acct_correct_note'),
+                    });
+                    await Promise.all([loadAccounts(), loadTransactions()]);
+                    toast.show({ type: 'success', title: t('acct_correct_saved') });
+                    setShowCorrect(false);
+                  } catch (err) {
+                    toast.show({ type: 'error', title: err instanceof Error ? err.message : 'Failed' });
+                  } finally {
+                    setSavingCorrect(false);
+                  }
+                })}
+                className="m-btn m-btn-primary flex-1 text-[13px]"
+              >
+                {t('acct_correct_cta')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
