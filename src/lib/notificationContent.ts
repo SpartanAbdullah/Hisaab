@@ -61,6 +61,17 @@ const TITLE_KEYS: Record<string, I18nKey> = {
   // type 'linked_info'. Params: { actorName, amount, currency, requestId }.
   lsr_recorded: 'ntf_lsr_recorded_title',
   lsr_undone: 'ntf_lsr_undone_title',
+  // tg_ltr_notify / tg_lsr_notify, supabase-migration-notify-balance-after.sql.
+  // Types stay 'linked_request' / 'linked_settlement'. Params: { actorName,
+  // amount, currency, requestId, balanceAfter, [balanceNow, kind] } —
+  // balanceAfter is the READER's net with the actor (positive ⇒ actor owes
+  // the reader), after the change or, on a request, if the reader accepts.
+  ltr_request: 'ntf_ltr_request_title',
+  ltr_accepted: 'ntf_ltr_accepted_title',
+  ltr_rejected: 'ntf_ltr_rejected_title',
+  lsr_request: 'ntf_lsr_request_title',
+  lsr_accepted: 'ntf_lsr_accepted_title',
+  lsr_rejected: 'ntf_lsr_rejected_title',
 };
 
 const BODY_KEYS: Record<string, I18nKey> = {
@@ -88,6 +99,34 @@ const BODY_KEYS_NO_AMOUNT: Record<string, I18nKey> = {
   expense_added: 'ntf_expense_added_body_plain',
   settlement_added: 'ntf_settlement_added_body_plain',
 };
+
+// Linked money notices that state where the total stands. Used only when the
+// row carries `balanceAfter`; an older row without it keeps its plain body
+// (lsr_*) or the server's stored text (the new templates have no plain body).
+const BODY_KEYS_WITH_BALANCE: Record<string, I18nKey> = {
+  lsr_recorded: 'ntf_lsr_recorded_body_bal',
+  lsr_undone: 'ntf_lsr_undone_body_bal',
+  ltr_accepted: 'ntf_ltr_accepted_body',
+  ltr_rejected: 'ntf_ltr_rejected_body',
+  lsr_request: 'ntf_lsr_request_body',
+  lsr_accepted: 'ntf_lsr_accepted_body',
+  lsr_rejected: 'ntf_lsr_rejected_body',
+};
+
+function readNumber(params: Record<string, unknown>, key: string): number | null {
+  const raw = params[key];
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+
+// The reader's net with the actor, in the statement's own words
+// ("Aap ne Abdullah ko AED 5,225.01 dene hain"). Positive ⇒ actor owes reader.
+function balancePhrase(net: number, currency: string, actor: string, t: NotificationTranslate): string {
+  const amount = formatMoney(Math.abs(net), currency || 'PKR');
+  if (net > 0.005) return fill(t('stmt_net_owes_you'), { name: actor, amount });
+  if (net < -0.005) return fill(t('stmt_net_you_owe'), { name: actor, amount });
+  return fill(t('stmt_net_settled'), { name: actor });
+}
 
 function text(params: Record<string, unknown>, key: string): string {
   const value = params[key];
@@ -153,9 +192,18 @@ export function renderNotificationContent(
     slot: text(params, 'slot'),
   };
 
-  const bodyKey = amount === null && BODY_KEYS_NO_AMOUNT[template]
+  const balanceAfter = readNumber(params, 'balanceAfter');
+  if (balanceAfter !== null) vars.balance = balancePhrase(balanceAfter, currency, vars.actor, t);
+
+  let bodyKey: I18nKey | undefined = amount === null && BODY_KEYS_NO_AMOUNT[template]
     ? BODY_KEYS_NO_AMOUNT[template]
     : BODY_KEYS[template];
+  if (balanceAfter !== null && amount !== null) {
+    // ltr_request reads from the reader's side: did THEY borrow or lend?
+    bodyKey = template === 'ltr_request'
+      ? (text(params, 'kind') === 'lent' ? 'ntf_ltr_request_lent_body' : 'ntf_ltr_request_borrowed_body')
+      : BODY_KEYS_WITH_BALANCE[template] ?? bodyKey;
+  }
 
   const title = fill(t(titleKey), vars).trim();
   const body = bodyKey ? fill(t(bodyKey), vars).trim() : '';

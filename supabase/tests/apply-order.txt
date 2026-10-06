@@ -191,6 +191,18 @@ supabase-migration-linked-sync-live-amount.sql
 #   set_settlement_repayment_account). accept_settlement_request is untouched.
 #   Creates functions, so it must precede the grants sweep.
 supabase-migration-settlement-receiver-records.sql
+# ↓ 2026-10-06 the Ghulam exercise: every linked money notice is composed in
+#   the reader's language and says where the total stands. Re-creates
+#   tg_ltr_notify (latest: linked-notifications-realtime), tg_lsr_notify and
+#   _lsr_notify_info (latest: settlement-receiver-records, directly above —
+#   so it must follow it) and adds three internal helpers. Creates functions,
+#   so it must precede the grants sweep.
+supabase-migration-notify-balance-after.sql
+# ↓ 2026-10-06 one share per loan: refuses a past-record sync (and its accept)
+#   for a loan already half of a live linked request. Two new BEFORE triggers
+#   on linked_transaction_requests + an internal helper; accept_linked_request
+#   untouched. Creates functions, so it must precede the grants sweep.
+supabase-migration-ltr-no-duplicate-sync.sql
 # ↓ reconciliation reads every table above
 supabase-migration-p3-invariant-monitoring.sql
 # ↓ TRULY LAST — the least-privilege sweep over public.* functions. It is a

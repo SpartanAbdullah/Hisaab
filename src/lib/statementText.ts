@@ -120,14 +120,37 @@ const LINE_KEY: Record<Exclude<StatementLineKind, 'settled_earlier'>, I18nKey> =
   settled_in_full: 'stmt_line_settled_in_full',
 };
 
-export function describeStatementLine(line: StatementLine, t: DocT = tStatic): string {
+// The same lines from the USER's own side — "My copy" of a statement, and the
+// in-app person ledger. Mirror of LINE_KEY: a loan the user gave reads "You
+// lent", a repayment they received reads "Paid back to you".
+const LINE_KEY_SELF: Record<Exclude<StatementLineKind, 'settled_earlier'>, I18nKey> = {
+  loan_given: 'stmt_line_you_lent',
+  loan_taken: 'stmt_line_you_borrowed',
+  repayment_received: 'stmt_line_repaid_to_you',
+  repayment_paid: 'stmt_line_you_repaid',
+  repayments_received_summary: 'stmt_line_repaid_to_you_summary',
+  repayments_made_summary: 'stmt_line_you_repaid_summary',
+  settled_recent: 'stmt_line_settled_recent_many',
+  settled_in_full: 'stmt_line_settled_in_full',
+};
+
+// Who the document speaks to: 'counterparty' (default — the statement is SENT
+// to them) or 'self' (the user's own copy / their own ledger screen).
+export type StatementPerspective = 'counterparty' | 'self';
+
+export function describeStatementLine(
+  line: Pick<StatementLine, 'kind' | 'count' | 'loanNote'>,
+  t: DocT = tStatic,
+  perspective: StatementPerspective = 'counterparty',
+): string {
   const n = line.count ?? 0;
+  const keys = perspective === 'self' ? LINE_KEY_SELF : LINE_KEY;
   const base =
     line.kind === 'settled_earlier'
       ? n === 1
         ? t('stmt_line_settled_earlier_one')
         : fillTemplate(t('stmt_line_settled_earlier_many'), { n })
-      : fillTemplate(t(LINE_KEY[line.kind]), { n });
+      : fillTemplate(t(keys[line.kind]), { n });
   // Name the loan on a repayment / settle line that has no note of its own.
   return line.loanNote ? `${base} — ${line.loanNote}` : base;
 }

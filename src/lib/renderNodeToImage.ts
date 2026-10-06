@@ -69,6 +69,32 @@ export async function renderHtmlToPng(html: string, opts: RenderPngOptions): Pro
   }
 }
 
+// Mount each page offscreen and read its laid-out height — no rasterising, so
+// it is cheap. A multi-page document uses this to prove every page fits its
+// A4 box BEFORE drawing anything: a money document never clips rows silently.
+export async function measureHtmlHeights(
+  pages: readonly string[],
+  opts: Pick<RenderPngOptions, 'width' | 'nodeStyle'>,
+): Promise<number[]> {
+  const out: number[] = [];
+  for (const html of pages) {
+    const el = document.createElement('div');
+    el.style.cssText = [
+      'position:fixed', 'left:-10000px', 'top:0', 'pointer-events:none', 'box-sizing:border-box',
+      `width:${opts.width}px`, opts.nodeStyle ?? '',
+    ].filter(Boolean).join(';');
+    el.innerHTML = html;
+    document.body.appendChild(el);
+    try {
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      out.push(Math.ceil(el.getBoundingClientRect().height || el.scrollHeight));
+    } finally {
+      el.remove();
+    }
+  }
+  return out;
+}
+
 export interface RenderPdfMeta {
   title?: string;
   subject?: string;
@@ -92,6 +118,62 @@ export async function renderHtmlToA4Pdf(html: string, opts: RenderPngOptions & R
   const offsetX = (pageW - drawW) / 2;
   const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
   pdf.addImage(png.dataUrl, 'PNG', offsetX, 0, drawW, drawH, undefined, 'FAST');
+  pdf.setProperties({
+    title: opts.title ?? '',
+    subject: opts.subject ?? '',
+    author: opts.author ?? 'Hisaab',
+    creator: opts.creator ?? 'Hisaab',
+  });
+  return pdf.output('blob') as Blob;
+}
+
+export interface RenderPagesOptions extends RenderPdfMeta {
+  width: number; // CSS px width of every page node
+  height: number; // fixed CSS px height of every page node (A4 box)
+  nodeStyle?: string;
+  scale?: number; // default 1.5 — ~2 MP per page
+  quality?: number; // JPEG quality, default 0.88
+  onProgress?: (done: number, total: number) => void;
+}
+
+// A multi-page A4 PDF, one pre-paginated HTML string per page. Pages are
+// rasterised ONE AT A TIME as JPEG (jsPDF embeds JPEG as-is, PNG it decodes
+// and re-compresses) so peak memory on an Android WebView is a single page,
+// and the file stays small enough for the Capacitor share bridge (it base64s
+// the whole blob). Every page fills the A4 box exactly — the pages were cut
+// to fit by the caller, never scaled down here.
+export async function renderPagesToA4Pdf(pages: readonly string[], opts: RenderPagesOptions): Promise<Blob> {
+  const [{ jsPDF }, { domToJpeg }] = await Promise.all([import('jspdf'), import('modern-screenshot')]);
+  const pageW = 595.28;
+  const pageH = 841.89;
+  const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
+  for (let i = 0; i < pages.length; i++) {
+    const el = document.createElement('div');
+    el.style.cssText = [
+      'position:fixed', 'left:-10000px', 'top:0', 'pointer-events:none', 'box-sizing:border-box',
+      'background:#ffffff', `width:${opts.width}px`, `height:${opts.height}px`, 'overflow:hidden',
+      opts.nodeStyle ?? '',
+    ].filter(Boolean).join(';');
+    el.innerHTML = pages[i];
+    document.body.appendChild(el);
+    try {
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      let dataUrl: string | null = await domToJpeg(el, {
+        scale: opts.scale ?? 1.5,
+        quality: opts.quality ?? 0.88,
+        backgroundColor: '#ffffff',
+        width: opts.width,
+        height: opts.height,
+      });
+      if (i > 0) pdf.addPage('a4', 'portrait');
+      pdf.addImage(dataUrl, 'JPEG', 0, 0, pageW, pageH, undefined, 'FAST');
+      dataUrl = null; // let the page's pixels go before the next one
+    } finally {
+      el.remove();
+    }
+    opts.onProgress?.(i + 1, pages.length);
+    await new Promise((r) => setTimeout(r, 0));
+  }
   pdf.setProperties({
     title: opts.title ?? '',
     subject: opts.subject ?? '',

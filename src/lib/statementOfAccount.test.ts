@@ -260,6 +260,55 @@ describe('buildStatement', () => {
     expect(s.sections[0].closing).toBe(100);
   });
 
+  it("detail 'full' itemises settled loans instead of folding them, with the same closing", () => {
+    const loans = [
+      loan({ id: 'open', type: 'given', totalAmount: 500, remainingAmount: 500 }),
+      loan({ id: 'old1', type: 'given', totalAmount: 100, remainingAmount: 0, status: 'settled', createdAt: '2025-11-01T00:00:00.000Z' }),
+    ];
+    const transactions = [
+      txn({ id: 't1', type: 'loan_given', amount: 500, relatedLoanId: 'open', createdAt: '2026-05-01T00:00:00.000Z' }),
+      txn({ id: 't2', type: 'loan_given', amount: 100, relatedLoanId: 'old1', createdAt: '2025-11-01T00:00:00.000Z' }),
+      txn({ id: 't3', type: 'repayment', amount: 100, relatedLoanId: 'old1', createdAt: '2025-11-20T00:00:00.000Z' }),
+    ];
+    const base = { partyName: 'Ahmed', loans, transactions, asOf: '2026-07-02T00:00:00.000Z', scope: 'contact' as const };
+    const compact = buildStatement(base);
+    const full = buildStatement({ ...base, detail: 'full' });
+    expect(compact.detail).toBe('compact');
+    expect(full.detail).toBe('full');
+    expect(full.sections[0].lines.map((l) => l.kind)).toEqual(['loan_given', 'repayment_received', 'loan_given']);
+    expect(full.sections[0].closing).toBe(compact.sections[0].closing);
+  });
+
+  it('stamps loan / transaction ids and what the loan was left at after each repayment', () => {
+    const loans = [loan({ id: 'L1', type: 'taken', totalAmount: 900, remainingAmount: 0, status: 'settled' })];
+    const transactions = [
+      txn({ id: 't1', type: 'loan_taken', amount: 900, relatedLoanId: 'L1', createdAt: '2026-05-12T00:00:00.000Z' }),
+      txn({ id: 't2', type: 'repayment', amount: 400, relatedLoanId: 'L1', createdAt: '2026-05-28T00:00:00.000Z' }),
+      txn({ id: 't3', type: 'repayment', amount: 500, relatedLoanId: 'L1', createdAt: '2026-06-28T00:00:00.000Z' }),
+    ];
+    const lines = buildStatement({ partyName: 'Ahmed', loans, transactions, asOf: '2026-07-02T00:00:00.000Z', scope: 'loan' }).sections[0].lines;
+    expect(lines.map((l) => [l.loanId, l.txnId, l.loanRemainingAfter])).toEqual([
+      ['L1', 't1', undefined],
+      ['L1', 't2', 500],
+      ['L1', 't3', 0],
+    ]);
+  });
+
+  it('orders by instant across mixed timestamp formats, not by string', () => {
+    const loans = [loan({ id: 'L1', type: 'taken', totalAmount: 300, remainingAmount: 0, status: 'settled' })];
+    const transactions = [
+      txn({ id: 'd', type: 'loan_taken', amount: 300, relatedLoanId: 'L1', createdAt: '2026-10-05T08:24:00.000Z' }),
+      txn({ id: 'b', type: 'repayment', amount: 100, relatedLoanId: 'L1', createdAt: '2026-10-05T08:24:42.900Z' }),
+      // Server-style 6-digit stamp, and an offset stamp that is EARLIER than
+      // 'b' as an instant but sorts after it as a string ('T12…' > 'T08…').
+      txn({ id: 'a', type: 'repayment', amount: 150, relatedLoanId: 'L1', createdAt: '2026-10-05T12:24:42.100+04:00' }),
+      txn({ id: 'c', type: 'repayment', amount: 50, relatedLoanId: 'L1', createdAt: '2026-10-05T08:24:43.507383+00:00' }),
+    ];
+    const lines = buildStatement({ partyName: 'Ahmed', loans, transactions, asOf: '2026-10-06T00:00:00.000Z', scope: 'loan' }).sections[0].lines;
+    expect(lines.map((l) => l.txnId)).toEqual(['d', 'a', 'b', 'c']);
+    expect(lines.map((l) => l.balance)).toEqual([-300, -150, -50, 0]);
+  });
+
   it('reports no activity when there are no loans', () => {
     const s = buildStatement({ partyName: 'Ahmed', loans: [], transactions: [], asOf: '2026-07-02T00:00:00.000Z', scope: 'contact' });
     expect(s.hasActivity).toBe(false);

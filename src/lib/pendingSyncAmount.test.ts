@@ -93,6 +93,9 @@ describe('accept refusals for a moved sync loan', () => {
     ['ltr: pre_existing loan has been settled or archived', /fully paid off/],
     ['ltr: pre_existing loan no longer available', /deleted or changed/],
     ['ltr: pre_existing loan changed currency', /deleted or changed/],
+    // One share per loan (supabase-migration-ltr-no-duplicate-sync.sql) — as
+    // PostgREST relays it, with the Postgres prefix around the message.
+    ['ERROR: P0001: ltr: loan is already shared', /already in both ledgers/],
   ])('%s', (raw, expected) => {
     const msg = friendlyLinkedError(raw);
     expect(msg).not.toContain('ltr:');

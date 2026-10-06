@@ -300,3 +300,69 @@ describe('notificationCollapseKey (audit N-10)', () => {
       .toBe('x:y');
   });
 });
+
+describe('linked money notices say where the total stands (notify-balance-after)', () => {
+  it('a lend request tells the reader the total if they accept, in their language', () => {
+    // Abdullah lent Ghulam 87.60; Ghulam already owes 5,137.41 ⇒ 5,225.01.
+    const row = {
+      title: 'New shared loan to review', body: 'server body', template: 'ltr_request',
+      params: { actorName: 'Abdullah', amount: 87.6, currency: 'AED', kind: 'borrowed', requestId: 'r1', balanceNow: -5137.41, balanceAfter: -5225.01 },
+    };
+    const english = renderNotificationContent(row, en);
+    expect(english.title).toBe('New shared loan to review');
+    expect(english.body).toBe('Abdullah recorded AED 87.60 that you borrowed. If you accept: You owe Abdullah AED 5,225.01. Open Inbox to confirm.');
+    const urdu = renderNotificationContent(row, ur);
+    expect(urdu.title).toBe('Naya qarz — tasdeeq karein');
+    expect(urdu.body).toBe('Abdullah ne AED 87.60 likha jo aap ne udhaar liya. Accept karne par: Aap ne Abdullah ko AED 5,225.01 dene hain. Inbox mein tasdeeq karein.');
+  });
+
+  it('a recorded repayment says what is left; settled reads as settled', () => {
+    const recorded = renderNotificationContent({
+      title: 'Repayment recorded', body: 'server body', template: 'lsr_recorded',
+      params: { actorName: 'Abdullah', amount: 2000, currency: 'AED', requestId: 'x', balanceAfter: -5124.41 },
+    }, en);
+    expect(recorded.body).toBe('Abdullah recorded your repayment of AED 2,000.00. Nothing to confirm. Now: You owe Abdullah AED 5,124.41.');
+    const settled = renderNotificationContent({
+      title: 't', body: 'b', template: 'lsr_accepted',
+      params: { actorName: 'Sara', amount: 50, currency: 'AED', requestId: 'y', balanceAfter: 0 },
+    }, en);
+    expect(settled.body).toBe('Sara confirmed the repayment of AED 50.00. Now: Settled up with Sara.');
+  });
+
+  it('every new template has a title and a balance body in both languages', () => {
+    for (const template of ['ltr_request', 'ltr_accepted', 'ltr_rejected', 'lsr_request', 'lsr_accepted', 'lsr_rejected', 'lsr_recorded', 'lsr_undone']) {
+      for (const translate of [en, ur]) {
+        const out = renderNotificationContent({
+          title: 'server title', body: 'server body', template,
+          params: { actorName: 'Ali', amount: 10, currency: 'AED', kind: 'lent', requestId: 'r', balanceAfter: 25 },
+        }, translate);
+        expect(out.title, template).not.toBe('server title');
+        expect(out.body, template).not.toBe('server body');
+        expect(out.body, template).toContain('Ali');
+        expect(out.body, template).toContain('25.00');
+        expect(out.body, template).not.toContain('{');
+      }
+    }
+  });
+
+  it('an older row without balanceAfter keeps its plain copy (lsr) or the server text (new templates)', () => {
+    const plain = renderNotificationContent({
+      title: 'Repayment recorded', body: 'server body', template: 'lsr_recorded',
+      params: { actorName: 'Ali', amount: 10, currency: 'AED' },
+    }, en);
+    expect(plain.body).toBe('Ali recorded your repayment of AED 10.00. Nothing to confirm.');
+    const legacy = renderNotificationContent({
+      title: 'server title', body: 'server body', template: 'ltr_accepted',
+      params: { actorName: 'Ali', amount: 10, currency: 'AED' },
+    }, en);
+    expect(legacy.body).toBe('server body');
+  });
+
+  it('echo translator: the request body picks the reader-side direction key', () => {
+    const lent = renderNotificationContent({
+      title: 't', body: 'b', template: 'ltr_request',
+      params: { actorName: 'A', amount: 1, currency: 'AED', kind: 'lent', balanceAfter: 1 },
+    }, echo);
+    expect(lent.body).toBe('[ntf_ltr_request_lent_body]');
+  });
+});

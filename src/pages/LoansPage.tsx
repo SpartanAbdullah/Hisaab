@@ -26,6 +26,8 @@ import { SendStatementModal } from '../components/SendStatementModal';
 import { PageErrorState } from '../components/PageErrorState';
 import { ListSkeleton } from '../components/ListSkeleton';
 import { useAsyncLoad } from '../hooks/useAsyncLoad';
+import { afterSheetsClose } from '../hooks/afterSheetsClose';
+import { loansForPerson } from '../lib/personLoans';
 import { formatMoney } from '../lib/constants';
 import { skeletonDelay } from '../lib/material';
 import { linkedLoanIdSet } from '../lib/linkedLoanIdSet';
@@ -70,39 +72,6 @@ type ReminderTarget = {
   // The contact the loans point at, so the reminder can save a missing number.
   personId: string | null;
 };
-
-/**
- * Run `next` once `count` closing sheets have given back their history entry.
- *
- * Every <Modal> pushes a history entry while it is open (useBackStackLayer —
- * the browser/PWA back gesture) and consumes it on close with an ASYNC
- * `history.back()`. Anything that pushes history in the SAME tick as a close
- * is undone when that back() lands: a sheet opened in the same tick closes
- * itself at once, and a route pushed in the same tick bounces back to /loans
- * (reproduced in headless Chromium, 2026-09-19 — the "Remind does nothing"
- * report). So a hand-off that has to CLOSE a sheet first waits for its pop;
- * one that can leave the sheet open simply stacks the next sheet on top (the
- * reminder does that). useBackStackLayer now guards against both failures
- * itself (it never undoes a newer entry and holds new sheets until in-flight
- * backs land); this helper stays because waiting for the pop also leaves no
- * stale sheet entry behind in history.
- */
-function afterSheetsClose(count: number, next: () => void) {
-  let seen = 0;
-  let fallback = 0;
-  const onPop = () => {
-    seen += 1;
-    if (seen >= count) finish();
-  };
-  const finish = () => {
-    window.removeEventListener('popstate', onPop);
-    window.clearTimeout(fallback);
-    next();
-  };
-  window.addEventListener('popstate', onPop);
-  // A sheet with no entry to give back sends no pop — never strand the tap.
-  fallback = window.setTimeout(finish, 800);
-}
 
 export function LoansPage() {
   const { loans, loadLoans } = useLoanStore();
@@ -174,6 +143,8 @@ export function LoansPage() {
     ? selectedGroup.loans.filter((l) => l.status === 'active' && l.remainingAmount > 0.01 && !linkedLoanIds.has(l.id))
     : [];
   const hasLinkedInGroup = !!selectedGroup && selectedGroup.loans.some((l) => linkedLoanIds.has(l.id));
+  // The contact behind the opened group (null for a legacy name-only group).
+  const selectedGroupPersonId = selectedGroup?.loans.find((l) => l.personId)?.personId ?? null;
 
   // Active LINKED loans in the group — a lump can settle across these too,
   // as one settlement request per loan (counterparty confirms each). Loans
@@ -471,6 +442,14 @@ export function LoansPage() {
   const openLoanFromSheet = (loanId: string) => {
     setSelectedGroup(null);
     afterSheetsClose(1, () => navigate(`/loan/${loanId}`));
+  };
+
+  // Same hand-off for the person's full ledger — every entry with the balance
+  // after it, across both directions and every currency. Keyed by the contact,
+  // so only a contact-backed group offers it.
+  const openLedgerFromSheet = (personId: string) => {
+    setSelectedGroup(null);
+    afterSheetsClose(1, () => navigate(`/person/${personId}/ledger`));
   };
 
   // Open a full Statement of Account for this person. The statement itself is
@@ -883,6 +862,14 @@ export function LoansPage() {
               <p className="text-[11px] text-ink-600 leading-relaxed">{t('alloc_linked_note')}</p>
             )}
 
+            {selectedGroupPersonId && (
+              <button
+                onClick={() => openLedgerFromSheet(selectedGroupPersonId)}
+                className="m-btn m-btn-plain w-full py-3 text-[13px]"
+              >
+                <Glyph name="activity" size={15} tone="violet" /> {t('pl_cta')}
+              </button>
+            )}
             <button
               onClick={() => openStatementForGroup(selectedGroup)}
               className="m-btn m-btn-plain w-full py-3 text-[13px]"
@@ -991,13 +978,14 @@ export function LoansPage() {
           open={!!statementFor}
           onClose={() => { setStatementFor(null); setStatementIntro(undefined); }}
           partyName={statementFor.name}
-          loans={loans.filter(
-            (l) =>
-              !l.deletedAt &&
-              (statementFor.personId
-                ? l.personId === statementFor.personId
-                : l.personName.trim().toLowerCase() === statementFor.name.trim().toLowerCase()),
-          )}
+          loans={
+            statementFor.personId
+              ? loansForPerson(loans, { id: statementFor.personId, name: statementFor.name })
+              : loans.filter(
+                  (l) => !l.deletedAt && !l.personId && l.personName.trim().toLowerCase() === statementFor.name.trim().toLowerCase(),
+                )
+          }
+          personId={statementFor.personId}
           transactions={transactions}
           scope="contact"
           phone={statementFor.phone}
