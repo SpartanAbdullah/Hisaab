@@ -15,6 +15,8 @@ const LINKED_ERROR_KEYS: Array<{ match: string; key: I18nKey }> = [
   { match: 'ltr: pre_existing loan has been settled or archived', key: 'ltr_err_sync_loan_settled' },
   { match: 'ltr: pre_existing loan no longer available', key: 'ltr_err_sync_loan_gone' },
   { match: 'ltr: pre_existing loan changed currency', key: 'ltr_err_sync_loan_gone' },
+  // One share per loan (supabase-migration-ltr-no-duplicate-sync.sql).
+  { match: 'ltr: loan is already shared', key: 'ltr_err_sync_already_shared' },
   // Receiver records / Undo / "Add to an account"
   // (supabase-migration-settlement-receiver-records.sql).
   { match: 'lsr: the undo window has passed', key: 'lsr_err_undo_window' },

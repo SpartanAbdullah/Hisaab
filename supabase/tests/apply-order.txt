@@ -198,6 +198,11 @@ supabase-migration-settlement-receiver-records.sql
 #   so it must follow it) and adds three internal helpers. Creates functions,
 #   so it must precede the grants sweep.
 supabase-migration-notify-balance-after.sql
+# ↓ 2026-10-06 one share per loan: refuses a past-record sync (and its accept)
+#   for a loan already half of a live linked request. Two new BEFORE triggers
+#   on linked_transaction_requests + an internal helper; accept_linked_request
+#   untouched. Creates functions, so it must precede the grants sweep.
+supabase-migration-ltr-no-duplicate-sync.sql
 # ↓ reconciliation reads every table above
 supabase-migration-p3-invariant-monitoring.sql
 # ↓ TRULY LAST — the least-privilege sweep over public.* functions. It is a

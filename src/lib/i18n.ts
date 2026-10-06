@@ -669,6 +669,13 @@ const S = {
     ur: "Bhejne wale ne yeh record is dauran delete ya tabdeel kar diya. Isay reject karein aur un se dobara sync karne ko kahein.",
     en: "The sender deleted or changed this record in the meantime. Reject it and ask them to sync it again.",
   },
+  // One share per loan (supabase-migration-ltr-no-duplicate-sync.sql): the
+  // loan is already in both ledgers, so syncing / accepting it again would
+  // create a second copy.
+  ltr_err_sync_already_shared: {
+    ur: "Yeh qarz pehle se dono taraf ke hisaab mein hai — dobara sync karne se dohri entry banti. Agar yeh request aayi hai to isay reject kar dein.",
+    en: "This loan is already in both ledgers — syncing it again would create a duplicate. If this is a request you received, reject it.",
+  },
   // Outgoing card of a pending past-record sync whose loan moved since sending.
   ltr_sync_amount_now: {
     ur: "{sent} bheja tha · wapsi ke baad ab {now} — accept par yahi record hoga",
