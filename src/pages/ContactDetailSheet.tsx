@@ -32,6 +32,9 @@ import { QuickEntry, type QuickEntryPreset } from './QuickEntry';
 import { EditTransactionModal } from '../components/EditTransactionModal';
 import { SendStatementModal } from '../components/SendStatementModal';
 import { ShareKhataLinkSheet } from '../components/ShareKhataLinkSheet';
+import { useNavigate } from 'react-router-dom';
+import { afterSheetsClose } from '../hooks/afterSheetsClose';
+import { loansForPerson } from '../lib/personLoans';
 import { useT } from '../lib/i18n';
 import { getActionLabel } from '../lib/transactionLabel';
 import type { Transaction } from '../db';
@@ -48,6 +51,7 @@ type Mode = 'idle' | 'entering' | 'resolved';
 // "Link to Hisaab user" or "Unlink". The code lookup only runs on explicit
 // Resolve button press, never on keystrokes.
 export function ContactDetailSheet({ open, person, onClose }: Props) {
+  const navigate = useNavigate();
   const { linkToProfile, linkToDiscoveredProfile, unlinkFromProfile, archiveIfSettled, updatePhone } =
     usePersonStore();
   const persons = usePersonStore((s) => s.persons);
@@ -242,12 +246,13 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
   // All of this contact's loans (personId, with a name fallback for legacy
   // loans created before the contact record existed) — the raw material for a
   // statement that spans every loan direction and currency with this person.
-  const personLoans = loans.filter(
-    (loan) =>
-      !loan.deletedAt &&
-      (loan.personId === person.id ||
-        (!loan.personId && loan.personName.trim().toLowerCase() === person.name.trim().toLowerCase())),
-  );
+  const personLoans = loansForPerson(loans, person);
+  // The full ledger is a route: close this sheet first and navigate once its
+  // history entry is gone, or the closing pop bounces the app straight back.
+  const openLedger = () => {
+    onClose();
+    afterSheetsClose(1, () => navigate(`/person/${person.id}/ledger`));
+  };
   const recentEntries = transactions
     .filter((transaction) => transaction.personId === person.id)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -563,6 +568,17 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
         {/* Send a full Statement of Account with this contact — spans every
             loan (both directions) and currency, delivered as a one-page PDF or
             a WhatsApp text ping. Shown once there's any loan history. */}
+        {/* The full ledger — every loan and repayment with the balance after
+            it, month by month, plus what is still awaiting confirmation. */}
+        {personLoans.length > 0 && (
+          <button
+            type="button"
+            onClick={openLedger}
+            className="m-btn m-btn-violet w-full py-3 text-[13px]"
+          >
+            <Glyph name="activity" size={15} /> {t('pl_cta')}
+          </button>
+        )}
         {personLoans.length > 0 && (
           <button
             type="button"
@@ -654,7 +670,14 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
 
         {recentEntries.length > 0 && (
           <div className="m-card p-3.5">
-            <p className="m-label mb-2">{t('recent_money_history')}</p>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="m-label">{t('recent_money_history')}</p>
+              {personLoans.length > 0 && (
+                <button type="button" onClick={openLedger} className="text-accent-600 text-[11.5px] font-semibold min-h-[32px]">
+                  {t('pl_see_all')}
+                </button>
+              )}
+            </div>
             <div className="space-y-2">
               {recentEntries.map((entry) => {
                 const linkedLoan = entry.relatedLoanId ? loans.find((l) => l.id === entry.relatedLoanId) ?? null : null;
@@ -1052,6 +1075,7 @@ export function ContactDetailSheet({ open, person, onClose }: Props) {
       transactions={transactions}
       scope="contact"
       phone={person.phone}
+      personId={person.id}
     />
     <ShareKhataLinkSheet
       open={showKhataLink}

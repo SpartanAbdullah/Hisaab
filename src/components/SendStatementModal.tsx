@@ -12,6 +12,9 @@ import { shareStatementFile } from '../lib/shareStatement';
 import { buildWhatsAppUrl, hasWhatsAppNumber } from '../lib/whatsappReminder';
 import { buildReceiptText } from '../lib/receiptText';
 import { track } from '../lib/telemetry';
+import { usePersonLedgerExtras } from '../hooks/usePersonLedgerExtras';
+import { usePersonStore } from '../stores/personStore';
+import type { StatementPerspective } from '../lib/statementText';
 import type { Loan, Transaction } from '../db';
 
 interface Props {
@@ -29,6 +32,10 @@ interface Props {
   // When present, the sheet defaults to a "payment received" receipt (with a
   // toggle back to the full statement). Set post-repayment on `given` loans.
   receipt?: { receivedAmount: number; currency: string; remaining: number | null; date: string };
+  // The contact (contact scope): lets the full-history PDF show what is still
+  // awaiting confirmation, group lump payments by their allocation batch, and
+  // label duplicate mirrors. Optional — without it the PDF still builds.
+  personId?: string | null;
 }
 
 function copyWithFallback(text: string): Promise<void> {
@@ -57,11 +64,19 @@ function copyWithTextarea(text: string): Promise<void> {
 }
 
 export function SendStatementModal({
-  open, onClose, partyName, loans, transactions, scope, phone = null, fromName, refCode, intro, receipt,
+  open, onClose, partyName, loans, transactions, scope, phone = null, fromName, refCode, intro, receipt, personId = null,
 }: Props) {
   const t = useT();
   const toast = useToast();
   const [preparing, setPreparing] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  // Who the PDF speaks to: the other person (it is sent to them — default) or
+  // the user ("My copy", read from their own side). And how much it holds:
+  // every entry, month by month, across pages (default) or the one-page summary.
+  const [perspective, setPerspective] = useState<StatementPerspective>('counterparty');
+  const [detail, setDetail] = useState<'full' | 'compact'>('full');
+  const person = usePersonStore((s) => (personId ? s.persons.find((p) => p.id === personId) ?? null : null));
+  const extras = usePersonLedgerExtras(scope === 'contact' ? person : null, loans);
   const [copying, setCopying] = useState(false);
   const [greetingStyle, setGreetingStyle] = useState<GreetingStyle>('hello');
   // 'receipt' = a warm "payment received" acknowledgement; 'statement' = the
@@ -79,6 +94,9 @@ export function SendStatementModal({
       setAsOf(new Date().toISOString());
       setMode(receipt ? 'receipt' : 'statement');
       setHideAmounts(false);
+      setPerspective('counterparty');
+      setDetail('full');
+      setProgress(null);
     }
     // `receipt` is read only at open-time to choose the default mode.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -122,6 +140,13 @@ export function SendStatementModal({
     if (!historyReady) return null;
     return buildStatement({ partyName, loans, transactions, asOf, scope });
   }, [asOf, historyReady, partyName, loans, transactions, scope]);
+  // The full-history PDF itemises everything (no settled-loan fold). Built
+  // only when that PDF is chosen, and kept apart from `statement`, which still
+  // drives the WhatsApp text, the headline and the entry counts unchanged.
+  const fullStatement = useMemo(() => {
+    if (!asOf || !historyReady || detail !== 'full') return null;
+    return buildStatement({ partyName, loans, transactions, asOf, scope, detail: 'full' });
+  }, [asOf, historyReady, detail, partyName, loans, transactions, scope]);
 
   const greeting = useMemo(() => greetingLine(greetingStyle, partyName), [greetingStyle, partyName]);
   const receiptText = useMemo(
@@ -148,8 +173,32 @@ export function SendStatementModal({
   const handleSendPdf = async () => {
     if (!statement) return;
     setPreparing(true);
+    setProgress(null);
     try {
-      const { blob, filename } = await generateStatementPdf(statement, { fromName: preparedName, phone, refCode, greeting, hideAmounts });
+      // "My copy" is the user's own record: no greeting to themself, no
+      // sign-off, no "prepared by" — the counterparty is named in the hero.
+      const self = perspective === 'self';
+      const base = {
+        fromName: self ? undefined : preparedName,
+        phone: self ? null : phone,
+        refCode,
+        greeting: self ? '' : greeting,
+        hideAmounts,
+        perspective,
+      };
+      const { blob, filename } = detail === 'full' && fullStatement
+        ? await import('../lib/statementPdfPages').then(({ generateFullStatementPdf }) =>
+            generateFullStatementPdf(
+              fullStatement,
+              {
+                ...base,
+                pending: extras.pending,
+                batchKeyOf: extras.batchKeyOf,
+                duplicateLoanIds: extras.duplicateLoanIds,
+              },
+              (done, total) => setProgress({ done, total }),
+            ))
+        : await generateStatementPdf(statement, base);
       const outcome = await shareStatementFile({
         blob,
         filename,
@@ -172,8 +221,13 @@ export function SendStatementModal({
       toast.show({ type: 'error', title: t('soa_share_failed') });
     } finally {
       setPreparing(false);
+      setProgress(null);
     }
   };
+
+  const preparingLabel = progress
+    ? t('soa_preparing_pages').replace('{n}', String(progress.done)).replace('{total}', String(progress.total))
+    : t('soa_preparing');
 
   const handleCopy = async () => {
     setCopying(true);
@@ -202,7 +256,7 @@ export function SendStatementModal({
               disabled={preparing || !hasContent}
               className="m-btn m-btn-primary w-full py-3.5 text-[14px]"
             >
-              <Glyph name="document" size={16} /> {preparing ? t('soa_preparing') : t('soa_send_pdf')}
+              <Glyph name="document" size={16} /> {preparing ? preparingLabel : t('soa_send_pdf')}
             </button>
           )}
           <div className="flex gap-2.5">
@@ -312,6 +366,48 @@ export function SendStatementModal({
         ) : (
           <div className="m-inset p-4">
             <p className="text-[13px] text-ink-600">{t('soa_none').replace('{name}', partyName)}</p>
+          </div>
+        )}
+
+        {/* PDF shape — who it speaks to, and how much it holds. Statement
+            mode only: the receipt is a text acknowledgement. */}
+        {hasContent && mode === 'statement' && (
+          <div className="space-y-3">
+            <div>
+              <p className="form-label">{t('soa_pdf_for')}</p>
+              <div className="m-seg flex w-full">
+                {(['counterparty', 'self'] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPerspective(p)}
+                    aria-pressed={perspective === p}
+                    className="flex-1 min-h-[36px] px-1.5 text-[11.5px] truncate"
+                  >
+                    {p === 'self' ? t('soa_for_self') : t('soa_for_them').replace('{name}', partyName)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="form-label">{t('soa_detail_label')}</p>
+              <div className="m-seg flex w-full">
+                {(['full', 'compact'] as const).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDetail(d)}
+                    aria-pressed={detail === d}
+                    className="flex-1 min-h-[36px] px-1.5 text-[11.5px]"
+                  >
+                    {d === 'full' ? t('soa_detail_full') : t('soa_detail_compact')}
+                  </button>
+                ))}
+              </div>
+              {detail === 'full' && (
+                <p className="text-[10.5px] text-ink-600 mt-1.5 leading-relaxed">{t('soa_detail_full_sub')}</p>
+              )}
+            </div>
           </div>
         )}
 

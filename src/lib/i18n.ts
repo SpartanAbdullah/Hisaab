@@ -527,6 +527,52 @@ const S = {
     ur: "{actor} ne {amount} ki record ki hui repayment hata di.",
     en: "{actor} removed the repayment of {amount} they had recorded.",
   },
+  // 2026-10-06 (supabase-migration-notify-balance-after.sql): every linked
+  // money notice also says where the total stands — "Now: …" after a change,
+  // "If you accept: …" on something waiting for the reader. {balance} is the
+  // reader's net with {actor} (stmt_net_* wording). Params add balanceAfter.
+  ntf_lsr_recorded_body_bal: {
+    ur: "{actor} ne aap ki {amount} ki repayment record kar di. Kuch confirm nahi karna. Ab: {balance}.",
+    en: "{actor} recorded your repayment of {amount}. Nothing to confirm. Now: {balance}.",
+  },
+  ntf_lsr_undone_body_bal: {
+    ur: "{actor} ne {amount} ki record ki hui repayment hata di. Ab: {balance}.",
+    en: "{actor} removed the repayment of {amount} they had recorded. Now: {balance}.",
+  },
+  ntf_ltr_request_title: { ur: "Naya qarz — tasdeeq karein", en: "New shared loan to review" },
+  ntf_ltr_request_borrowed_body: {
+    ur: "{actor} ne {amount} likha jo aap ne udhaar liya. Accept karne par: {balance}. Inbox mein tasdeeq karein.",
+    en: "{actor} recorded {amount} that you borrowed. If you accept: {balance}. Open Inbox to confirm.",
+  },
+  ntf_ltr_request_lent_body: {
+    ur: "{actor} ne {amount} likha jo aap ne udhaar diya. Accept karne par: {balance}. Inbox mein tasdeeq karein.",
+    en: "{actor} recorded {amount} that you lent. If you accept: {balance}. Open Inbox to confirm.",
+  },
+  ntf_ltr_accepted_title: { ur: "Qarz tasdeeq ho gaya", en: "Shared loan confirmed" },
+  ntf_ltr_accepted_body: {
+    ur: "{actor} ne {amount} ka qarz tasdeeq kar diya. Ab: {balance}.",
+    en: "{actor} confirmed the shared loan of {amount}. Now: {balance}.",
+  },
+  ntf_ltr_rejected_title: { ur: "Qarz radd ho gaya", en: "Shared loan declined" },
+  ntf_ltr_rejected_body: {
+    ur: "{actor} ne {amount} ka qarz radd kar diya — total mein shamil nahi hua. Ab bhi: {balance}.",
+    en: "{actor} declined the shared loan of {amount} — it was not added. Still: {balance}.",
+  },
+  ntf_lsr_request_title: { ur: "Wapsi — tasdeeq karein", en: "Repayment to confirm" },
+  ntf_lsr_request_body: {
+    ur: "{actor} ne {amount} wapas dene ki entry ki. Tasdeeq karne par: {balance}. Inbox mein dekhein.",
+    en: "{actor} recorded a repayment of {amount}. If you confirm: {balance}. Open Inbox to confirm.",
+  },
+  ntf_lsr_accepted_title: { ur: "Wapsi tasdeeq ho gayi", en: "Repayment confirmed" },
+  ntf_lsr_accepted_body: {
+    ur: "{actor} ne {amount} ki wapsi tasdeeq kar di. Ab: {balance}.",
+    en: "{actor} confirmed the repayment of {amount}. Now: {balance}.",
+  },
+  ntf_lsr_rejected_title: { ur: "Wapsi radd ho gayi", en: "Repayment declined" },
+  ntf_lsr_rejected_body: {
+    ur: "{actor} ne {amount} ki wapsi radd kar di. Ab bhi: {balance}.",
+    en: "{actor} declined the repayment of {amount}. Still: {balance}.",
+  },
   ntf_no_shared_yet: {
     ur: "Abhi tak koi shared notification nahi.",
     en: "No shared notifications yet.",
@@ -800,6 +846,49 @@ const S = {
   soa_greet_none: { ur: "None", en: "None" },
   soa_hide_amounts: { ur: "Raqam chhupayein", en: "Hide amounts" },
   soa_hide_amounts_sub: { ur: "Structure aur naam nazar aayenge, raqam nahi — share ke liye behtar.", en: "Names, dates and structure stay visible — the numbers don't." },
+  // Statement sheet — who the PDF is for, and how much it holds (2026-10-06).
+  soa_pdf_for: { ur: "PDF kis ke liye?", en: "Who is the PDF for?" },
+  soa_for_self: { ur: "Meri copy", en: "My copy" },
+  soa_for_them: { ur: "{name} ke liye", en: "For {name}" },
+  soa_detail_label: { ur: "PDF mein kya ho?", en: "What goes in the PDF?" },
+  soa_detail_full: { ur: "Poori tafseel", en: "Full history" },
+  soa_detail_compact: { ur: "Mukhtasar (1 safha)", en: "Short (1 page)" },
+  soa_detail_full_sub: {
+    ur: "Har entry ke baad baqaya, mahina ba mahina, aur tasdeeq baqi entries.",
+    en: "The balance after every entry, month by month, plus anything awaiting confirmation.",
+  },
+  soa_preparing_pages: { ur: "Tayyar ho raha hai… {n}/{total}", en: "Preparing… {n}/{total}" },
+  // Person ledger (/person/:id/ledger) — every loan and repayment with this
+  // person, each with the balance after it (2026-10-06, the Ghulam exercise).
+  pl_cta: { ur: "Poori tafseel — har entry ke baad baqaya", en: "Full ledger — balance after every entry" },
+  pl_title: { ur: "Hisaab ki tafseel", en: "Full ledger" },
+  pl_see_all: { ur: "Sab dekhein", en: "See all" },
+  pl_sum_up: { ur: "Kul barha", en: "Total added" },
+  pl_sum_down: { ur: "Kul ghata", en: "Total cleared" },
+  pl_sum_left: { ur: "Baqaya", en: "Balance" },
+  pl_reconciles: { ur: "Hisaab theek: {opening} + {up} − {down} = {closing}", en: "Checks out: {opening} + {up} − {down} = {closing}" },
+  pl_pending_title: { ur: "Tasdeeq baqi ({n})", en: "Awaiting confirmation ({n})" },
+  pl_pending_not_counted: { ur: "Yeh entries abhi total mein shamil nahi.", en: "These aren't in the total yet." },
+  pl_pending_awaiting_me: { ur: "Aap ki tasdeeq baqi", en: "Waiting for you" },
+  pl_pending_awaiting_them: { ur: "{name} ki tasdeeq baqi", en: "Waiting for {name}" },
+  pl_pending_if_accepted: { ur: "Sab accept hone par baqaya: {amount}", en: "If all are accepted, the balance becomes {amount}" },
+  pl_pending_open_inbox: { ur: "Inbox mein dekhein", en: "Review in Inbox" },
+  pl_row_balance_after: { ur: "Baqaya: {amount}", en: "Balance: {amount}" },
+  pl_row_up: { ur: "Baqaya barha", en: "Balance went up" },
+  pl_row_down: { ur: "Baqaya ghata", en: "Balance went down" },
+  pl_burst_show: { ur: "Kin qarzon mein gaya", en: "Show which loans" },
+  pl_burst_hide: { ur: "Chhupayein", en: "Hide" },
+  pl_burst_child_left: { ur: "is qarz ka baqi {amount}", en: "loan left at {amount}" },
+  pl_duplicate_chip: { ur: "Dohri entry — asar zero", en: "Duplicate entry — nets to zero" },
+  pl_duplicate_hint: {
+    ur: "Yeh qarz dono taraf ek hi hai — do baar sync hua, dono baar wapas bhi hua, is liye total par koi asar nahi.",
+    en: "This is the same loan synced twice — each copy was repaid, so it has no effect on the total.",
+  },
+  pl_month_flow: { ur: "{from} → {to}", en: "{from} → {to}" },
+  pl_newest_first: { ur: "Naye mahine upar", en: "Newest month first" },
+  pl_pdf_cta: { ur: "PDF banayein", en: "Make a PDF" },
+  pl_not_found: { ur: "Yeh contact nahi mila", en: "Contact not found" },
+  pl_err_load: { ur: "Tafseel load nahi ho saki", en: "Couldn't load the ledger" },
   kslip_hide_witness_note: { ur: "Witness link par asal raqam phir bhi nazar aayegi.", en: "The witness link still shows the real amounts." },
 
   // Payment-received receipt — a warm acknowledgement sent back to the payer.
@@ -5539,6 +5628,38 @@ const S = {
     en: "Generated by Hisaab on {date}. A summary of recorded transactions, not a legal document. E&OE.",
   },
   stmt_pdf_page: { ur: "Safha 1 / 1", en: "Page 1 of 1" },
+  // Full-history statement (2026-10-06, the Ghulam exercise): every entry with
+  // the total after it, month by month, a reconciliation line, pending items
+  // shown but never counted, and a "My copy" read from the user's own side.
+  stmt_pdf_page_n: { ur: "Safha {n} / {total}", en: "Page {n} of {total}" },
+  stmt_pdf_self_copy: { ur: "Meri copy", en: "My copy" },
+  stmt_pdf_summary: { ur: "Khulasa", en: "Summary" },
+  stmt_pdf_owed_pay: { ur: "Jo raqam aap ne deni hai", en: "What you owe" },
+  stmt_pdf_owed_receive: { ur: "Jo raqam aap ko milni hai", en: "What you are owed" },
+  stmt_pdf_sum_up: { ur: "Barha (+)", en: "Increased (+)" },
+  stmt_pdf_sum_down: { ur: "Ghata (−)", en: "Decreased (−)" },
+  stmt_pdf_reconciles: {
+    ur: "Hisaab theek: {opening} + {up} − {down} = {closing}",
+    en: "Checks out: {opening} + {up} − {down} = {closing}",
+  },
+  stmt_pdf_months: { ur: "Mahina ba mahina", en: "Month by month" },
+  stmt_pdf_col_month: { ur: "Mahina", en: "Month" },
+  stmt_pdf_col_open: { ur: "Shuru", en: "Opening" },
+  stmt_pdf_col_close: { ur: "Akhir", en: "Closing" },
+  stmt_pdf_ledger: { ur: "Har entry ki tafseel", en: "Every entry" },
+  stmt_pdf_month_total: { ur: "{month} ka khulasa", en: "{month} totals" },
+  stmt_pdf_cf: { ur: "Agle safhe par", en: "Carried forward" },
+  stmt_pdf_continued: { ur: "(jaari)", en: "(continued)" },
+  stmt_pdf_burst: { ur: "{n} qarzon mein", en: "across {n} loans" },
+  stmt_pdf_child_left: { ur: "is qarz ka baqi {amount}", en: "loan left at {amount}" },
+  stmt_pdf_duplicate: { ur: "dohri entry · asar zero", en: "duplicate entry · nets to zero" },
+  stmt_pdf_pending_title: {
+    ur: "Tasdeeq baqi — total mein shamil nahi",
+    en: "Awaiting confirmation — not in the total",
+  },
+  stmt_pdf_pending_wait_you: { ur: "Aap ki tasdeeq ka intezar", en: "Waiting for you to confirm" },
+  stmt_pdf_pending_wait_name: { ur: "{name} ki tasdeeq ka intezar", en: "Waiting for {name} to confirm" },
+  stmt_pdf_pending_if: { ur: "Sab accept hone par: {amount}", en: "If all are accepted: {amount}" },
   // Group settle-up plan PDF.
   stmt_gsu_doc: { ur: "Settle-up plan", en: "Settle-up plan" },
   stmt_gsu_simplified: { ur: "Simplified — kam se kam transfers", en: "Simplified — fewest transfers" },

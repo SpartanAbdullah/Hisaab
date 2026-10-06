@@ -46,21 +46,22 @@ import {
   fillTemplate,
   payOrReceiveMode,
   type DocT,
+  type StatementPerspective,
 } from './statementText';
 
 const { ink: INK, muted: MUTED, hairline: HAIRLINE, rowline: ROWLINE, navy: NAVY } = PDF_COLORS;
 // Direction (CVD-safe: differ in hue AND luminance; always paired with sign + label)
-const POS = '#047857'; // you'll receive / money in  (~4.9:1 on white)
-const NEG = '#C2410C'; // you need to pay / money out (~5.0:1 on white)
+export const POS = '#047857'; // you'll receive / money in  (~4.9:1 on white)
+export const NEG = '#C2410C'; // you need to pay / money out (~5.0:1 on white)
 const NEUTRAL = '#4B5563'; // zero / settled        (~7:1 on white)
 const POS_LABEL = '#036249'; // darker teal for small labels on tinted fills
 // Hero tints (fill only — never the sole carrier of meaning)
-const POS_TINT = '#ECFDF5';
-const NEG_TINT = '#FEF2F2';
+export const POS_TINT = '#ECFDF5';
+export const NEG_TINT = '#FEF2F2';
 
 const MAX_ROWS_PER_SECTION = 16;
 
-function fmtDateShort(iso: string): string {
+export function fmtDateShort(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
@@ -68,14 +69,23 @@ function fmtDateShort(iso: string): string {
 
 // "Hide amounts": swap every bare ledger number for the fixed-width mask. No
 // currency symbol here — the ledger states the currency once per section.
-type AmountFmt = (n: number) => string;
-function amountFmt(hideAmounts: boolean): AmountFmt {
+export type AmountFmt = (n: number) => string;
+export function amountFmt(hideAmounts: boolean): AmountFmt {
   return hideAmounts ? () => AMOUNT_MASK : pdfAmount;
+}
+
+// Reader sign. The statement's internal sign is the USER's (positive ⇒ they
+// owe you). The document speaks to its READER: the counterparty (default —
+// the statement is sent to them) or the user themself ("My copy"). Every
+// reader-facing figure is computed as `r × internal`, so the two perspectives
+// are exact mirrors and the counterparty page is unchanged.
+export function readerSign(perspective: StatementPerspective | undefined): 1 | -1 {
+  return perspective === 'self' ? -1 : 1;
 }
 
 // Signed, color-coded balance. Color is redundant with the +/− sign so a
 // grayscale print or a color-blind reader loses nothing.
-function balanceCellHtml(n: number, fmt: AmountFmt = pdfAmount): string {
+export function balanceCellHtml(n: number, fmt: AmountFmt = pdfAmount): string {
   if (n > 0.005) return `<span style="color:${POS};">+${fmt(n)}</span>`;
   if (n < -0.005) return `<span style="color:${NEG};">−${fmt(n)}</span>`;
   return `<span style="color:${NEUTRAL};">${fmt(0)}</span>`;
@@ -83,7 +93,7 @@ function balanceCellHtml(n: number, fmt: AmountFmt = pdfAmount): string {
 
 // Deterministic, human-readable statement number (no persisted sequence). Same
 // party + same as-of day ⇒ same number, so a re-generated statement is stable.
-function statementNumber(statement: Statement, override?: string): string {
+export function statementNumber(statement: Statement, override?: string): string {
   if (override) return override;
   const d = new Date(statement.asOf);
   const ym = Number.isNaN(d.getTime())
@@ -96,7 +106,7 @@ function statementNumber(statement: Statement, override?: string): string {
   return `HIS-${ym}-${suffix}`;
 }
 
-function periodRange(statement: Statement): string | null {
+export function periodRange(statement: Statement): string | null {
   const dates = statement.sections.flatMap((s) => s.lines.map((l) => l.date)).filter(Boolean);
   if (dates.length === 0) return null;
   const from = dates.reduce((a, b) => (a.localeCompare(b) <= 0 ? a : b));
@@ -106,12 +116,21 @@ function periodRange(statement: Statement): string | null {
 // One currency's headline: what the READER pays or receives. The eyebrow names
 // the direction + currency, the figure carries the sign, and the line under it
 // names the other party — each fact stated once.
-function heroRowHtml(section: StatementSection, big: boolean, t: DocT, senderName?: string, hideAmounts = false): string {
+export function heroRowHtml(
+  section: StatementSection,
+  big: boolean,
+  t: DocT,
+  senderName?: string,
+  hideAmounts = false,
+  r: 1 | -1 = 1,
+): string {
   const fmt = amountFmt(hideAmounts);
   // Recipient perspective: they PAY when they owe (out ⇒ red, −), they RECEIVE
   // when they're owed (in ⇒ green, +). Settled celebrates in green — a clean
-  // slate is good news, not a gray zero.
-  const mode = payOrReceiveMode(section.closing);
+  // slate is good news, not a gray zero. `senderName` is the OTHER party from
+  // the reader's seat: the preparer on a sent statement, the counterparty on
+  // "My copy".
+  const mode = payOrReceiveMode(r * section.closing);
   const owe = mode === 'pay';
   const settled = mode === 'settled';
   const tint = owe ? NEG_TINT : POS_TINT;
@@ -138,18 +157,32 @@ function heroRowHtml(section: StatementSection, big: boolean, t: DocT, senderNam
   </div>`;
 }
 
-function heroBlockHtml(statement: Statement, t: DocT, senderName?: string, hideAmounts = false): string {
+function heroBlockHtml(statement: Statement, t: DocT, senderName?: string, hideAmounts = false, r: 1 | -1 = 1): string {
   if (!statement.hasActivity) {
     return `<div style="margin:18px 44px 0;background:${POS_TINT};border-radius:8px;padding:16px 18px;">
       <p style="margin:0;font-size:16px;font-weight:700;color:${POS};">${esc(t('stmt_all_settled'))}</p>
     </div>`;
   }
   const big = statement.sections.length === 1;
-  const rows = statement.sections.map((s) => heroRowHtml(s, big, t, senderName, hideAmounts)).join('');
+  const rows = statement.sections.map((s) => heroRowHtml(s, big, t, senderName, hideAmounts, r)).join('');
   return `<div style="margin:18px 44px 0;display:flex;flex-direction:column;gap:10px;">${rows}</div>`;
 }
 
-function ledgerRowHtml(line: StatementLine, t: DocT, fmt: AmountFmt = pdfAmount): string {
+// The two money columns of a ledger line, from the reader's side: "You
+// received" (adds to what the reader owes — red) and "You gave" (a payment the
+// reader made — green). Fold lines carry gross two-sided flows; on "My copy"
+// those swap columns with everything else.
+export function lineColumns(line: StatementLine, r: 1 | -1): { received: number; gave: number } {
+  if (line.grossGiven || line.grossRepaid) {
+    const given = line.grossGiven ?? 0;
+    const repaid = line.grossRepaid ?? 0;
+    return r === 1 ? { received: given, gave: repaid } : { received: repaid, gave: given };
+  }
+  const d = r * line.delta;
+  return d > 0.005 ? { received: d, gave: 0 } : d < -0.005 ? { received: 0, gave: -d } : { received: 0, gave: 0 };
+}
+
+function ledgerRowHtml(line: StatementLine, t: DocT, fmt: AmountFmt = pdfAmount, r: 1 | -1 = 1, perspective?: StatementPerspective): string {
   // Description prefers the human note; the received/gave column position
   // already encodes the entry type. Otherwise the line is phrased from the
   // reader's side ("You borrowed", "You paid back").
@@ -157,25 +190,22 @@ function ledgerRowHtml(line: StatementLine, t: DocT, fmt: AmountFmt = pdfAmount)
   // pay this), "You gave" is a payment they made (green = reduces what you owe).
   // The running balance is negated to the recipient's side (owe = −red,
   // receive = +green).
-  const desc = esc(line.note || describeStatementLine(line, t));
+  const desc = esc(line.note || describeStatementLine(line, t, perspective));
   // Fold/summary lines carry gross two-sided flows (given AND repaid, net
   // zero) — show both so the reader's payments never look erased.
-  const debit = line.grossGiven && line.grossGiven > 0.005
-    ? `<span style="color:${NEG};">${fmt(line.grossGiven)}</span>`
-    : line.delta > 0.005 ? `<span style="color:${NEG};">${fmt(line.delta)}</span>` : '';
-  const credit = line.grossRepaid && line.grossRepaid > 0.005
-    ? `<span style="color:${POS};">${fmt(line.grossRepaid)}</span>`
-    : line.delta < -0.005 ? `<span style="color:${POS};">${fmt(line.delta)}</span>` : '';
+  const cols = lineColumns(line, r);
+  const debit = cols.received > 0.005 ? `<span style="color:${NEG};">${fmt(cols.received)}</span>` : '';
+  const credit = cols.gave > 0.005 ? `<span style="color:${POS};">${fmt(cols.gave)}</span>` : '';
   return `<tr>
     <td style="padding:7px 6px 7px 0;color:${MUTED};white-space:nowrap;vertical-align:top;border-top:1px solid ${ROWLINE};">${fmtDateShort(line.date)}</td>
     <td style="padding:7px 6px;color:${INK};vertical-align:top;border-top:1px solid ${ROWLINE};">${desc}</td>
     <td style="padding:7px 6px;text-align:right;white-space:nowrap;border-top:1px solid ${ROWLINE};">${debit}</td>
     <td style="padding:7px 6px;text-align:right;white-space:nowrap;border-top:1px solid ${ROWLINE};">${credit}</td>
-    <td style="padding:7px 0 7px 6px;text-align:right;white-space:nowrap;border-top:1px solid ${ROWLINE};">${balanceCellHtml(-line.balance, fmt)}</td>
+    <td style="padding:7px 0 7px 6px;text-align:right;white-space:nowrap;border-top:1px solid ${ROWLINE};">${balanceCellHtml(-r * line.balance, fmt)}</td>
   </tr>`;
 }
 
-function sectionHtml(section: StatementSection, t: DocT, hideAmounts = false): string {
+function sectionHtml(section: StatementSection, t: DocT, hideAmounts = false, r: 1 | -1 = 1, perspective?: StatementPerspective): string {
   const fmt = amountFmt(hideAmounts);
   const { opening, lines } = trimSection(section, MAX_ROWS_PER_SECTION);
   const openingBalance = opening ? opening.balance : 0;
@@ -191,10 +221,9 @@ function sectionHtml(section: StatementSection, t: DocT, hideAmounts = false): s
     // Gross lines add equally to both sides (net zero on the balance), so
     // the totals row reflects the REAL money story: everything given,
     // everything paid back, and the difference still reconciles.
-    if (l.grossGiven) totalDebit += l.grossGiven;
-    if (l.grossRepaid) totalCredit += l.grossRepaid;
-    if (l.delta > 0.005) totalDebit += l.delta;
-    else if (l.delta < -0.005) totalCredit += -l.delta;
+    const cols = lineColumns(l, r);
+    totalDebit += cols.received;
+    totalCredit += cols.gave;
   }
 
   const estimatedNote = section.estimated
@@ -223,16 +252,16 @@ function sectionHtml(section: StatementSection, t: DocT, hideAmounts = false): s
           <td style="padding:7px 6px;color:${MUTED};font-style:italic;border-top:1px solid ${ROWLINE};">${esc(openingLabel)}</td>
           <td style="border-top:1px solid ${ROWLINE};"></td>
           <td style="border-top:1px solid ${ROWLINE};"></td>
-          <td style="padding:7px 0 7px 6px;text-align:right;border-top:1px solid ${ROWLINE};">${balanceCellHtml(-openingBalance, fmt)}</td>
+          <td style="padding:7px 0 7px 6px;text-align:right;border-top:1px solid ${ROWLINE};">${balanceCellHtml(-r * openingBalance, fmt)}</td>
         </tr>
-        ${lines.map((l) => ledgerRowHtml(l, t, fmt)).join('')}
+        ${lines.map((l) => ledgerRowHtml(l, t, fmt, r, perspective)).join('')}
       </tbody>
       <tfoot>
         <tr style="border-top:2px solid ${NAVY};">
           <td colspan="2" style="padding:10px 6px 0 0;font-weight:600;color:${INK};">${esc(t('stmt_pdf_closing'))}</td>
           <td style="padding:10px 6px 0;text-align:right;font-weight:600;color:${NEG};">${fmt(totalDebit)}</td>
           <td style="padding:10px 6px 0;text-align:right;font-weight:600;color:${POS};">${fmt(totalCredit)}</td>
-          <td style="padding:10px 0 0 6px;text-align:right;font-weight:700;">${balanceCellHtml(-section.closing, fmt)}</td>
+          <td style="padding:10px 0 0 6px;text-align:right;font-weight:700;">${balanceCellHtml(-r * section.closing, fmt)}</td>
         </tr>
       </tfoot>
     </table>
@@ -247,6 +276,7 @@ export interface StatementPdfOptions {
   greeting?: string; // friendly opener, e.g. "Hello Rashid," — empty ⇒ omitted
   hideAmounts?: boolean; // privacy: every figure renders as the fixed-width mask
   t?: DocT; // language of the document; default = the app's current language
+  perspective?: StatementPerspective; // default 'counterparty' (sent to them); 'self' = "My copy"
 }
 
 // Inline styles for the offscreen page node — the shared PDF page node.
@@ -258,12 +288,16 @@ export const STATEMENT_NODE_STYLE = PDF_NODE_STYLE;
 // unit-testable; generateStatementPdf rasterises it.
 export function renderStatementInnerHtml(statement: Statement, opts: StatementPdfOptions = {}): string {
   const t = opts.t ?? tStatic;
+  const r = readerSign(opts.perspective);
   const period = periodRange(statement);
   const meta: LetterheadMeta[] = [
     { text: fillTemplate(t('stmt_pdf_no'), { no: statementNumber(statement, opts.refCode) }), tone: 'mono' },
     { text: fillTemplate(t('stmt_as_of'), { date: pdfDate(statement.asOf) }), tone: 'strong' },
   ];
   if (period) meta.push({ text: fillTemplate(t('stmt_pdf_period'), { range: period }), tone: 'muted' });
+  if (opts.perspective === 'self') meta.push({ text: t('stmt_pdf_self_copy'), tone: 'strong' });
+  // The other party, from the reader's seat (named under each hero figure).
+  const otherParty = opts.perspective === 'self' ? statement.partyName : opts.fromName;
 
   const partyPhone = opts.phone
     ? `<p style="margin:1px 0 0;font-size:12px;color:${MUTED};">${esc(opts.phone)}</p>`
@@ -304,9 +338,9 @@ export function renderStatementInnerHtml(statement: Statement, opts: StatementPd
 
     ${greetingHtml}
 
-    ${heroBlockHtml(statement, t, opts.fromName, !!opts.hideAmounts)}
+    ${heroBlockHtml(statement, t, otherParty, !!opts.hideAmounts, r)}
 
-    ${statement.hasActivity ? statement.sections.map((s) => sectionHtml(s, t, !!opts.hideAmounts)).join('') : ''}
+    ${statement.hasActivity ? statement.sections.map((s) => sectionHtml(s, t, !!opts.hideAmounts, r, opts.perspective)).join('') : ''}
 
     ${signOffHtml}
 

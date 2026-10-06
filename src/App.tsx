@@ -55,6 +55,7 @@ const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.H
 const TransactionsPage = lazy(() => import('./pages/TransactionsPage').then(m => ({ default: m.TransactionsPage })));
 const LoansPage = lazy(() => import('./pages/LoansPage').then(m => ({ default: m.LoansPage })));
 const LoanDetailPage = lazy(() => import('./pages/LoanDetailPage').then(m => ({ default: m.LoanDetailPage })));
+const PersonLedgerPage = lazy(() => import('./pages/PersonLedgerPage').then(m => ({ default: m.PersonLedgerPage })));
 const GoalsPage = lazy(() => import('./pages/GoalsPage').then(m => ({ default: m.GoalsPage })));
 const ActivityPage = lazy(() => import('./pages/ActivityPage').then(m => ({ default: m.ActivityPage })));
 const AccountDetailPage = lazy(() => import('./pages/AccountDetailPage').then(m => ({ default: m.AccountDetailPage })));
@@ -931,6 +932,8 @@ function AppContent() {
           <Route path="/transactions" element={mode === 'full_tracker' ? <TransactionsPage /> : <Navigate to="/" replace />} />
           <Route path="/loans" element={<LoansPage />} />
           <Route path="/loan/:id" element={<LoanDetailPage />} />
+          {/* Every loan + repayment with one contact, balance after each — both modes. */}
+          <Route path="/person/:personId/ledger" element={<PersonLedgerPage />} />
           {/* Phase 3 features. Budgets + Recurring stay full_tracker-only
               because they presuppose accounts. */}
           <Route path="/budgets" element={mode === 'full_tracker' ? <BudgetsPage /> : <Navigate to="/" replace />} />

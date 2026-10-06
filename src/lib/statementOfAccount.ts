@@ -60,6 +60,13 @@ export interface StatementLine {
   // both sides — a bare zero row would make their payments look erased.
   grossGiven?: number;
   grossRepaid?: number;
+  // Provenance, for display layers (statementRows.ts): which loan the line
+  // belongs to, which transaction row it came from (absent on synthesised and
+  // fold lines), and that loan's own remaining right after a repayment line —
+  // so "8,000 paid across 11 loans" can say what each loan was left at.
+  loanId?: string;
+  txnId?: string;
+  loanRemainingAfter?: number;
 }
 
 export interface StatementSection {
@@ -69,16 +76,38 @@ export interface StatementSection {
   estimated: boolean; // true when any line is synthetic
 }
 
+// 'compact' (default) folds a contact's settled loans so the OPEN ones lead —
+// right for a short WhatsApp message or a one-page PDF. 'full' itemises every
+// loan and repayment ever recorded: the person ledger and the full-history PDF,
+// where the whole point is that the reader can follow every step.
+export type StatementDetail = 'compact' | 'full';
+
 export interface Statement {
   partyName: string;
   asOf: string; // ISO timestamp the statement was generated for
   scope: StatementScope;
+  detail: StatementDetail;
   sections: StatementSection[];
   hasActivity: boolean; // false ⇒ nothing to show (fully settled / no history)
 }
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 const isNonZero = (n: number): boolean => !isZeroMoney(n);
+
+// Chronological order by INSTANT, not by string. Rows the app wrote itself
+// carry `…11.123Z`; rows read back from Supabase carry `…11.123456+00:00`
+// (6-digit, offset, trailing zeros dropped). Both sit in the store together,
+// so a string compare can misorder two events in the same second — exactly
+// the case for a lump repayment fanned out across loans. Falls back to plain
+// code-point order when either side doesn't parse. Array.sort is stable, so
+// equal instants keep their input order.
+export function compareIsoInstant(a: string, b: string): number {
+  const ta = Date.parse(a);
+  const tb = Date.parse(b);
+  if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) return ta - tb;
+  if (Number.isFinite(ta) && Number.isFinite(tb)) return 0;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
 
 // One event's signed effect on "what they owe you", given the direction of the
 // loan the transaction belongs to. Returns null for transaction types that
@@ -130,10 +159,12 @@ export interface BuildStatementInput {
   transactions: Transaction[];
   asOf: string; // ISO; callers pass new Date().toISOString()
   scope: StatementScope;
+  detail?: StatementDetail; // default 'compact'
 }
 
 export function buildStatement(input: BuildStatementInput): Statement {
   const { partyName, loans, transactions, asOf, scope } = input;
+  const detail: StatementDetail = input.detail ?? 'compact';
 
   const loanById = new Map<string, Loan>();
   for (const loan of loans) loanById.set(loan.id, loan);
@@ -160,7 +191,7 @@ export function buildStatement(input: BuildStatementInput): Statement {
 
     const events = transactions
       .filter((t) => t.relatedLoanId && loanIds.has(t.relatedLoanId) && !t.deletedAt)
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      .sort((a, b) => compareIsoInstant(a.createdAt, b.createdAt));
 
     // Collect dated entries per loan (real rows + synthesised gaps), then merge
     // chronologically and compute the running balance across the whole bucket.
@@ -176,7 +207,8 @@ export function buildStatement(input: BuildStatementInput): Statement {
     //     a just-cleared loan is news, its full payment history is not — and
     //     a mass catch-up (4+ recent settles) collapses to a single line;
     //   - older settled loans fold into one zero-effect count line.
-    // Single-loan and fully-settled statements keep their complete history.
+    // Single-loan and fully-settled statements keep their complete history,
+    // and so does detail 'full' (nothing folds — every step is shown).
     const hasOpen = currencyLoans.some((l) => isNonZero(l.remainingAmount));
     const RECENT_SETTLE_MS = 7 * 24 * 3600 * 1000;
     const recentlySettled = (l: Loan) =>
@@ -186,7 +218,7 @@ export function buildStatement(input: BuildStatementInput): Statement {
     const itemisedLoans: Loan[] = [];
     for (const loan of currencyLoans) {
       const isSettledLoan = !isNonZero(loan.remainingAmount);
-      if (scope === 'contact' && hasOpen && isSettledLoan) {
+      if (scope === 'contact' && hasOpen && isSettledLoan && detail !== 'full') {
         (recentlySettled(loan) ? recentSettled : foldedSettled).push(loan);
       } else {
         itemisedLoans.push(loan);
@@ -253,6 +285,7 @@ export function buildStatement(input: BuildStatementInput): Statement {
           note: loan.notes?.trim() || undefined,
           delta: loan.type === 'given' ? round2(loan.totalAmount) : round2(-loan.totalAmount),
           estimated: true,
+          loanId: loan.id,
         });
       }
 
@@ -261,6 +294,10 @@ export function buildStatement(input: BuildStatementInput): Statement {
         const delta = signedDelta(txn, loan.type);
         if (delta === null) continue;
         if (txn.type === 'repayment') recordedRepay = round2(recordedRepay + txn.amount);
+        // What THIS loan was left at after the repayment (never below zero —
+        // the store clamps too). Only meaningful on repayment lines.
+        const loanRemainingAfter =
+          txn.type === 'repayment' ? Math.max(0, round2(loan.totalAmount - recordedRepay)) : undefined;
         // A bare "Repayment received" doesn't tell the reader WHICH debt it
         // reduced — name the loan so partial settlement is legible.
         const base = describe(txn, loan.type);
@@ -275,6 +312,9 @@ export function buildStatement(input: BuildStatementInput): Statement {
           ...(loanNote ? { loanNote } : {}),
           note: txn.notes?.trim() || undefined,
           delta: round2(delta),
+          loanId: loan.id,
+          txnId: txn.id,
+          ...(loanRemainingAfter !== undefined ? { loanRemainingAfter } : {}),
         });
       }
 
@@ -290,11 +330,13 @@ export function buildStatement(input: BuildStatementInput): Statement {
           kind: loan.type === 'given' ? 'repayments_received_summary' : 'repayments_made_summary',
           delta: loan.type === 'given' ? -unrecorded : unrecorded,
           estimated: true,
+          loanId: loan.id,
+          loanRemainingAfter: round2(loan.remainingAmount),
         });
       }
     }
 
-    entries.sort((a, b) => a.date.localeCompare(b.date));
+    entries.sort((a, b) => compareIsoInstant(a.date, b.date));
 
     const lines: StatementLine[] = [];
     let running = 0;
@@ -317,6 +359,7 @@ export function buildStatement(input: BuildStatementInput): Statement {
     partyName,
     asOf,
     scope,
+    detail,
     sections,
     hasActivity: sections.length > 0,
   };
