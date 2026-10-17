@@ -59,7 +59,12 @@ function RotatingHeadline() {
 export function AuthPage() {
   const t = useT();
   const { signIn, signUp, requestPasswordReset, error } = useSupabaseAuthStore();
-  const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login');
+  // Set at boot by supabaseAuthStore when the URL carried an expired / used
+  // reset link (`?reset=1#error=…`): open straight on the reset form and say so.
+  const recoveryLinkExpired = useSupabaseAuthStore(s => s.recoveryLinkExpired);
+  const clearRecoveryLinkExpired = useSupabaseAuthStore(s => s.clearRecoveryLinkExpired);
+  const [mode, setMode] = useState<'login' | 'signup' | 'reset'>(recoveryLinkExpired ? 'reset' : 'login');
+  const [linkExpired, setLinkExpired] = useState(recoveryLinkExpired);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -93,6 +98,12 @@ export function AuthPage() {
   // "Did you mean gmail.com?" — only when the typed address looks like a known
   // domain typo, so a mistyped email doesn't strand the user in verify limbo.
   const emailSuggestion = suggestEmailFix(email);
+
+  useEffect(() => {
+    // One-shot: consumed into local state above, so a later visit to the auth
+    // page (sign-out, deleted account) does not repeat the warning.
+    if (recoveryLinkExpired) clearRecoveryLinkExpired();
+  }, [recoveryLinkExpired, clearRecoveryLinkExpired]);
 
   useEffect(() => {
     if (sessionStorage.getItem('hisaab_just_verified')) {
@@ -157,6 +168,7 @@ export function AuthPage() {
     setMode(next);
     setDetour(null);
     setResetMsg('');
+    setLinkExpired(false);
   };
 
   const handleSubmit = async () => {
@@ -343,6 +355,13 @@ export function AuthPage() {
             <Glyph name="sparkle" tone="violet" size={14} />
             <span>{t('auth_first_action_hint')}</span>
           </button>
+        )}
+
+        {mode === 'reset' && linkExpired && (
+          <div role="alert" className="m-card mb-4 flex items-start justify-center gap-2 px-4 py-3 text-pay-text text-[12.5px] font-medium animate-fade-in">
+            <Glyph name="clock" size={14} className="shrink-0 mt-0.5" />
+            <span className="leading-relaxed">{t('auth_reset_link_expired')}</span>
+          </div>
         )}
 
         {mode === 'reset' && (

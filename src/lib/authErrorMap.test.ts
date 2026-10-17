@@ -29,6 +29,19 @@ describe('mapAuthError', () => {
     expect(d.field).toBe('password');
   });
 
+  it('maps a same-as-old password (set-new-password screen) to a fixPassword detour', () => {
+    const d = mapAuthError('New password should be different from the old password.');
+    expect(d.msgKey).toBe('err_password_same');
+    expect(d.action).toBe('fixPassword');
+    expect(d.field).toBe('password');
+  });
+
+  it('maps a vanished recovery session to a reset detour', () => {
+    const d = mapAuthError('Auth session missing!');
+    expect(d.msgKey).toBe('err_recovery_session_missing');
+    expect(d.action).toBe('reset');
+  });
+
   // Ordering is load-bearing: specific throttles must win over generic 'rate limit'.
   it('prefers the security-throttle message over the generic rate limit', () => {
     const d = mapAuthError('For security purposes, you can only request this after 21 seconds.');
