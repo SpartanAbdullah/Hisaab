@@ -7,6 +7,7 @@ import { accountDeletionDb } from '../lib/supabaseDb';
 import { stopPushRegistration } from '../lib/pushRegistration';
 import { cancelAllScheduledNotifications } from '../lib/notificationScheduler';
 import { clearWidgetSnapshot } from '../lib/widgetBridge';
+import { teardownCapture } from '../lib/captureBridge';
 import { reportError, reportMessage } from '../lib/errorReporter';
 import { getCachedProfile, invalidateProfileCache } from '../lib/profileCache';
 
@@ -131,6 +132,9 @@ async function teardownDeviceNotifications(): Promise<void> {
     // The home-screen widget shows today's entry count + streak; the next
     // holder of this phone must not see the leaving account's.
     withTeardownTimeout('widget snapshot clear', clearWidgetSnapshot()),
+    // Queued bank-alert captures are this account's; drop them and switch the
+    // listener off so the next account on the phone must opt in itself.
+    withTeardownTimeout('capture queue clear', teardownCapture()),
   ]);
 }
 

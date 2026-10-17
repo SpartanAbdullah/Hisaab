@@ -12,6 +12,9 @@ import { useAccountStore } from "../stores/accountStore";
 import { useAuthStore } from "../stores/authStore";
 import { useToast } from "../components/Toast";
 import { isNativeRuntime } from "../lib/runtime";
+import { getCaptureStatus, openCaptureSettings, setCaptureEnabled, type CaptureStatus } from "../lib/captureBridge";
+import { Modal } from "../components/Modal";
+import { track } from "../lib/telemetry";
 import { enableDailyCloseFlow, enableRemindersFlow, remindersEnabled, rescheduleNotifications, REMINDERS_KEY } from "../lib/notificationScheduler";
 import { DAILY_CLOSE_KEY, dailyCloseEnabled, dailyCloseTime, setDailyCloseTime } from "../lib/dailyClosePrefs";
 import { requestPushPermissionAndRegister } from "../lib/pushRegistration";
@@ -239,6 +242,13 @@ export function SettingsPage() {
   const [closeOn, setCloseOn] = useState(() => dailyCloseEnabled());
   const [closeTime, setCloseTime] = useState(() => dailyCloseTime());
   const [closeBusy, setCloseBusy] = useState(false);
+  // Bank-alert auto-capture (Android notification listener). The switch
+  // reads ON only when both halves hold: the in-app opt-in AND the OS
+  // Notification-access grant; enabling walks through the prominent
+  // disclosure first, then Android's own page (src/lib/captureBridge.ts).
+  const [captureStatus, setCaptureStatus] = useState<CaptureStatus>({ granted: false, enabled: false });
+  const [captureBusy, setCaptureBusy] = useState(false);
+  const [showCaptureDisclosure, setShowCaptureDisclosure] = useState(false);
   // M5 quiet hours + real push opt-in (docs/notifications.md §8.2, audit N-6).
   // Quiet hours mirror `notification_prefs`' global row through the store;
   // both null (no window configured yet) shows the DEFAULT_QUIET_* fallback
@@ -349,6 +359,28 @@ export function SettingsPage() {
     void loadBlocks();
     void loadPersons().catch(() => {});
   }, [loadBlocks, loadPersons]);
+
+  // Capture status: on mount, and again whenever the page becomes visible —
+  // that is the return from Android's Notification-access page, where the
+  // grant the user just gave has to show up without a reload.
+  useEffect(() => {
+    if (!isNativeRuntime()) return;
+    let cancelled = false;
+    const refresh = () => {
+      void getCaptureStatus().then((s) => {
+        if (!cancelled) setCaptureStatus(s);
+      });
+    };
+    refresh();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   // Notification prefs (quiet hours) — best-effort, tolerates the M5
   // migration not being applied yet (loadPrefs swallows that itself).
@@ -1098,6 +1130,56 @@ export function SettingsPage() {
             </div>
           ))}
 
+          {/* Auto-capture bank alerts — Android notification listener. Off →
+              prominent disclosure → Android's Notification-access page; the
+              in-app opt-in is written before the OS grant so the listener is
+              live the moment the user flips it there. Native-only surface;
+              the share-sheet route needs no switch and works regardless. */}
+          {isNativeRuntime() && (
+            <div>
+              <div className={rowClass}>
+                <RowIcon glyph="inbox" tone="violet" />
+                <RowText title={t("settings_capture")} sub={t("settings_capture_desc")} />
+                <button
+                  type="button"
+                  role="switch"
+                  disabled={captureBusy}
+                  onClick={() => {
+                    void (async () => {
+                      if (captureStatus.enabled) {
+                        setCaptureBusy(true);
+                        try {
+                          await setCaptureEnabled(false);
+                          track("capture_listener_toggled", { enabled: false, granted: captureStatus.granted });
+                          setCaptureStatus((s) => ({ ...s, enabled: false }));
+                        } finally {
+                          setCaptureBusy(false);
+                        }
+                        return;
+                      }
+                      setShowCaptureDisclosure(true);
+                    })();
+                  }}
+                  aria-checked={captureStatus.enabled && captureStatus.granted}
+                  aria-label={t("settings_capture")}
+                  className="m-switch"
+                />
+              </div>
+              <div className="px-4 pb-4 -mt-1 space-y-1.5">
+                {captureStatus.enabled && !captureStatus.granted && (
+                  <button
+                    type="button"
+                    onClick={() => void openCaptureSettings()}
+                    className="text-[12px] font-semibold text-warn-700 text-left leading-snug"
+                  >
+                    {t("settings_capture_not_granted")} {t("settings_capture_open_settings")}
+                  </button>
+                )}
+                <p className="text-[11.5px] text-ink-500 leading-snug">{t("settings_capture_share_tip")}</p>
+              </div>
+            </div>
+          )}
+
           {/* Global mute — M5 (docs/notifications.md §8.2). Same server-side
               row as the per-group mute in GroupDetailPage, just group_id null:
               suppresses every `notifications` row (and therefore every push)
@@ -1703,6 +1785,65 @@ export function SettingsPage() {
       </div>
 
       <ManageCategoriesModal open={showCategories} onClose={() => setShowCategories(false)} />
+
+      {/* Prominent disclosure for Notification access (Play's "Permissions
+          and APIs that access sensitive information" policy): what is read,
+          what is excluded, that nothing is uploaded until Record. Shown
+          before the OS page every time the switch goes on. */}
+      <Modal
+        open={showCaptureDisclosure}
+        onClose={() => setShowCaptureDisclosure(false)}
+        title={t("capture_disclosure_title")}
+        footer={
+          <div className="space-y-2">
+            <button
+              type="button"
+              className="m-btn m-btn-primary w-full py-3.5 text-[13.5px]"
+              onClick={() => {
+                void (async () => {
+                  setShowCaptureDisclosure(false);
+                  setCaptureBusy(true);
+                  try {
+                    // Android 13+: the "Record this?" offer is a notification
+                    // of our own, so it needs the app's single notification
+                    // permission — the same grant reminders and push use.
+                    try {
+                      const { LocalNotifications } = await import("@capacitor/local-notifications");
+                      await LocalNotifications.requestPermissions();
+                    } catch {
+                      /* older binary */
+                    }
+                    await setCaptureEnabled(true);
+                    const s = await getCaptureStatus();
+                    track("capture_listener_toggled", { enabled: true, granted: s.granted });
+                    setCaptureStatus({ granted: s.granted, enabled: true });
+                    if (!s.granted) {
+                      toast.show({ type: "info", title: t("capture_permission_hint") });
+                      await openCaptureSettings();
+                    }
+                  } finally {
+                    setCaptureBusy(false);
+                  }
+                })();
+              }}
+            >
+              {t("capture_disclosure_cta")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCaptureDisclosure(false)}
+              className="w-full min-h-[44px] text-center text-[13px] font-semibold text-ink-500"
+            >
+              {t("capture_disclosure_cancel")}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-3 text-[13px] text-ink-700 leading-relaxed">
+          <p>{t("capture_disclosure_p1")}</p>
+          <p>{t("capture_disclosure_p2")}</p>
+        </div>
+      </Modal>
     </main>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { BottomNav } from './components/BottomNav';
-import { ToastContainer } from './components/Toast';
+import { ToastContainer, useToast } from './components/Toast';
 import { ConfirmDestructiveSheet } from './components/ConfirmDestructiveSheet';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useOnboardingStore } from './stores/onboardingStore';
@@ -26,6 +26,8 @@ import { startPushRegistration, stopPushRegistration } from './lib/pushRegistrat
 import { supabase } from './lib/supabase';
 import { initNativeBridge } from './lib/nativeBridge';
 import { isNativeRuntime } from './lib/runtime';
+import { readCaptureParams, stripCaptureParams, type CaptureSource } from './lib/captureOffer';
+import { takeCapture } from './lib/captureBridge';
 import { useAuthStore } from './stores/authStore';
 import { PIN_RELOCK_AFTER_MS } from './lib/pinCrypto';
 import { identify, resetTelemetryIdentity } from './lib/telemetry';
@@ -44,7 +46,7 @@ import {
   type AppVersionConfig,
   type AppVersionIdentity,
 } from './lib/versionGate';
-import { useT, useI18nStore, reconcileProfileLang } from './lib/i18n';
+import { useT, useI18nStore, reconcileProfileLang, tStatic } from './lib/i18n';
 import { Glyph } from './components/Glyph';
 import { LanguageToggle } from './components/LanguageToggle';
 
@@ -106,6 +108,7 @@ const CreateGroupModal = lazy(() => import('./pages/CreateGroupModal').then(m =>
 const RecurringDuePrompt = lazy(() => import('./components/RecurringDuePrompt').then(m => ({ default: m.RecurringDuePrompt })));
 const MonthlyWrapModal = lazy(() => import('./components/MonthlyWrapModal').then(m => ({ default: m.MonthlyWrapModal })));
 const DailyQuote = lazy(() => import('./components/DailyQuote').then(m => ({ default: m.DailyQuote })));
+const CaptureSheet = lazy(() => import('./components/CaptureSheet').then(m => ({ default: m.CaptureSheet })));
 
 import { OfflineBanner } from './components/OfflineBanner';
 import { AppLoadingScreen } from './components/AppLoadingScreen';
@@ -304,6 +307,9 @@ function AppContent() {
   // Set when QuickEntry is opened from a link (`?add=expense` — the evening
   // nudge's "Add expense" button, the launcher shortcut); null from the FAB.
   const [quickEntryPreset, setQuickEntryPreset] = useState<QuickEntryPreset | null>(null);
+  // A captured bank alert waiting for the user's "Record this?" decision —
+  // from the Android share sheet or the notification listener (CaptureSheet).
+  const [capture, setCapture] = useState<{ source: CaptureSource; text: string } | null>(null);
   // QuickEntry → Group expense bridge: when the user picks a group inside
   // QuickEntry, we close it and open AddGroupExpenseModal with the
   // already-typed amount. When they pick "Create new group" instead,
@@ -369,6 +375,30 @@ function AppContent() {
     setQuickEntryMounted(true);
     setShowQuickEntry(true);
   }, [location.search, location.pathname, user, completed, mode, navigate]);
+
+  // `?capture=<text>` (share sheet) and `?capture_id=<id>` (a tap on the
+  // listener's "Record this?" notification) open the CaptureSheet. Same
+  // gating and self-stripping as `?add=expense`. A listener candidate is
+  // taken from the native queue exactly once, so a stale notification tap
+  // just says the alert is gone.
+  useEffect(() => {
+    const params = readCaptureParams(location.search);
+    if (!params || !user || !completed) return;
+    navigate(`${location.pathname}${stripCaptureParams(location.search)}`, { replace: true });
+    if (params.text) {
+      setCapture({ source: 'share', text: params.text });
+      return;
+    }
+    if (params.captureId) {
+      void takeCapture(params.captureId).then((candidate) => {
+        if (candidate) {
+          setCapture({ source: 'notification', text: candidate.title ? `${candidate.title}\n${candidate.text}` : candidate.text });
+        } else {
+          useToast.getState().show({ type: 'error', title: tStatic('capture_gone') });
+        }
+      });
+    }
+  }, [location.search, location.pathname, user, completed, navigate]);
 
   // Capacitor native bridge — initialised once after the router is available.
   // No-op on web. Wires status bar, splash, hardware back button, deep links.
@@ -986,6 +1016,31 @@ function AppContent() {
           show while a chunk arrives is the page the user is already looking
           at — never a full-screen PageLoader. A chunk that fails to load is
           picked up by GlobalChunkRecoveryOverlay, same as any route. */}
+
+      {capture && (
+        <Suspense fallback={null}>
+          <CaptureSheet
+            open
+            source={capture.source}
+            text={capture.text}
+            onClose={() => setCapture(null)}
+            onRecord={(preset) => {
+              setCapture(null);
+              // Ledger-only mode has no accounts or expense type: hand over
+              // the amount and the label and let the picker do the rest.
+              setQuickEntryPreset(mode === 'full_tracker' ? preset : { amount: preset.amount, notes: preset.notes });
+              setQuickEntryMounted(true);
+              setShowQuickEntry(true);
+            }}
+            onManual={(partial) => {
+              setCapture(null);
+              setQuickEntryPreset(mode === 'full_tracker' ? { type: 'expense', ...partial } : { ...partial });
+              setQuickEntryMounted(true);
+              setShowQuickEntry(true);
+            }}
+          />
+        </Suspense>
+      )}
 
       {quickEntryMounted && (
         <Suspense fallback={null}>

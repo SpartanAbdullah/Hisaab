@@ -190,6 +190,14 @@ export const TELEMETRY_SCHEMA = {
   },
   // 27 — never the raw text
   ai_entry_submitted: { parsed_ok: BOOL, accepted: BOOL },
+  // 27b — bank-alert capture (share sheet / Android notification listener).
+  // Never the raw alert, the amount or the merchant: only how it went.
+  capture_offered: {
+    source: enumOf(['share', 'notification']),
+    parsed: enumOf(['ok', 'none', 'refused']),
+  },
+  capture_resolved: { action: enumOf(['record', 'manual', 'dismiss']) },
+  capture_listener_toggled: { enabled: BOOL, granted: BOOL },
   // 28 — bridge from errorReporter so error rate joins product data
   error_surfaced: { feature: enumOf(['react.render', 'window.onerror', 'window.unhandledrejection', 'money_mutation', 'other']) },
 

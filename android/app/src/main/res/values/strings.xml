@@ -12,4 +12,13 @@
     <string name="widget_close_today">Close today</string>
     <string name="widget_status_neutral">Tap to log today</string>
     <string name="widget_description">Add an expense or close today in one tap</string>
+    <!-- Bank-alert capture. The share-sheet label and the listener's name in
+         Android's Notification-access list are OS-level, so English only;
+         the offer notification's text is normally written by the app in the
+         user's language (CaptureStore labels) — these are the fallback. -->
+    <string name="share_target_label">Record in Hisaab</string>
+    <string name="capture_listener_label">Hisaab bank-alert capture</string>
+    <string name="capture_channel_name">Bank alert capture</string>
+    <string name="capture_notif_title">Record this transaction?</string>
+    <string name="capture_notif_body">Tap — Hisaab has the amount and place filled in.</string>
 </resources>

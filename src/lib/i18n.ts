@@ -4114,6 +4114,76 @@ const S = {
   push_enable_cta: { ur: "Chalu karein", en: "Enable" },
   // Contextual notification-permission ask (NotificationPermissionPrompt),
   // shown at high-intent moments instead of only the buried Settings toggle.
+  // Bank-alert capture — share sheet + Android notification listener
+  // (src/components/CaptureSheet.tsx, src/lib/captureBridge.ts).
+  capture_sheet_title: { ur: "Yeh record karein?", en: "Record this?" },
+  capture_from_share: { ur: "Hisaab mein share kiya gaya", en: "Shared into Hisaab" },
+  capture_from_notification: { ur: "Is phone par aaye bank alert se", en: "From a bank alert on this phone" },
+  capture_dir_spent: { ur: "Kharch hua", en: "Spent" },
+  capture_dir_received: { ur: "Mila", en: "Received" },
+  capture_dir_unknown_hint: {
+    ur: "Pata nahi chala paisa gaya ya aaya — aap chunein.",
+    en: "Couldn't tell if this money went out or came in — you pick.",
+  },
+  capture_merchant_label: { ur: "Kahan", en: "Where" },
+  capture_account_label: { ur: "Account", en: "Account" },
+  capture_account_unmatched: {
+    ur: "{last4} par khatam hone wala koi account nahi — agle step mein chunein.",
+    en: "No account ending {last4} — you'll pick one next.",
+  },
+  capture_account_pick: { ur: "Account agle step mein chunein ge.", en: "You'll pick the account next." },
+  capture_date_label: { ur: "Tareekh", en: "Date" },
+  capture_balance_after: { ur: "Bank ke mutabiq baad ka balance: {amount}", en: "Bank says balance after: {amount}" },
+  capture_record_cta: { ur: "Record karein", en: "Record" },
+  capture_not_this: { ur: "Yeh lenden nahi", en: "Not a transaction" },
+  capture_unparsed_title: { ur: "Raqam samajh nahi aayi", en: "Couldn't read an amount" },
+  capture_unparsed_body: {
+    ur: "Hisaab ko is text mein koi lenden nahi mili. Aap phir bhi haath se darj kar sakte hain.",
+    en: "Hisaab couldn't find a transaction in this text. You can still enter it by hand.",
+  },
+  capture_refused_title: { ur: "Record nahi hoga", en: "Won't record this" },
+  capture_refused_body: {
+    ur: "Yeh OTP, decline hui payment ya aane wali payment lagti hai — Hisaab aise messages record nahi karta.",
+    en: "This looks like a one-time code, a declined payment or a future payment — Hisaab doesn't record those.",
+  },
+  capture_enter_manually: { ur: "Haath se darj karein", en: "Enter by hand" },
+  capture_raw_toggle: { ur: "Asal text dikhayen", en: "Show original text" },
+  capture_ledger_only_hint: {
+    ur: "Ledger mode mein accounts nahi hote — raqam bhar ke lenden ka picker khulega.",
+    en: "Ledger mode has no accounts — the entry picker opens with the amount filled in.",
+  },
+  capture_notif_title: { ur: "Yeh lenden record karein?", en: "Record this transaction?" },
+  capture_notif_body: { ur: "Tap karein — Hisaab ne raqam aur jagah pehle se bhar di hai.", en: "Tap — Hisaab has the amount and place filled in." },
+  capture_gone: { ur: "Yeh alert ab mojood nahi.", en: "That alert is no longer available." },
+  settings_capture: { ur: "Bank alerts auto-capture", en: "Auto-capture bank alerts" },
+  settings_capture_desc: {
+    ur: "Jab bank ya wallet ka alert is phone par aaye, Hisaab usay record karne ki peshkash karega. Record tap kiye baghair kuch save nahi hota.",
+    en: "When a bank or wallet alert arrives on this phone, Hisaab offers to record it. Nothing is saved until you tap Record.",
+  },
+  settings_capture_share_tip: {
+    ur: "Tip: koi bhi bank message ya email share menu se Hisaab ko bhej sakte hain.",
+    en: "Tip: you can also share any bank message or email to Hisaab from the share menu.",
+  },
+  settings_capture_not_granted: {
+    ur: "Android mein Hisaab ke liye Notification access band hai — settings mein on karein.",
+    en: "Notification access is off for Hisaab — turn it on in Android settings.",
+  },
+  settings_capture_open_settings: { ur: "Android settings kholein", en: "Open Android settings" },
+  capture_disclosure_title: { ur: "Hisaab ko bank alerts parhne dein?", en: "Let Hisaab read bank alerts?" },
+  capture_disclosure_p1: {
+    ur: "Hisaab Android ki Notification access se is phone par doosri apps ke notifications parhega, taake bank aur wallet alerts pehchan kar record karne ki peshkash kar sake.",
+    en: "Hisaab will use Android's Notification access to read the notifications other apps post on this phone, so it can spot bank and wallet alerts and offer to record them.",
+  },
+  capture_disclosure_p2: {
+    ur: "SMS, WhatsApp aur doosri messaging apps ko nazar-andaz karta hai, sirf lenden jaise alerts rakhta hai, aur woh is phone par hi rehte hain. Record tap karne tak kuch upload nahi hota. Yahan se kabhi bhi band kar sakte hain.",
+    en: "It ignores SMS, WhatsApp and other messaging apps, keeps only alerts that look like a transaction, and keeps them on this phone. Nothing is uploaded until you tap Record. You can switch it off here any time.",
+  },
+  capture_disclosure_cta: { ur: "Aage barhein", en: "Continue" },
+  capture_disclosure_cancel: { ur: "Abhi nahi", en: "Not now" },
+  capture_permission_hint: {
+    ur: "Android ki list mein Hisaab dhoondein, on karein, phir wapas aayen.",
+    en: "Find Hisaab in Android's list, switch it on, then come back.",
+  },
   notif_prompt_title: {
     ur: "Is qarz ki yaad-dahani chahiye?",
     en: "Want a reminder for this loan?",
@@ -5965,6 +6035,11 @@ export const useI18nStore = create<I18nState>((set) => ({
     // scheduler's planner statically imports THIS module. No-op on web.
     void import("./notificationScheduler")
       .then((m) => m.rescheduleNotifications({ force: true }))
+      .catch(() => {});
+    // The bank-alert capture notification's text is handed to Android at
+    // toggle time — re-send it in the new language while capture is on.
+    void import("./captureBridge")
+      .then((m) => m.refreshCaptureLabels())
       .catch(() => {});
   },
 }));
