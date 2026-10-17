@@ -18,7 +18,7 @@
 //   • Fires with no `schedule`, so it is delivered rather than pending —
 //     notificationScheduler's cancel-all-pending sweep can't eat it.
 import { isNativeRuntime } from './runtime';
-import { notificationChannel, notificationHref, renderNotificationContent } from './notificationContent';
+import { notificationChannel, notificationHref, notificationTrayBody, renderNotificationContent } from './notificationContent';
 import { isAttentionNotification, type NotificationMuteState } from './notificationCounts';
 import { tStatic } from './i18n';
 import type { AppNotification } from '../db';
@@ -178,7 +178,9 @@ function trayItemFor(n: AppNotification): TrayItem {
   return {
     id: androidNotificationId(`instant:${n.id}`),
     title: content.title || 'Hisaab',
-    body: content.body,
+    // The tray has one text slot: event + the reader's move + the balance
+    // after, with ▲/▼ as a glyph since there is no colour to lean on.
+    body: notificationTrayBody(content),
     // Deep-links group rows to the group itself instead of dumping the
     // user at the top of /groups to hunt (audit N-8). Prefers the
     // server-stamped href when the row has one.

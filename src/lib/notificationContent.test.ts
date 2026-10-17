@@ -3,6 +3,7 @@ import {
   notificationChannel,
   notificationCollapseKey,
   notificationHref,
+  notificationTrayBody,
   readAmount,
   renderNotificationContent,
 } from './notificationContent';
@@ -310,52 +311,75 @@ describe('linked money notices say where the total stands (notify-balance-after)
     };
     const english = renderNotificationContent(row, en);
     expect(english.title).toBe('New shared loan to review');
-    expect(english.body).toBe('Abdullah recorded AED 87.60 that you borrowed. If you accept: You owe Abdullah AED 5,225.01. Open Inbox to confirm.');
+    expect(english.body).toBe('Abdullah recorded AED 87.60 that you borrowed. Open Inbox to confirm.');
+    // The balance is the SECOND line (2026-10-17): arrow down (the reader
+    // would owe more), coral (they owe), "if you accept".
+    expect(english.balance).toEqual({
+      direction: 'down', tone: 'pay', move: '',
+      text: 'If you accept: You owe Abdullah AED 5,225.01',
+    });
+    expect(notificationTrayBody(english)).toBe('Abdullah recorded AED 87.60 that you borrowed. Open Inbox to confirm. ▼ If you accept: You owe Abdullah AED 5,225.01.');
     const urdu = renderNotificationContent(row, ur);
     expect(urdu.title).toBe('Naya qarz — tasdeeq karein');
-    expect(urdu.body).toBe('Abdullah ne AED 87.60 likha jo aap ne udhaar liya. Accept karne par: Aap ne Abdullah ko AED 5,225.01 dene hain. Inbox mein tasdeeq karein.');
+    expect(urdu.body).toBe('Abdullah ne AED 87.60 likha jo aap ne udhaar liya. Inbox mein tasdeeq karein.');
+    expect(urdu.balance?.text).toBe('Accept karne par: Aap ne Abdullah ko AED 5,225.01 dene hain');
   });
 
   it('a recorded repayment says what is left; settled reads as settled', () => {
     const recorded = renderNotificationContent({
       title: 'Repayment recorded', body: 'server body', template: 'lsr_recorded',
-      params: { actorName: 'Abdullah', amount: 2000, currency: 'AED', requestId: 'x', balanceAfter: -5124.41 },
+      params: { actorName: 'Abdullah', amount: 2000, currency: 'AED', requestId: 'x', balanceAfter: -5124.41, delta: 2000 },
     }, en);
-    expect(recorded.body).toBe('Abdullah recorded your repayment of AED 2,000.00. Nothing to confirm. Now: You owe Abdullah AED 5,124.41.');
+    expect(recorded.body).toBe('Abdullah recorded your repayment of AED 2,000.00. Nothing to confirm.');
+    expect(recorded.balance).toEqual({ direction: 'up', tone: 'pay', move: '', text: 'Now: You owe Abdullah AED 5,124.41' });
     const settled = renderNotificationContent({
       title: 't', body: 'b', template: 'lsr_accepted',
       params: { actorName: 'Sara', amount: 50, currency: 'AED', requestId: 'y', balanceAfter: 0 },
     }, en);
-    expect(settled.body).toBe('Sara confirmed the repayment of AED 50.00. Now: Settled up with Sara.');
+    expect(settled.body).toBe('Sara confirmed the repayment of AED 50.00.');
+    expect(settled.balance).toEqual({ direction: 'flat', tone: 'neutral', move: '', text: 'Now: Settled up with Sara' });
+    expect(notificationTrayBody(settled)).toBe('Sara confirmed the repayment of AED 50.00. Now: Settled up with Sara.');
   });
 
-  it('every new template has a title and a balance body in both languages', () => {
+  it('every linked template has a title, a body and a balance line in both languages', () => {
     for (const template of ['ltr_request', 'ltr_accepted', 'ltr_rejected', 'lsr_request', 'lsr_accepted', 'lsr_rejected', 'lsr_recorded', 'lsr_undone']) {
       for (const translate of [en, ur]) {
         const out = renderNotificationContent({
           title: 'server title', body: 'server body', template,
-          params: { actorName: 'Ali', amount: 10, currency: 'AED', kind: 'lent', requestId: 'r', balanceAfter: 25 },
+          params: { actorName: 'Ali', amount: 10, currency: 'AED', kind: 'lent', requestId: 'r', balanceAfter: 25, delta: 10 },
         }, translate);
         expect(out.title, template).not.toBe('server title');
         expect(out.body, template).not.toBe('server body');
         expect(out.body, template).toContain('Ali');
-        expect(out.body, template).toContain('25.00');
         expect(out.body, template).not.toContain('{');
+        expect(out.balance?.text, template).toContain('25.00');
+        expect(out.balance?.text, template).not.toContain('{');
+        expect(out.balance?.tone, template).toBe('receive');
       }
     }
   });
 
-  it('an older row without balanceAfter keeps its plain copy (lsr) or the server text (new templates)', () => {
+  it('a batch row (lump repayment across loans) says so', () => {
+    const out = renderNotificationContent({
+      title: 't', body: 'b', template: 'lsr_request',
+      params: { actorName: 'Ali', amount: 10, currency: 'AED', requestId: 'i1:l1', batchId: 'i1', balanceAfter: 25, delta: -10 },
+    }, en);
+    expect(out.body).toBe('Ali recorded a repayment of AED 10.00. Open Inbox to confirm. Part of one repayment across your loans.');
+  });
+
+  it('an older row without balanceAfter keeps its plain copy and draws no balance line', () => {
     const plain = renderNotificationContent({
       title: 'Repayment recorded', body: 'server body', template: 'lsr_recorded',
       params: { actorName: 'Ali', amount: 10, currency: 'AED' },
     }, en);
     expect(plain.body).toBe('Ali recorded your repayment of AED 10.00. Nothing to confirm.');
+    expect(plain.balance).toBeUndefined();
     const legacy = renderNotificationContent({
       title: 'server title', body: 'server body', template: 'ltr_accepted',
       params: { actorName: 'Ali', amount: 10, currency: 'AED' },
     }, en);
-    expect(legacy.body).toBe('server body');
+    expect(legacy.body).toBe('Ali confirmed the shared loan of AED 10.00.');
+    expect(legacy.balance).toBeUndefined();
   });
 
   it('echo translator: the request body picks the reader-side direction key', () => {
@@ -364,5 +388,75 @@ describe('linked money notices say where the total stands (notify-balance-after)
       params: { actorName: 'A', amount: 1, currency: 'AED', kind: 'lent', balanceAfter: 1 },
     }, echo);
     expect(lent.body).toBe('[ntf_ltr_request_lent_body]');
+  });
+});
+
+describe('group money notices carry the reader\'s move and balance (notify-direction-and-balance)', () => {
+  const base = {
+    actorName: 'Ali', groupName: 'Flat 12', description: 'Dinner', amount: 150, currency: 'AED', expenseId: 'e1',
+  };
+
+  it('an expense share: event sentence unchanged, second line = share + balance with the payer', () => {
+    const out = renderNotificationContent({
+      title: 'Ali added an expense', body: 'server', template: 'expense_added',
+      params: { ...base, delta: -50, balanceAfter: -120, balanceScope: 'pair', counterpartyName: 'Ali' },
+    }, en);
+    expect(out.title).toBe('Ali added an expense');
+    expect(out.body).toBe('Dinner for AED 150.00 was added in Flat 12.');
+    expect(out.balance).toEqual({
+      direction: 'down', tone: 'pay',
+      move: 'Your share: AED 50.00',
+      text: 'Now in Flat 12: You owe Ali AED 120.00',
+    });
+    expect(notificationTrayBody(out)).toBe('Dinner for AED 150.00 was added in Flat 12. Your share: AED 50.00. ▼ Now in Flat 12: You owe Ali AED 120.00.');
+    const urdu = renderNotificationContent({
+      title: 't', body: 'b', template: 'expense_added',
+      params: { ...base, delta: -50, balanceAfter: -120, balanceScope: 'pair', counterpartyName: 'Ali' },
+    }, ur);
+    expect(urdu.body).toBe('Flat 12 mein Dinner — AED 150.00 add hua.');
+    expect(urdu.balance?.move).toBe('Aap ka hissa: AED 50.00');
+    expect(urdu.balance?.text).toBe('Ab Flat 12 mein: Aap ne Ali ko AED 120.00 dene hain');
+  });
+
+  it('the payer reads the group scope; a settlement bystander reads flat', () => {
+    const payer = renderNotificationContent({
+      title: 't', body: 'b', template: 'expense_added',
+      params: { ...base, delta: 100, balanceAfter: 300, balanceScope: 'group' },
+    }, en);
+    expect(payer.balance).toEqual({
+      direction: 'up', tone: 'receive',
+      move: 'You paid — AED 100.00 is owed to you',
+      text: 'Now in Flat 12: you are owed AED 300.00 overall',
+    });
+    const bystander = renderNotificationContent({
+      title: 't', body: 'b', template: 'settlement_added',
+      params: { groupName: 'Flat 12', fromName: 'Ali', toName: 'Sara', amount: 20, currency: 'AED', delta: 0, balanceAfter: 0, balanceScope: 'group' },
+    }, en);
+    expect(bystander.body).toBe('Ali settled AED 20.00 with Sara in Flat 12.');
+    expect(bystander.balance).toEqual({ direction: 'flat', tone: 'neutral', move: 'Nothing changes for you', text: 'Now in Flat 12: all settled up' });
+  });
+
+  it('a row from the older trigger (no delta) renders exactly as before', () => {
+    const out = renderNotificationContent({ title: 't', body: 'b', template: 'expense_added', params: base }, en);
+    expect(out.body).toBe('Dinner for AED 150.00 was added in Flat 12.');
+    expect(out.balance).toBeUndefined();
+    expect(notificationTrayBody(out)).toBe('Dinner for AED 150.00 was added in Flat 12.');
+  });
+
+  it('kameti contribution / payout rows have titles, bodies and a position line in both languages', () => {
+    for (const template of ['kameti_contribution_recorded', 'kameti_contribution_removed', 'kameti_payout_recorded']) {
+      for (const translate of [en, ur]) {
+        const out = renderNotificationContent({
+          title: 'server title', body: 'server body', template,
+          params: { committeeId: 'K1', committeeName: 'Office', currency: 'AED', amount: 500, round: 3, paidRounds: 3, totalRounds: 10, paidTotal: 1500, delta: template === 'kameti_contribution_recorded' ? -500 : 500 },
+        }, translate);
+        expect(out.title, template).toContain('Office');
+        expect(out.body, template).toContain('AED 500.00');
+        expect(out.body, template).not.toContain('{');
+        expect(out.balance?.text, template).toContain('AED 1,500.00');
+        expect(out.balance?.direction, template).toBe(template === 'kameti_contribution_recorded' ? 'down' : 'up');
+      }
+    }
+    expect(notificationChannel({ type: 'kameti', template: 'kameti_contribution_recorded' })).toBe('kameti');
   });
 });

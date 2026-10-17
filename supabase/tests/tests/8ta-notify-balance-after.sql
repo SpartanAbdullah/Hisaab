@@ -96,7 +96,8 @@ SELECT test.as_user(:'uA');
 SELECT test.assert(
   (SELECT count(*) = 1
           AND bool_and(template = 'ltr_accepted' AND title = 'Shared loan confirmed'
-                       AND body = 'Ghulam confirmed the shared loan of AED 1,000.00. Now: Ghulam owes you AED 1,000.00.'
+                       -- ▲: notify-direction-and-balance adds the move glyph.
+                       AND body = 'Ghulam confirmed the shared loan of AED 1,000.00. Now: ▲ Ghulam owes you AED 1,000.00.'
                        AND (params->>'balanceAfter')::numeric = 1000)
      FROM notifications WHERE user_id = auth.uid() AND params->>'requestId' = 'NB-T1'),
   'the lender hears the confirmation and the total now (English)');
@@ -135,7 +136,7 @@ SELECT test.assert(
   (SELECT count(*) = 1
           AND bool_and(type = 'linked_info' AND template = 'lsr_recorded'
                        AND (params->>'balanceAfter')::numeric = -700
-                       AND body LIKE '%Ab: Aap ne Abdullah ko AED 700.00 dene hain.')
+                       AND body LIKE '%Ab: ▲ Aap ne Abdullah ko AED 700.00 dene hain.')
      FROM notifications WHERE user_id = auth.uid() AND params->>'requestId' = 'NB-S1'),
   'the payer is told what is left after the recorded repayment (roman Urdu)');
 
@@ -151,7 +152,7 @@ SELECT test.as_user(:'uA');
 SELECT test.assert(
   (SELECT type = 'linked_settlement' AND template = 'lsr_request' AND title = 'Repayment to confirm'
           AND (params->>'balanceNow')::numeric = 700 AND (params->>'balanceAfter')::numeric = 500
-          AND body = 'Ghulam recorded a repayment of AED 200.00. If you confirm: Ghulam owes you AED 500.00. Open Inbox to confirm.'
+          AND body = 'Ghulam recorded a repayment of AED 200.00. If you confirm: ▼ Ghulam owes you AED 500.00. Open Inbox to confirm.'
           AND actor_id IS NULL
      FROM notifications WHERE user_id = auth.uid() AND params->>'requestId' = 'NB-S2'),
   'the receiver sees the claim and the total if confirmed — the claim is not counted yet');
@@ -164,7 +165,7 @@ SELECT test.as_user(:'uG');
 SELECT test.assert(
   (SELECT template = 'lsr_accepted' AND title = 'Wapsi tasdeeq ho gayi'
           AND (params->>'balanceAfter')::numeric = -500
-          AND body LIKE '%Ab: Aap ne Abdullah ko AED 500.00 dene hain.'
+          AND body LIKE '%Ab: ▲ Aap ne Abdullah ko AED 500.00 dene hain.'
      FROM notifications WHERE user_id = auth.uid() AND params->>'requestId' = 'NB-S2'),
   'the payer hears the confirmation and the total now');
 

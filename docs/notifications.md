@@ -43,6 +43,8 @@ Every row in `public.notifications` is written by a `SECURITY DEFINER` trigger o
 | **`kameti_draw_completed`** | **`tg_committees_notify_draw` — M5 §6.1** | profile-linked committee members | `kameti` | `/kameti/:id` |
 | **`kameti_round_due`** | **`notify_committee_rounds_due` sweep — M5 §7** | profile-linked members, only while the round is not fully collected | `kameti` | `/kameti/:id` |
 | **`kameti_payout_due`** | **same sweep** | the profile-linked holder of that round's slot | `kameti` | `/kameti/:id` |
+| `kameti_contribution_recorded` / `_removed` | `tg_committee_payments_notify` — `notify-direction-and-balance.sql` §5 (2026-10-17) | the profile-linked member whose round the organiser marked | `kameti` | `/kameti/:id` |
+| `kameti_payout_recorded` | `tg_committee_members_payout_notify` — same §5 | the profile-linked member whose payout the organiser marked received | `kameti` | `/kameti/:id` |
 | *(device-local)* bills, EMIs, recurring, kameti rounds, **budget breach** | `notificationPlanner.ts` | this device's owner | `reminders` | `/account/:id`, `/loan/:id`, `/subscriptions`, `/kameti/:id`, `/budgets` |
 
 **Bold = new in M5.** Everything else predates it and is listed so the catalog is complete.
@@ -50,6 +52,10 @@ Every row in `public.notifications` is written by a `SECURITY DEFINER` trigger o
 ### 2.1 Settlement accepted / rejected — already covered
 
 The task list asked for these; they already exist and were **deliberately not duplicated**. `tg_lsr_notify`'s UPDATE branch fires on `pending → accepted` and `pending → rejected` and notifies `new.from_user_id`; `tg_ltr_notify` does the same for loan requests. The audit says so itself (`08-notifications.md:153`). Adding a second writer would have produced two rows per outcome.
+
+### 2.1a Direction and balance-after on every money notice (2026-10-17)
+
+`supabase-migration-notify-direction-and-balance.sql` makes every row that moves a balance carry the reader's own facts in `params`: `delta` (signed move, + ⇒ owed more / owes less; on a request, the move *if accepted*), `balanceAfter` (the reader's signed net after the change), `balanceScope` (`pair` with one person, `group` the reader's overall net in the group, `kameti` rounds paid of total) and `counterpartyName`. Group rows are composed **per reader** in the reader's `profiles.lang`; the English event sentence is the old catalog text with the move and the balance appended. The client renders the second line from those params (`src/lib/notificationBalance.ts`): arrow = direction, colour = state (green owed to you, coral you owe), words always; the tray gets ▲/▼ as a character. A lump repayment fanned across loans (`${intentId}:${loanId}`) collapses in the tray under `linked_settlement:batch:<intentId>` and each row says it is part of one repayment.
 
 ### 2.2 Who is reachable for a kameti
 

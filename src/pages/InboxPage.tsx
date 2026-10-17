@@ -41,7 +41,7 @@ import { useInboxSyncStore } from '../stores/inboxSyncStore';
 import { BlockReportSheet, type BlockReportMode } from '../components/BlockReportSheet';
 import { hideBlockedSenders } from '../lib/blockStatus';
 import { buildInboxActionItems, buildInboxInfoItems, isInboxInfoNotification, type ActionContent, type ActionItem, type InfoItem, type InfoIcon as InfoIconKind } from '../lib/inboxInfo';
-import { notificationHref, renderNotificationContent } from '../lib/notificationContent';
+import { notificationHref, renderNotificationContent, type NotificationBalanceLine } from '../lib/notificationContent';
 import { linkedRequestKind, notificationKind, settlementKind, type TxnTypeKind } from '../lib/txnTypeCapsule';
 import type { RecurringDueDetail } from '../lib/recurringRunner';
 import { buildWhatsAppUrl } from '../lib/whatsappReminder';
@@ -1086,6 +1086,7 @@ export function InboxPage() {
                         {content.title || (n.type === 'contact_linked' ? t('ntf_new_connection') : t('ntf_update'))}
                       </p>
                       <p className="text-[11.5px] text-ink-600 mt-[3px] leading-[1.5] line-clamp-2">{content.body}</p>
+                      {content.balance && <BalanceLine line={content.balance} />}
                     </div>
                     {/* Unread = a violet dot (Inbox's colour). */}
                     <span className="w-2 h-2 rounded-full bg-iris-500 shrink-0" aria-hidden />
@@ -1319,6 +1320,37 @@ function InboxSkeleton({ shape }: { shape: 'cards' | 'rows' }) {
 }
 
 // A row's icon: a 40px square in the row's tint holding the 3c glyph.
+// The Splitwise second line on a money notice: the reader's own move (an
+// arrow for up/down) and the balance after it. Colour is the STATE — green
+// when owed to the reader, coral when they owe, ink when settled — and the
+// arrow is the direction, so colour never has to carry both
+// (notificationBalance.ts). Always words beside the glyph, never colour alone.
+const BALANCE_TONE_CLASS: Record<NotificationBalanceLine['tone'], string> = {
+  receive: 'text-glyph-green',
+  pay: 'text-glyph-coral',
+  neutral: 'text-ink-600',
+};
+function BalanceLine({ line }: { line: NotificationBalanceLine }) {
+  const arrow: GlyphName | null = line.direction === 'up' ? 'arrow-up' : line.direction === 'down' ? 'arrow-down' : null;
+  return (
+    <p
+      className={`text-[11.5px] mt-1 leading-[1.5] font-medium tabular-nums ${BALANCE_TONE_CLASS[line.tone]}`}
+      data-balance-direction={line.direction}
+    >
+      {arrow && (
+        <Glyph
+          name={arrow}
+          size={12}
+          strokeWidth={2.6}
+          className={`inline-block align-[-1px] mr-1 ${line.direction === 'up' ? 'text-glyph-green' : 'text-glyph-coral'}`}
+        />
+      )}
+      {line.move ? `${line.move} · ` : ''}
+      {line.text}
+    </p>
+  );
+}
+
 function RowIcon({ glyph, tone, tint }: { glyph: GlyphName; tone: GlyphTone; tint: string }) {
   return (
     <span className={`m-card ${tint} w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0`} aria-hidden>

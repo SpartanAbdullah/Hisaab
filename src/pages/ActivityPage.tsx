@@ -181,6 +181,33 @@ export function ActivityPage() {
                       <p className="text-[12px] text-ink-600 mt-1 leading-relaxed">
                         {content.body}
                       </p>
+                      {/* Which way the reader's balance moved and where it
+                          stands now — the same line the Inbox card shows
+                          (notificationBalance.ts). Arrow = direction, colour
+                          = state, words always. */}
+                      {content.balance && (
+                        <p
+                          className={`text-[12px] mt-1 leading-relaxed font-medium tabular-nums ${
+                            content.balance.tone === 'receive'
+                              ? 'text-glyph-green'
+                              : content.balance.tone === 'pay'
+                                ? 'text-glyph-coral'
+                                : 'text-ink-600'
+                          }`}
+                          data-balance-direction={content.balance.direction}
+                        >
+                          {content.balance.direction !== 'flat' && (
+                            <Glyph
+                              name={content.balance.direction === 'up' ? 'arrow-up' : 'arrow-down'}
+                              size={12}
+                              strokeWidth={2.6}
+                              className={`inline-block align-[-1px] mr-1 ${content.balance.direction === 'up' ? 'text-glyph-green' : 'text-glyph-coral'}`}
+                            />
+                          )}
+                          {content.balance.move ? `${content.balance.move} · ` : ''}
+                          {content.balance.text}
+                        </p>
+                      )}
                       <p className="text-[10.5px] text-ink-400 mt-1 tabular-nums">
                         {format(new Date(notification.createdAt), 'dd MMM, h:mm a')}
                       </p>
