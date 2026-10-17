@@ -219,4 +219,8 @@ supabase-migration-p3-invariant-monitoring.sql
 #   because it contributes five of the eleven functions §1 has to pin
 #   (_recon_urldecode / _recon_numeric / _recon_note_meta / _recon_mapped_types
 #   / _recon_cron_status). Re-run this file after adding any new migration.
+# Email capture (2026-10-18): capture_addresses / capture_candidates / capture_config,
+#   get_or_create_capture_address, rotate_capture_address, _capture_candidate_received
+#   (service_role only), prune_capture_candidates + cron. Test: 8td-email-capture.
+supabase-migration-email-capture.sql
 supabase-migration-p3-rpc-execute-grants.sql

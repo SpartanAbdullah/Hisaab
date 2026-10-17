@@ -13,6 +13,9 @@ import { useAuthStore } from "../stores/authStore";
 import { useToast } from "../components/Toast";
 import { isNativeRuntime } from "../lib/runtime";
 import { getCaptureStatus, openCaptureSettings, setCaptureEnabled, type CaptureStatus } from "../lib/captureBridge";
+import { captureDb } from "../lib/supabaseDb";
+import { composeCaptureAddress } from "../lib/captureAddress";
+import { copyText } from "../lib/clipboard";
 import { Modal } from "../components/Modal";
 import { track } from "../lib/telemetry";
 import { enableDailyCloseFlow, enableRemindersFlow, remindersEnabled, rescheduleNotifications, REMINDERS_KEY } from "../lib/notificationScheduler";
@@ -249,6 +252,12 @@ export function SettingsPage() {
   const [captureStatus, setCaptureStatus] = useState<CaptureStatus>({ granted: false, enabled: false });
   const [captureBusy, setCaptureBusy] = useState(false);
   const [showCaptureDisclosure, setShowCaptureDisclosure] = useState(false);
+  // Email capture: the user's private forwarding address (route 3,
+  // docs/bank-alert-capture.md). Created on first read; "unavailable" covers
+  // the window before the migration is applied, so the row never errors.
+  const [captureEmail, setCaptureEmail] = useState<{ token: string; domain: string } | null>(null);
+  const [captureEmailState, setCaptureEmailState] = useState<"loading" | "ready" | "unavailable">("loading");
+  const [captureEmailBusy, setCaptureEmailBusy] = useState(false);
   // M5 quiet hours + real push opt-in (docs/notifications.md §8.2, audit N-6).
   // Quiet hours mirror `notification_prefs`' global row through the store;
   // both null (no window configured yet) shows the DEFAULT_QUIET_* fallback
@@ -379,6 +388,27 @@ export function SettingsPage() {
     return () => {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    captureDb
+      .getAddress()
+      .then((a) => {
+        if (cancelled) return;
+        if (a && composeCaptureAddress(a.token, a.domain)) {
+          setCaptureEmail(a);
+          setCaptureEmailState("ready");
+        } else {
+          setCaptureEmailState("unavailable");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCaptureEmailState("unavailable");
+      });
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -1179,6 +1209,81 @@ export function SettingsPage() {
               </div>
             </div>
           )}
+
+          {/* Email capture — forward a bank email to a private address; the
+              inbound-email function queues it and a notification offers to
+              record it. Every platform, no permission (route 3). */}
+          <div>
+            <div className={rowClass}>
+              <RowIcon glyph="mail" tone="violet" />
+              <RowText title={t("settings_capture_email")} sub={t("settings_capture_email_desc")} />
+            </div>
+            <div className="px-4 pb-4 -mt-1 space-y-2">
+              {captureEmailState === "ready" && captureEmail ? (
+                <>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={composeCaptureAddress(captureEmail.token, captureEmail.domain) ?? ""}
+                      onFocus={(e) => e.currentTarget.select()}
+                      aria-label={t("settings_capture_email")}
+                      className="input-field flex-1 min-w-0 text-[12.5px] tabular-nums"
+                    />
+                    <button
+                      type="button"
+                      disabled={captureEmailBusy}
+                      onClick={() => {
+                        void (async () => {
+                          const address = composeCaptureAddress(captureEmail.token, captureEmail.domain);
+                          if (!address) return;
+                          const ok = await copyText(address);
+                          toast.show({
+                            type: ok ? "success" : "error",
+                            title: ok ? t("settings_capture_email_copied") : t("reminder_copy_failed"),
+                          });
+                        })();
+                      }}
+                      className="m-btn m-btn-primary px-3.5 text-[12.5px]"
+                    >
+                      {t("settings_capture_email_copy")}
+                    </button>
+                  </div>
+                  <p className="text-[11.5px] text-ink-500 leading-snug">{t("settings_capture_email_tip")}</p>
+                  <p className="text-[11.5px] text-ink-500 leading-snug">{t("settings_capture_email_privacy")}</p>
+                  <button
+                    type="button"
+                    disabled={captureEmailBusy}
+                    onClick={() => {
+                      void (async () => {
+                        const ok = await confirmDestructive({
+                          title: t("settings_capture_email_rotate_title"),
+                          description: t("settings_capture_email_rotate_body"),
+                          confirmLabel: t("settings_capture_email_rotate_cta"),
+                          tone: "warning",
+                        });
+                        if (!ok) return;
+                        setCaptureEmailBusy(true);
+                        try {
+                          const token = await captureDb.rotateAddress();
+                          setCaptureEmail((prev) => (prev ? { ...prev, token } : prev));
+                        } catch {
+                          toast.show({ type: "error", title: t("settings_capture_email_unavailable") });
+                        } finally {
+                          setCaptureEmailBusy(false);
+                        }
+                      })();
+                    }}
+                    className="text-[12px] font-semibold text-accent-600 min-h-[36px]"
+                  >
+                    {t("settings_capture_email_rotate")}
+                  </button>
+                </>
+              ) : captureEmailState === "unavailable" ? (
+                <p className="text-[11.5px] text-ink-500 leading-snug">{t("settings_capture_email_unavailable")}</p>
+              ) : null}
+            </div>
+          </div>
 
           {/* Global mute — M5 (docs/notifications.md §8.2). Same server-side
               row as the per-group mute in GroupDetailPage, just group_id null:

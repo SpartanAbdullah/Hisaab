@@ -14,14 +14,18 @@
 import type { AlertDirection, ParsedAlert } from './bankAlertParser';
 import { suggestCategory, type HistoryTxn } from './categorySuggest';
 
-export type CaptureSource = 'share' | 'notification';
+export type CaptureSource = 'share' | 'notification' | 'email';
 
 export interface CaptureParams {
   /** Raw shared text (share sheet). */
   text?: string;
   /** Id of a candidate held by the native listener's queue. */
   captureId?: string;
+  /** Id of a capture_candidates row written by the inbound-email function. */
+  captureEmailId?: string;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The share sheet caps text natively; mirror it so a crafted URL cannot
  *  hand the sheet megabytes. */
@@ -33,6 +37,8 @@ export function readCaptureParams(search: string): CaptureParams | null {
   const captureId = params.get('capture_id');
   if (text && text.trim()) return { text: text.slice(0, CAPTURE_TEXT_MAX) };
   if (captureId && /^[A-Za-z0-9_-]{1,64}$/.test(captureId)) return { captureId };
+  const captureEmailId = params.get('capture_email');
+  if (captureEmailId && UUID_RE.test(captureEmailId)) return { captureEmailId: captureEmailId.toLowerCase() };
   return null;
 }
 
@@ -42,6 +48,7 @@ export function stripCaptureParams(search: string): string {
   const params = new URLSearchParams(search);
   params.delete('capture');
   params.delete('capture_id');
+  params.delete('capture_email');
   const rest = params.toString();
   return rest ? `?${rest}` : '';
 }

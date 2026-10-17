@@ -38,7 +38,7 @@ import { PinLockScreen } from './pages/PinLockScreen';
 // builds, so its screen must not depend on fetching a chunk from a deploy the
 // running bundle may no longer match.
 import { UpdateRequiredScreen } from './components/UpdateRequiredScreen';
-import { appConfigDb } from './lib/supabaseDb';
+import { appConfigDb, captureDb } from './lib/supabaseDb';
 import {
   getCurrentAppVersion,
   isSupported,
@@ -311,7 +311,7 @@ function AppContent() {
   const [quickEntryPreset, setQuickEntryPreset] = useState<QuickEntryPreset | null>(null);
   // A captured bank alert waiting for the user's "Record this?" decision —
   // from the Android share sheet or the notification listener (CaptureSheet).
-  const [capture, setCapture] = useState<{ source: CaptureSource; text: string } | null>(null);
+  const [capture, setCapture] = useState<{ source: CaptureSource; text: string; candidateId?: string } | null>(null);
   // QuickEntry → Group expense bridge: when the user picks a group inside
   // QuickEntry, we close it and open AddGroupExpenseModal with the
   // already-typed amount. When they pick "Create new group" instead,
@@ -399,6 +399,29 @@ function AppContent() {
           useToast.getState().show({ type: 'error', title: tStatic('capture_gone') });
         }
       });
+      return;
+    }
+    // `?capture_email=<uuid>`: a forwarded bank email the inbound-email
+    // function queued server-side (supabase-migration-email-capture.sql).
+    // Only a still-pending candidate opens the sheet; one already recorded
+    // or dismissed from another device just says so.
+    if (params.captureEmailId) {
+      void captureDb
+        .getCandidate(params.captureEmailId)
+        .then((candidate) => {
+          if (candidate && candidate.status === 'pending') {
+            setCapture({
+              source: 'email',
+              text: candidate.subject ? `${candidate.subject}\n${candidate.text}` : candidate.text,
+              candidateId: candidate.id,
+            });
+          } else {
+            useToast.getState().show({ type: 'error', title: tStatic('capture_email_gone') });
+          }
+        })
+        .catch(() => {
+          useToast.getState().show({ type: 'error', title: tStatic('capture_email_gone') });
+        });
     }
   }, [location.search, location.pathname, user, completed, navigate]);
 
@@ -1042,8 +1065,15 @@ function AppContent() {
             open
             source={capture.source}
             text={capture.text}
-            onClose={() => setCapture(null)}
+            onClose={() => {
+              if (capture.candidateId) void captureDb.resolveCandidate(capture.candidateId, 'dismissed').catch(() => {});
+              setCapture(null);
+            }}
             onRecord={(preset) => {
+              // Resolved when the user commits to Quick Entry. An abandoned
+              // entry leaves a resolved candidate, which only means the offer
+              // will not come back; the email itself is pruned on schedule.
+              if (capture.candidateId) void captureDb.resolveCandidate(capture.candidateId, 'recorded').catch(() => {});
               setCapture(null);
               // Ledger-only mode has no accounts or expense type: hand over
               // the amount and the label and let the picker do the rest.
@@ -1052,6 +1082,7 @@ function AppContent() {
               setShowQuickEntry(true);
             }}
             onManual={(partial) => {
+              if (capture.candidateId) void captureDb.resolveCandidate(capture.candidateId, 'recorded').catch(() => {});
               setCapture(null);
               setQuickEntryPreset(mode === 'full_tracker' ? { type: 'expense', ...partial } : { ...partial });
               setQuickEntryMounted(true);

@@ -4223,6 +4223,38 @@ const S = {
     ur: "Android ki list mein Hisaab dhoondein, on karein, phir wapas aayen.",
     en: "Find Hisaab in Android's list, switch it on, then come back.",
   },
+  // Email capture — forward a bank email to your own Hisaab address
+  // (supabase-migration-email-capture.sql, docs/bank-alert-capture.md §Route 3).
+  capture_from_email: { ur: "Forward kiye gaye bank email se", en: "From a forwarded bank email" },
+  ntf_capture_email_title: { ur: "Yeh bank email record karein?", en: "Record this bank email?" },
+  ntf_capture_email_body: { ur: "{from} se. Tap karein — Hisaab ne kya parha, dekhein.", en: "From {from}. Tap to see what Hisaab read from it." },
+  settings_capture_email: { ur: "Email se capture", en: "Capture from email" },
+  settings_capture_email_desc: {
+    ur: "Bank ka email is address par forward karein — Hisaab usay record karne ki peshkash karega. Aapka Hisaab address:",
+    en: "Forward a bank email to this address and Hisaab offers to record it. Your Hisaab address:",
+  },
+  settings_capture_email_copy: { ur: "Copy", en: "Copy" },
+  settings_capture_email_copied: { ur: "Address copy ho gaya", en: "Address copied" },
+  settings_capture_email_rotate: { ur: "Naya address", en: "New address" },
+  settings_capture_email_rotate_title: { ur: "Naya address banayen?", en: "Make a new address?" },
+  settings_capture_email_rotate_body: {
+    ur: "Purana address foran band ho jayega. Koi bhi mail filter jo usay istemal karta hai, update karna hoga.",
+    en: "The old address stops working immediately. Any mail filter that uses it will need updating.",
+  },
+  settings_capture_email_rotate_cta: { ur: "Naya address banayen", en: "Make new address" },
+  settings_capture_email_tip: {
+    ur: "Gmail tip: Settings → Filters → naya filter → From: aapka bank → \"Forward it to\" yeh address. Phir har alert khud pohanchta hai.",
+    en: "Gmail tip: Settings → Filters → new filter → From: your bank → \"Forward it to\" this address. Every alert then arrives on its own.",
+  },
+  settings_capture_email_privacy: {
+    ur: "Forward kiya gaya text Hisaab ke server par rehta hai jab tak aap record ya dismiss na karein (zyada se zyada 30 din), phir mit jata hai.",
+    en: "The forwarded text stays on Hisaab's server until you record or dismiss it (30 days at most), then it is deleted.",
+  },
+  settings_capture_email_unavailable: {
+    ur: "Email capture abhi is account par on nahi hai.",
+    en: "Email capture is not switched on for this account yet.",
+  },
+  capture_email_gone: { ur: "Yeh email ab mojood nahi — shayad pehle hi record ya dismiss ho chuki.", en: "That email is no longer here — it may already be recorded or dismissed." },
   notif_prompt_title: {
     ur: "Is qarz ki yaad-dahani chahiye?",
     en: "Want a reminder for this loan?",

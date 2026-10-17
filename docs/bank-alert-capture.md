@@ -69,3 +69,76 @@ test case and, where needed, a rule.
 5. An OTP email → no offer. A declined-transaction alert → no offer.
 6. Sign out → Settings shows the switch OFF for the next account; no stale offers.
 7. Switch language → the offer notification's text follows on the next alert.
+
+---
+
+## Route 3 — forward a bank email to your own Hisaab address (2026-10-18)
+
+The cross-platform route (iOS, desktop mail, any phone). Each user has a private address
+`hisaab-<token>@in.usehisaab.com` (Settings → Capture from email). A mail forwarded there — by
+hand or by a Gmail/Outlook filter — reaches the `inbound-email` edge function through the
+inbound-mail provider's webhook, which calls `_capture_candidate_received()` with the service
+role. The database queues one `capture_candidates` row (text only, HTML stripped, ≤ 8000 chars)
+and writes one `capture_email` notification (money channel, reader's language, **no amount or
+subject in the tray**) whose tap opens `/?capture_email=<id>` → the same `CaptureSheet` → Quick
+Entry. The client parses with the same `bankAlertParser`; the server never interprets money.
+
+| Piece | Where |
+|---|---|
+| Tables, RPCs, guard trigger, flood cap, prune + cron | `supabase-migration-email-capture.sql` (PENDING manual apply, then re-run the grants sweep) |
+| Allow-list of the two client RPCs | `supabase-migration-p3-rpc-execute-grants.sql` `v_client_rpcs` |
+| Webhook function | `supabase/functions/inbound-email/index.ts` |
+| Payload normaliser (Postmark JSON, Mailgun/SendGrid form posts, generic JSON) | `supabase/functions/_shared/inboundEmail.ts` (tested from `src/lib/inboundEmail.test.ts`) |
+| Address helper, URL param, client data access | `src/lib/captureAddress.ts`, `src/lib/captureOffer.ts`, `captureDb` in `src/lib/supabaseDb.ts` |
+| Settings row, sheet source, inbox icon, notification keys | `SettingsPage.tsx`, `CaptureSheet.tsx`, `InboxPage.tsx`, `notificationContent.ts` |
+| DB test | `supabase/tests/tests/8td-email-capture.sql` |
+
+**Privacy, deliberately different from routes 1–2:** the forwarded text is stored server-side.
+Data Safety "Messages → Emails" is therefore **Collected = Yes, not shared, optional**
+(`docs/play-store-data-safety.md`), the privacy policy has the matching bullet, and retention is
+enforced by `prune_capture_candidates()` nightly: 7 days after recorded/dismissed, 30 days if
+never opened. Rotating the address kills the old one on the next message. A per-user flood cap
+(60 per rolling day) stops a runaway filter or a leaked address from filling the inbox.
+
+### Runbook (founder) — bring the route live
+
+1. **Provider account.** Postmark is the reference (inbound JSON webhook, basic-auth URL). Create
+   a server, open *Inbound* and set the inbound domain to `in.usehisaab.com`.
+2. **DNS (Vercel → Domains → usehisaab.com → DNS records).** Add the MX record Postmark shows for
+   `in` (host `in`, value `inbound.postmarkapp.com`, priority 10). Verify in Postmark. Nothing
+   else on the apex changes — mail to `@usehisaab.com` is unaffected.
+3. **Deploy the function + secret** (project ref `nnhwxjrgxsefywalwvaq`):
+   ```bash
+   supabase functions deploy inbound-email --no-verify-jwt
+   supabase secrets set INBOUND_EMAIL_SECRET="$(openssl rand -hex 32)"
+   ```
+4. **Webhook URL in Postmark** (Inbound → Webhook):
+   `https://hisaab:<INBOUND_EMAIL_SECRET>@nnhwxjrgxsefywalwvaq.functions.supabase.co/inbound-email`
+   (basic auth; the function also accepts the `x-hisaab-inbound-secret` header for providers that
+   allow custom headers). Tick "include raw email content" OFF — only the parsed fields are used.
+5. **Apply the migration** in Studio, re-run `supabase-migration-p3-rpc-execute-grants.sql`, and
+   confirm `capture_config.inbound_domain` = `in.usehisaab.com` (change it there if the domain
+   differs — the app composes the address from that row).
+6. **Test:** Settings → Capture from email → Copy. Forward any bank alert to it from your own
+   mailbox. Within a few seconds: a "Record this bank email?" push/inbox row → tap → sheet shows
+   the parsed amount → Record → Quick Entry prefilled. Forward the same mail again after
+   recording: a second candidate (that is correct — it is a new email). Make a new address and
+   forward to the OLD one: nothing arrives.
+7. **Gmail filter for users** (the in-app tip): Settings → Filters → Create → From: the bank's
+   sender → "Forward it to" the Hisaab address (Gmail asks to verify a forwarding address the
+   first time; Hisaab does not click confirmation links, so the user must use the
+   "Forward it to" flow with their address already verified, or forward by hand).
+   > Open item: Gmail's forwarding-address verification sends a code to the address. Decide
+   > whether the function should surface that code to the user (a `capture_email` notification
+   > with the code in the body) so auto-forwarding can be set up without manual forwarding.
+   > Not built; manual forwarding works today.
+8. **Data Safety form + privacy page** must be updated in Play Console before the build that
+   ships this route reaches testers (the policy text is already in the app).
+
+### Device / web checklist for this route
+
+- Settings shows the address, Copy works, "New address" asks first and changes it.
+- Before the migration is applied the row says "not switched on yet" rather than erroring.
+- A forwarded email with an OTP → sheet refuses ("Won't record this"); a declined-transaction
+  mail → refuses; a balance-only mail → "Couldn't read an amount" with Enter by hand.
+- Tap the same notification on a second device after recording → "no longer here".

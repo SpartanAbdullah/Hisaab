@@ -5932,3 +5932,65 @@ export const editHistoryDb = {
     return (data ?? []).map(mapRecordEdit);
   },
 };
+
+// ── Email capture (supabase-migration-email-capture.sql) ────────────────────
+// A private forwarding address per user and the candidates the inbound-email
+// edge function queues from mail sent to it. The client never inserts a
+// candidate; it may only read its own and move them pending → recorded /
+// dismissed (a trigger refuses any other change).
+export interface CaptureCandidateRecord {
+  id: string;
+  text: string;
+  fromAddress: string | null;
+  subject: string | null;
+  receivedAt: string;
+  status: 'pending' | 'recorded' | 'dismissed';
+}
+
+export const captureDb = {
+  /** The user's token + the inbound domain, or null before the migration is
+   *  applied / the domain row exists. Creates the address on first call. */
+  async getAddress(): Promise<{ token: string; domain: string } | null> {
+    const [addr, cfg] = await Promise.all([
+      supabase.rpc('get_or_create_capture_address'),
+      supabase.from('capture_config').select('value').eq('key', 'inbound_domain').maybeSingle(),
+    ]);
+    if (addr.error) throw addr.error;
+    if (cfg.error) throw cfg.error;
+    const token = addr.data;
+    const domain = (cfg.data as { value?: unknown } | null)?.value;
+    if (typeof token !== 'string' || typeof domain !== 'string') return null;
+    return { token, domain };
+  },
+
+  async rotateAddress(): Promise<string> {
+    const { data, error } = await supabase.rpc('rotate_capture_address');
+    if (error) throw error;
+    return String(data);
+  },
+
+  async getCandidate(id: string): Promise<CaptureCandidateRecord | null> {
+    const { data, error } = await supabase
+      .from('capture_candidates')
+      .select('id, raw_text, from_address, subject, received_at, status')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    const r = data as Record<string, unknown>;
+    const status = r.status === 'recorded' || r.status === 'dismissed' ? r.status : 'pending';
+    return {
+      id: String(r.id),
+      text: typeof r.raw_text === 'string' ? r.raw_text : '',
+      fromAddress: typeof r.from_address === 'string' ? r.from_address : null,
+      subject: typeof r.subject === 'string' ? r.subject : null,
+      receivedAt: typeof r.received_at === 'string' ? r.received_at : '',
+      status,
+    };
+  },
+
+  async resolveCandidate(id: string, status: 'recorded' | 'dismissed'): Promise<void> {
+    const { error } = await supabase.from('capture_candidates').update({ status }).eq('id', id);
+    if (error) throw error;
+  },
+};

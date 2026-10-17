@@ -1484,6 +1484,8 @@ const NOTIF_ICON: Record<AppNotification['type'], NotifIcon> = {
   linked_settlement: { glyph: 'link', tone: 'violet', tint: 'm-violet' },
   // "{name} recorded your repayment" — money, but nothing to act on.
   linked_info: { glyph: 'banknote', tone: 'violet', tint: 'm-violet' },
+  // A forwarded bank email waiting as a capture candidate; tap opens the sheet.
+  capture_email: { glyph: 'mail', tone: 'violet', tint: 'm-violet' },
 };
 
 // Glyph + tone derive from the structured content kind; the words come from
