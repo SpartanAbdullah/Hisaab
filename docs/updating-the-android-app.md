@@ -42,13 +42,13 @@ Edit **`package.json`** to match the versionName:
 
 ### 2. Build the signed AAB
 Run in your **own PowerShell terminal**, in the project root
-(`C:\Users\MuhammadAbdullah\Desktop\Hisaab-2.0`):
+(`C:\personal\Hisaab-2.0`):
 
 ```powershell
 npm run build
 npx cap sync android
 cd android
-$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot"
 .\gradlew.bat bundleRelease
 cd ..
 ```
@@ -63,7 +63,7 @@ Output: `android\app\build\outputs\bundle\release\app-release.aab`
 
 ### 3. (Optional) Verify it's signed with your upload key
 ```powershell
-& "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -printcert -jarfile android\app\build\outputs\bundle\release\app-release.aab
+& "C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot\bin\keytool.exe" -printcert -jarfile android\app\build\outputs\bundle\release\app-release.aab
 ```
 The `Owner:` line should be **your** cert (`CN=abdullah …`), not `CN=Android Debug`.
 
@@ -129,7 +129,7 @@ switch (`src/lib/versionGate.ts`) — they solve different problems and neither 
 npm run build
 npx cap sync android
 cd android
-$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot"
 .\gradlew.bat bundleRelease
 cd ..
 

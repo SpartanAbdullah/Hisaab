@@ -26,12 +26,12 @@ PHASE 1 — Rebuild the AAB (the one on disk is stale: built 16:51, before the 1
        npm run build
        npx cap sync android
        cd android
-       $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+       $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot"
        .\gradlew.bat bundleRelease
        cd ..
 1.3  Sanity:
        Get-Item android\app\build\outputs\bundle\release\app-release.aab | Select LastWriteTime   → must be just now
-       & "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -printcert -jarfile android\app\build\outputs\bundle\release\app-release.aab   → SHA256 must be 0B:B6:45:86:3D:98:A4:E4:91:10:D5:FD:F0:66:34:F4:EA:FE:2D:71:08:77:02:F1:C5:93:5B:82:9D:47:6D:A5
+       & "C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot\bin\keytool.exe" -printcert -jarfile android\app\build\outputs\bundle\release\app-release.aab   → SHA256 must be 0B:B6:45:86:3D:98:A4:E4:91:10:D5:FD:F0:66:34:F4:EA:FE:2D:71:08:77:02:F1:C5:93:5B:82:9D:47:6D:A5
      Keep versionCode 1 / 1.0.0 ONLY for this first upload. After it succeeds, every future AAB must bump versionCode (2, 3, …) in android/app/build.gradle and versionName in build.gradle + package.json.
 
 PHASE 2 — Play Console: create app + upload
