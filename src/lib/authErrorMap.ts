@@ -40,6 +40,10 @@ export const AUTH_ERROR_MAP: ({ match: string } & Detour)[] = [
   { match: 'email not confirmed', msgKey: 'err_email_not_confirmed', actionKey: 'err_email_not_confirmed_action', action: 'resend' },
   { match: 'password should be at least', msgKey: 'err_password_short', actionKey: 'err_password_action', action: 'fixPassword', field: 'password' },
   { match: 'weak password', msgKey: 'err_password_weak', actionKey: 'err_password_action', action: 'fixPassword', field: 'password' },
+  // updateUser({ password }) on the set-new-password screen: same as before.
+  { match: 'different from the old password', msgKey: 'err_password_same', actionKey: 'err_password_action', action: 'fixPassword', field: 'password' },
+  // The recovery session expired (tab left open) before the password was set.
+  { match: 'auth session missing', msgKey: 'err_recovery_session_missing', actionKey: 'err_recovery_session_action', action: 'reset' },
   { match: 'for security purposes', msgKey: 'err_security_throttle', actionKey: 'err_action_try_again', action: 'dismiss' },
   { match: 'email rate limit exceeded', msgKey: 'err_email_rate_limit', actionKey: 'err_email_rate_limit_action', action: 'dismiss' },
   { match: 'rate limit', msgKey: 'err_rate_limit', actionKey: 'err_action_dismiss', action: 'dismiss' },

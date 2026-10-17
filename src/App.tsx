@@ -53,6 +53,7 @@ import { LanguageToggle } from './components/LanguageToggle';
 // Lazy-loaded pages for code splitting
 const AuthPage = lazy(() => import('./pages/AuthPage').then(m => ({ default: m.AuthPage })));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
+const SetNewPasswordPage = lazy(() => import('./pages/SetNewPasswordPage').then(m => ({ default: m.SetNewPasswordPage })));
 const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.HomePage })));
 const TransactionsPage = lazy(() => import('./pages/TransactionsPage').then(m => ({ default: m.TransactionsPage })));
 const LoansPage = lazy(() => import('./pages/LoansPage').then(m => ({ default: m.LoansPage })));
@@ -301,6 +302,7 @@ function AppContent() {
   const mode = useAppModeStore(s => s.mode);
   const setMode = useAppModeStore(s => s.setMode);
   const { user, loading: authLoading, initialize } = useSupabaseAuthStore();
+  const passwordRecovery = useSupabaseAuthStore(s => s.passwordRecovery);
   const navigate = useNavigate();
   const location = useLocation();
   const [showQuickEntry, setShowQuickEntry] = useState(false);
@@ -902,6 +904,23 @@ function AppContent() {
     return (
       <Suspense fallback={<PageLoader />}>
         <AuthPage />
+      </Suspense>
+    );
+  }
+
+  // Password-recovery gate (SDLC review 2026-10-06 P0 #3). The reset email's
+  // link signs the user in with a RECOVERY session, so from here down they are
+  // an ordinary signed-in user — and both gates below would happily swallow
+  // them: an unverified account would be parked on "check your email", and an
+  // account that never finished onboarding would be sent through onboarding,
+  // with the password never set either way. So this renders FIRST, above both.
+  // The flag clears when the password is saved (or on sign-out / a normal
+  // sign-in), after which the gates run as usual and the user lands on Home.
+  // Mode-agnostic: identical for full_tracker and splits_only.
+  if (passwordRecovery) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <SetNewPasswordPage />
       </Suspense>
     );
   }

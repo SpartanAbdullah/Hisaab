@@ -10,12 +10,24 @@ import { clearWidgetSnapshot } from '../lib/widgetBridge';
 import { teardownCapture } from '../lib/captureBridge';
 import { reportError, reportMessage } from '../lib/errorReporter';
 import { getCachedProfile, invalidateProfileCache } from '../lib/profileCache';
+import { detectRecoveryArrival, stripResetMarker } from '../lib/passwordRecovery';
 
 interface SupabaseAuthState {
   user: User | null;
   session: Session | null;
   loading: boolean;
   error: string | null;
+  /**
+   * True from the moment the app learns the user arrived from a password-
+   * reset email (PASSWORD_RECOVERY event, or the `?reset=1` marker on the
+   * URL) until they set a password, sign in another way, or sign out. App.tsx
+   * renders the set-new-password screen while this is set — ABOVE the email-
+   * verification and onboarding gates, since a recovery session is a signed-in
+   * session and either gate would otherwise swallow it.
+   */
+  passwordRecovery: boolean;
+  /** The reset link in the URL was expired / already used: AuthPage says so. */
+  recoveryLinkExpired: boolean;
 
   initialize: () => Promise<void>;
   signUp: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
@@ -25,8 +37,38 @@ interface SupabaseAuthState {
   requestPasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
   updateProfile: (data: { name?: string; primary_currency?: string; app_mode?: string; lang?: string }) => Promise<void>;
   changePassword: (newPassword: string) => Promise<void>;
+  /** The new password is saved (or the user bailed): leave the recovery screen. */
+  clearPasswordRecovery: () => void;
+  clearRecoveryLinkExpired: () => void;
   getProfile: () => Promise<Record<string, unknown> | null>;
 }
+
+// ── Password-recovery arrival (SDLC review 2026-10-06, P0 #3) ───────────────
+// Read the URL ONCE, synchronously, while this module is evaluated. This runs
+// right after `src/lib/supabase.ts` constructs the client, whose `_initialize`
+// has parsed the same URL but not yet finished its network round-trip — so
+// the `#…&type=recovery` hash is still intact here, and will have been blanked
+// by auth-js before any React effect gets to look. The `?reset=1` query marker
+// is the belt; the PASSWORD_RECOVERY subscription below is the braces. See
+// src/lib/passwordRecovery.ts for the per-flow URL shapes.
+//
+// The marker is then stripped from the address bar (hash untouched: auth-js
+// still needs it) so a reload after the password is set boots normally.
+function captureRecoveryArrival(): ReturnType<typeof detectRecoveryArrival> {
+  if (typeof window === 'undefined') return 'none';
+  try {
+    const arrival = detectRecoveryArrival(window.location.search, window.location.hash);
+    if (arrival !== 'none') {
+      const cleaned = stripResetMarker(window.location.href);
+      if (cleaned) window.history.replaceState(window.history.state, '', cleaned);
+    }
+    return arrival;
+  } catch (err) {
+    reportError(err, { feature: 'supabaseAuthStore.captureRecoveryArrival' });
+    return 'none';
+  }
+}
+const recoveryArrival = captureRecoveryArrival();
 
 function buildAuthRedirectUrl(path = '/'): string {
   const configuredUrl = import.meta.env.VITE_PUBLIC_APP_URL as string | undefined;
@@ -181,6 +223,8 @@ export const useSupabaseAuthStore = create<SupabaseAuthState>((set, get) => ({
   session: null,
   loading: true,
   error: null,
+  passwordRecovery: recoveryArrival === 'recovery',
+  recoveryLinkExpired: recoveryArrival === 'expired',
 
   initialize: async () => {
     try {
@@ -233,7 +277,12 @@ export const useSupabaseAuthStore = create<SupabaseAuthState>((set, get) => ({
             await resetAllUserStores(previousUserId ?? undefined);
             localStorage.removeItem('hisaab_supabase_uid');
           }
-          set({ session, user: session?.user ?? null });
+          set(
+            session?.user
+              ? { session, user: session.user }
+              // No session ⇒ there is no recovery session to set a password on.
+              : { session, user: null, passwordRecovery: false },
+          );
         })();
       });
     } catch (err) {
@@ -271,7 +320,7 @@ export const useSupabaseAuthStore = create<SupabaseAuthState>((set, get) => ({
         public_code: publicCode,
         public_code_normalized: normalizePublicCode(publicCode),
       }).eq('id', data.user.id);
-      set({ user: data.user, session: data.session });
+      set({ user: data.user, session: data.session, passwordRecovery: false });
     }
 
     return { success: true, message: 'Account created! Check your email to verify.' };
@@ -299,7 +348,9 @@ export const useSupabaseAuthStore = create<SupabaseAuthState>((set, get) => ({
       await resetAllUserStores(previousUserId);
     }
     localStorage.setItem('hisaab_supabase_uid', data.user.id);
-    set({ user: data.user, session: data.session });
+    // A stale `?reset=1` boot (link opened, then the user logged in normally
+    // instead) must not drop them on the set-password screen.
+    set({ user: data.user, session: data.session, passwordRecovery: false });
     return { success: true, message: 'Logged in!' };
   },
 
@@ -337,7 +388,7 @@ export const useSupabaseAuthStore = create<SupabaseAuthState>((set, get) => ({
       }
       localStorage.removeItem('hisaab_supabase_uid');
       invalidateProfileCache();
-      set({ user: null, session: null, error: null });
+      set({ user: null, session: null, error: null, passwordRecovery: false });
     }
   },
 
@@ -358,9 +409,11 @@ export const useSupabaseAuthStore = create<SupabaseAuthState>((set, get) => ({
       redirectTo: buildAuthRedirectUrl('/?reset=1'),
     });
     if (error) return { success: false, message: error.message };
-    // Always show the same message regardless of whether the email exists —
-    // prevents user-enumeration via the password-reset endpoint.
-    return { success: true, message: 'If an account exists for this email, a reset link has been sent.' };
+    // Always the same outcome regardless of whether the email exists —
+    // prevents user-enumeration via the password-reset endpoint. The copy
+    // lives in i18n (`auth_reset_sent_body`, rendered by AuthPage with the
+    // typed address echoed back); the shape stays { success, message }.
+    return { success: true, message: '' };
   },
 
   updateProfile: async (data) => {
@@ -376,6 +429,9 @@ export const useSupabaseAuthStore = create<SupabaseAuthState>((set, get) => ({
     if (error) throw error;
   },
 
+  clearPasswordRecovery: () => set({ passwordRecovery: false }),
+  clearRecoveryLinkExpired: () => set({ recoveryLinkExpired: false }),
+
   // Shares the boot cache with the deleted-account gate and
   // onboardingStore.checkOnboarding (audit M2: the same row was read 3-4×
   // per cold boot). Pass through to the same query when the memo is cold.
@@ -385,3 +441,21 @@ export const useSupabaseAuthStore = create<SupabaseAuthState>((set, get) => ({
     return getCachedProfile(user.id);
   },
 }));
+
+// The braces to the URL belt above. auth-js emits PASSWORD_RECOVERY from a
+// setTimeout(0) at the end of its URL token exchange — which resolves BEFORE
+// `initialize()` gets past its first `await` and registers the main listener,
+// so that listener would never see it. Subscribing here, at module evaluation,
+// is early enough. PKCE arrivals never raise this event at all (auth-js
+// reports `redirectType: null` for them); the URL marker covers those.
+if (typeof window !== 'undefined') {
+  try {
+    supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        useSupabaseAuthStore.setState({ passwordRecovery: true, recoveryLinkExpired: false });
+      }
+    });
+  } catch (err) {
+    reportError(err, { feature: 'supabaseAuthStore.passwordRecoverySubscribe' });
+  }
+}

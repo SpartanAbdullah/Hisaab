@@ -6003,6 +6003,45 @@ const S = {
   },
   ginv_copy_code_cta: { ur: "Group code copy karein", en: "Copy group code" },
   // ── 2026-09-19 group admins END ──
+  // ── Password recovery (SDLC review 2026-10-06 P0 #3) — the screen the reset
+  //    email lands on, plus the expired-link detour on AuthPage ──
+  recov_title: { ur: "Naya password set karein", en: "Set a new password" },
+  recov_body: {
+    ur: "Aap reset link se aaye hain. Is account ke liye naya password chunein:",
+    en: "You came from your reset link. Choose a new password for this account:",
+  },
+  recov_label_new: { ur: "Naya password", en: "New password" },
+  recov_label_confirm: { ur: "Password dobara likhein", en: "Confirm password" },
+  recov_mismatch: { ur: "Dono passwords match nahi karte.", en: "The two passwords don't match." },
+  recov_cta: { ur: "Password set karein", en: "Set password" },
+  recov_success: {
+    ur: "Password set ho gaya — ab isi se log in karein.",
+    en: "Password set — use it to log in from now on.",
+  },
+  recov_not_you: { ur: "Yeh aap nahi hain? Sign out karein", en: "Not you? Sign out" },
+  auth_reset_link_expired: {
+    ur: "Yeh reset link expire ho gaya ya pehle use ho chuka hai. Neeche se naya link mangwayein.",
+    en: "That reset link has expired or was already used. Request a new one below.",
+  },
+  err_password_same: {
+    ur: "Yeh pehle wala password hi hai — koi naya chunein.",
+    en: "That's the same as your old password — pick a new one.",
+  },
+  err_recovery_session_missing: {
+    ur: "Reset session khatam ho gaya. Naya reset link mangwayein.",
+    en: "Your reset session has ended. Request a new reset link.",
+  },
+  err_recovery_session_action: { ur: "Naya link mangwayein", en: "Request a new link" },
+  // Reset-link "sent" state. Enumeration-safe on purpose: the SAME outcome
+  // whether or not the address has an account, with no success tick — the
+  // founder typed an unregistered address, saw a green tick, and assumed the
+  // mail had landed. The typed address is echoed so a typo is visible.
+  auth_reset_sent_body: {
+    ur: "Agar {email} ke liye Hisaab account hai to reset link raaste mein hai. Spam folder bhi dekhein. Ek minute mein email nahi aayi? Shayad aap ne kisi aur address se sign up kiya tha.",
+    en: "If there is a Hisaab account for {email}, the reset link is on its way. Check your spam folder too. No email within a minute? You may have signed up with a different address.",
+  },
+  auth_reset_try_another: { ur: "Doosra email try karein", en: "Try another email" },
+  auth_reset_create_account: { ur: "Account banayein", en: "Create an account" },
 } as const;
 
 type Key = keyof typeof S;

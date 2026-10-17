@@ -59,16 +59,24 @@ function RotatingHeadline() {
 export function AuthPage() {
   const t = useT();
   const { signIn, signUp, requestPasswordReset, error } = useSupabaseAuthStore();
-  const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login');
+  // Set at boot by supabaseAuthStore when the URL carried an expired / used
+  // reset link (`?reset=1#error=…`): open straight on the reset form and say so.
+  const recoveryLinkExpired = useSupabaseAuthStore(s => s.recoveryLinkExpired);
+  const clearRecoveryLinkExpired = useSupabaseAuthStore(s => s.clearRecoveryLinkExpired);
+  const [mode, setMode] = useState<'login' | 'signup' | 'reset'>(recoveryLinkExpired ? 'reset' : 'login');
+  const [linkExpired, setLinkExpired] = useState(recoveryLinkExpired);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   // A raw Supabase error is never rendered directly — it's mapped to a Detour.
   const [detour, setDetour] = useState<Detour | null>(null);
-  // Reset flow uses an enumeration-safe "if an account exists…" message that is
-  // deliberately kept OUT of the error map and shown as a calm confirmation.
-  const [resetMsg, setResetMsg] = useState('');
+  // Reset flow: the address the request was sent for. Enumeration-safe by
+  // construction — the same neutral "if there is an account for {email}"
+  // state whether or not the address is registered, no success tick (the
+  // founder read a green tick as "the mail landed" on a mistyped address),
+  // and the typed address echoed back so a typo is visible.
+  const [resetSentTo, setResetSentTo] = useState('');
   // After a successful signup we swap the form for a prominent "check your
   // email" screen instead of a faint message line.
   const [signupSent, setSignupSent] = useState(false);
@@ -93,6 +101,12 @@ export function AuthPage() {
   // "Did you mean gmail.com?" — only when the typed address looks like a known
   // domain typo, so a mistyped email doesn't strand the user in verify limbo.
   const emailSuggestion = suggestEmailFix(email);
+
+  useEffect(() => {
+    // One-shot: consumed into local state above, so a later visit to the auth
+    // page (sign-out, deleted account) does not repeat the warning.
+    if (recoveryLinkExpired) clearRecoveryLinkExpired();
+  }, [recoveryLinkExpired, clearRecoveryLinkExpired]);
 
   useEffect(() => {
     if (sessionStorage.getItem('hisaab_just_verified')) {
@@ -145,7 +159,7 @@ export function AuthPage() {
     setMode('login');
     setPassword('');
     setDetour(null);
-    setResetMsg('');
+    setResetSentTo('');
     setResentMsg('');
   };
 
@@ -156,7 +170,8 @@ export function AuthPage() {
     }
     setMode(next);
     setDetour(null);
-    setResetMsg('');
+    setResetSentTo('');
+    setLinkExpired(false);
   };
 
   const handleSubmit = async () => {
@@ -178,7 +193,7 @@ export function AuthPage() {
     }
     setLoading(true);
     setDetour(null);
-    setResetMsg('');
+    setResetSentTo('');
 
     if (mode === 'signup') {
       const result = await signUp(email, password);
@@ -194,7 +209,7 @@ export function AuthPage() {
       }
     } else if (mode === 'reset') {
       const result = await requestPasswordReset(email);
-      if (result.success) setResetMsg(result.message);
+      if (result.success) setResetSentTo(email);
       else setDetour(mapAuthError(result.message));
     } else {
       const result = await signIn(email, password);
@@ -215,7 +230,7 @@ export function AuthPage() {
         setMode('login');
         setPassword('');
         setDetour(null);
-        setResetMsg('');
+        setResetSentTo('');
         setTimeout(() => passwordRef.current?.focus(), 0);
         break;
       case 'resend':
@@ -235,7 +250,7 @@ export function AuthPage() {
         setEmail('');
         setPassword('');
         setDetour(null);
-        setResetMsg('');
+        setResetSentTo('');
         break;
       case 'retry':
         setDetour(null);
@@ -345,12 +360,59 @@ export function AuthPage() {
           </button>
         )}
 
-        {mode === 'reset' && (
+        {mode === 'reset' && linkExpired && !resetSentTo && (
+          <div role="alert" className="m-card mb-4 flex items-start justify-center gap-2 px-4 py-3 text-pay-text text-[12.5px] font-medium animate-fade-in">
+            <Glyph name="clock" size={14} className="shrink-0 mt-0.5" />
+            <span className="leading-relaxed">{t('auth_reset_link_expired')}</span>
+          </div>
+        )}
+
+        {mode === 'reset' && !resetSentTo && (
           <p className="text-white/75 text-[13px] mb-4 text-center leading-relaxed">
             {t('auth_reset_intro')}
           </p>
         )}
 
+        {/* Reset-request "sent" state. Replaces the form so the only things on
+            screen are the neutral notice (no success tick — it is NOT a
+            confirmation that mail went out), the address it was sent for, and
+            two ways forward. Enumeration-safe: identical for any address. */}
+        {mode === 'reset' && resetSentTo && (
+          <div role="status" className="animate-fade-in">
+            <div className="m-card px-5 py-5 text-center">
+              <div className="m-plate mx-auto mb-4" aria-hidden>
+                <Glyph name="mail" size={24} extrude />
+              </div>
+              <p className="text-white/80 text-[13px] leading-relaxed">
+                {t('auth_reset_sent_body').split('{email}').map((part, i, parts) => (
+                  <span key={i}>
+                    {part}
+                    {i < parts.length - 1 && (
+                      <span className="text-white font-semibold break-all">{resetSentTo}</span>
+                    )}
+                  </span>
+                ))}
+              </p>
+            </div>
+            <div className="mt-5 space-y-3">
+              <button
+                onClick={() => { setResetSentTo(''); setTimeout(() => emailRef.current?.focus(), 0); }}
+                className="m-btn m-btn-primary w-full py-4 text-[14px]">
+                {t('auth_reset_try_another')}
+              </button>
+              <button onClick={() => switchMode('signup')}
+                className="m-btn m-btn-plain w-full py-3.5 text-[13px]">
+                {t('auth_reset_create_account')}
+              </button>
+            </div>
+            <p className="text-white/60 text-[11.5px] text-center mt-6 pb-8">
+              {t('auth_remembered')}{' '}
+              <button onClick={() => switchMode('login')} className="text-accent-600 font-semibold underline underline-offset-2">{t('auth_back_to_login')}</button>
+            </p>
+          </div>
+        )}
+
+        {!(mode === 'reset' && resetSentTo) && (<>
         {/* Form */}
         <div className="space-y-4">
           <div className={`relative ${emailErr ? 'animate-shake' : ''}`}>
@@ -452,14 +514,6 @@ export function AuthPage() {
           </div>
         )}
 
-        {/* Reset-request confirmation — a done action, not a maybe (enumeration-safe copy). */}
-        {resetMsg && (
-          <div role="status" className="mt-3 flex items-center justify-center gap-2 text-receive-text text-[12.5px] font-medium animate-fade-in">
-            <Glyph name="mail" size={14} />
-            <span className="leading-relaxed">{resetMsg}</span>
-          </div>
-        )}
-
         {/* Primary CTA — the one violet action on the navy ground: the 1d
             primary (violet face, lit edge, two hard walls that collapse on
             press — index.css .m-btn-primary). */}
@@ -494,6 +548,7 @@ export function AuthPage() {
             </>
           )}
         </p>
+        </>)}
       </div>
       )}
     </main>
