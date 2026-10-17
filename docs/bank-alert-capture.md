@@ -107,13 +107,17 @@ never opened. Rotating the address kills the old one on the next message. A per-
 2. **DNS (Vercel → Domains → usehisaab.com → DNS records).** Add the MX record Postmark shows for
    `in` (host `in`, value `inbound.postmarkapp.com`, priority 10). Verify in Postmark. Nothing
    else on the apex changes — mail to `@usehisaab.com` is unaffected.
-3. **Deploy the function + secret** (project ref `nnhwxjrgxsefywalwvaq`):
-   ```bash
-   supabase functions deploy inbound-email --no-verify-jwt
-   supabase secrets set INBOUND_EMAIL_SECRET="$(openssl rand -hex 32)"
+3. **Deploy the function + secret** (project ref `nnhwxjrgxsefywalwvaq`). Deployed on
+   2026-10-18 through the Supabase connector (`verify_jwt` off); redeploy after any change with
+   the CLI or the same connector. The secret is set in the dashboard — Project Settings → Edge
+   Functions → Secrets → `INBOUND_EMAIL_SECRET` — with a value you generate locally:
+   ```powershell
+   -join ((1..32) | ForEach-Object { '{0:x2}' -f (Get-Random -Maximum 256) })
    ```
+   CLI equivalent: `supabase functions deploy inbound-email --no-verify-jwt` and
+   `supabase secrets set INBOUND_EMAIL_SECRET="$(openssl rand -hex 32)"`.
 4. **Webhook URL in Postmark** (Inbound → Webhook):
-   `https://hisaab:<INBOUND_EMAIL_SECRET>@nnhwxjrgxsefywalwvaq.functions.supabase.co/inbound-email`
+   `https://hisaab:<INBOUND_EMAIL_SECRET>@nnhwxjrgxsefywalwvaq.supabase.co/functions/v1/inbound-email`
    (basic auth; the function also accepts the `x-hisaab-inbound-secret` header for providers that
    allow custom headers). Tick "include raw email content" OFF — only the parsed fields are used.
 5. **Apply the migration** in Studio, re-run `supabase-migration-p3-rpc-execute-grants.sql`, and
