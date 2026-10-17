@@ -528,50 +528,89 @@ const S = {
     en: "{actor} removed the repayment of {amount} they had recorded.",
   },
   // 2026-10-06 (supabase-migration-notify-balance-after.sql): every linked
-  // money notice also says where the total stands — "Now: …" after a change,
-  // "If you accept: …" on something waiting for the reader. {balance} is the
-  // reader's net with {actor} (stmt_net_* wording). Params add balanceAfter.
-  ntf_lsr_recorded_body_bal: {
-    ur: "{actor} ne aap ki {amount} ki repayment record kar di. Kuch confirm nahi karna. Ab: {balance}.",
-    en: "{actor} recorded your repayment of {amount}. Nothing to confirm. Now: {balance}.",
-  },
-  ntf_lsr_undone_body_bal: {
-    ur: "{actor} ne {amount} ki record ki hui repayment hata di. Ab: {balance}.",
-    en: "{actor} removed the repayment of {amount} they had recorded. Now: {balance}.",
-  },
+  // money notice also says where the total stands. Since 2026-10-17
+  // (notify-direction-and-balance) that state is the card's SECOND line
+  // (notificationBalance.ts: ntf_bal_* label + stmt_net_* phrase, with an
+  // up/down arrow and colour), so these bodies are the event sentence only.
   ntf_ltr_request_title: { ur: "Naya qarz — tasdeeq karein", en: "New shared loan to review" },
   ntf_ltr_request_borrowed_body: {
-    ur: "{actor} ne {amount} likha jo aap ne udhaar liya. Accept karne par: {balance}. Inbox mein tasdeeq karein.",
-    en: "{actor} recorded {amount} that you borrowed. If you accept: {balance}. Open Inbox to confirm.",
+    ur: "{actor} ne {amount} likha jo aap ne udhaar liya. Inbox mein tasdeeq karein.",
+    en: "{actor} recorded {amount} that you borrowed. Open Inbox to confirm.",
   },
   ntf_ltr_request_lent_body: {
-    ur: "{actor} ne {amount} likha jo aap ne udhaar diya. Accept karne par: {balance}. Inbox mein tasdeeq karein.",
-    en: "{actor} recorded {amount} that you lent. If you accept: {balance}. Open Inbox to confirm.",
+    ur: "{actor} ne {amount} likha jo aap ne udhaar diya. Inbox mein tasdeeq karein.",
+    en: "{actor} recorded {amount} that you lent. Open Inbox to confirm.",
   },
   ntf_ltr_accepted_title: { ur: "Qarz tasdeeq ho gaya", en: "Shared loan confirmed" },
   ntf_ltr_accepted_body: {
-    ur: "{actor} ne {amount} ka qarz tasdeeq kar diya. Ab: {balance}.",
-    en: "{actor} confirmed the shared loan of {amount}. Now: {balance}.",
+    ur: "{actor} ne {amount} ka qarz tasdeeq kar diya.",
+    en: "{actor} confirmed the shared loan of {amount}.",
   },
   ntf_ltr_rejected_title: { ur: "Qarz radd ho gaya", en: "Shared loan declined" },
   ntf_ltr_rejected_body: {
-    ur: "{actor} ne {amount} ka qarz radd kar diya — total mein shamil nahi hua. Ab bhi: {balance}.",
-    en: "{actor} declined the shared loan of {amount} — it was not added. Still: {balance}.",
+    ur: "{actor} ne {amount} ka qarz radd kar diya — total mein shamil nahi hua.",
+    en: "{actor} declined the shared loan of {amount} — it was not added.",
   },
   ntf_lsr_request_title: { ur: "Wapsi — tasdeeq karein", en: "Repayment to confirm" },
   ntf_lsr_request_body: {
-    ur: "{actor} ne {amount} wapas dene ki entry ki. Tasdeeq karne par: {balance}. Inbox mein dekhein.",
-    en: "{actor} recorded a repayment of {amount}. If you confirm: {balance}. Open Inbox to confirm.",
+    ur: "{actor} ne {amount} wapas dene ki entry ki. Inbox mein dekhein.",
+    en: "{actor} recorded a repayment of {amount}. Open Inbox to confirm.",
   },
   ntf_lsr_accepted_title: { ur: "Wapsi tasdeeq ho gayi", en: "Repayment confirmed" },
   ntf_lsr_accepted_body: {
-    ur: "{actor} ne {amount} ki wapsi tasdeeq kar di. Ab: {balance}.",
-    en: "{actor} confirmed the repayment of {amount}. Now: {balance}.",
+    ur: "{actor} ne {amount} ki wapsi tasdeeq kar di.",
+    en: "{actor} confirmed the repayment of {amount}.",
   },
   ntf_lsr_rejected_title: { ur: "Wapsi radd ho gayi", en: "Repayment declined" },
   ntf_lsr_rejected_body: {
-    ur: "{actor} ne {amount} ki wapsi radd kar di. Ab bhi: {balance}.",
-    en: "{actor} declined the repayment of {amount}. Still: {balance}.",
+    ur: "{actor} ne {amount} ki wapsi radd kar di.",
+    en: "{actor} declined the repayment of {amount}.",
+  },
+  ntf_lsr_batch_note: {
+    ur: "Aik hi wapsi, aap ke kai qarzon par.",
+    en: "Part of one repayment across your loans.",
+  },
+  // ── The balance line (2026-10-17, notify-direction-and-balance) ──────────
+  // {label}: "Now" after a change, "If you accept / confirm" on a request,
+  // "Still" on a decline. {balance} is a stmt_net_* phrase (pair) or one of
+  // ntf_group_net_* (the reader's overall net in a group).
+  ntf_bal_now: { ur: "Ab", en: "Now" },
+  ntf_bal_if_accepted: { ur: "Accept karne par", en: "If you accept" },
+  ntf_bal_if_confirmed: { ur: "Tasdeeq karne par", en: "If you confirm" },
+  ntf_bal_still: { ur: "Ab bhi", en: "Still" },
+  ntf_bal_plain: { ur: "{label}: {balance}", en: "{label}: {balance}" },
+  ntf_bal_in_group: { ur: "{label} {group} mein: {balance}", en: "{label} in {group}: {balance}" },
+  ntf_group_net_owed: { ur: "kul {amount} aap ko milne hain", en: "you are owed {amount} overall" },
+  ntf_group_net_owe: { ur: "kul {amount} aap ne dene hain", en: "you owe {amount} overall" },
+  ntf_group_net_settled: { ur: "sab hisaab barabar", en: "all settled up" },
+  // The reader's own move on a group row. expense_added speaks of a share;
+  // edits, deletes and settlements use the generic pair.
+  ntf_move_share: { ur: "Aap ka hissa: {amount}", en: "Your share: {amount}" },
+  ntf_move_paid: { ur: "Aap ne diye — {amount} aap ko milne hain", en: "You paid — {amount} is owed to you" },
+  ntf_move_not_yours: { ur: "Aap ka hissa nahi — aap ke liye kuch nahi badla", en: "Not your share — nothing changes for you" },
+  ntf_move_up: { ur: "{amount} aap ke haq mein", en: "{amount} in your favour" },
+  ntf_move_down: { ur: "{amount} aap ke zimme", en: "{amount} against you" },
+  ntf_move_flat: { ur: "Aap ke liye kuch nahi badla", en: "Nothing changes for you" },
+  // Kameti: the organiser marked the reader's round paid / un-paid, or their
+  // payout received (tg_committee_payments_notify / _payout_notify).
+  ntf_kameti_contrib_title: { ur: "Qisht record ho gayi — {kameti}", en: "Contribution recorded — {kameti}" },
+  ntf_kameti_contrib_body: {
+    ur: "Round {round}: {amount} organiser ne paid likha.",
+    en: "Round {round}: {amount} marked paid by the organiser.",
+  },
+  ntf_kameti_contrib_removed_title: { ur: "Qisht hata di gayi — {kameti}", en: "Contribution removed — {kameti}" },
+  ntf_kameti_contrib_removed_body: {
+    ur: "Round {round}: {amount} organiser ne hata di.",
+    en: "Round {round}: {amount} was un-marked by the organiser.",
+  },
+  ntf_kameti_payout_recorded_title: { ur: "Payout record ho gaya — {kameti}", en: "Payout recorded — {kameti}" },
+  ntf_kameti_payout_recorded_body: {
+    ur: "Round {round}: {amount} aap ko mil gaya, organiser ne likha.",
+    en: "Round {round}: {amount} marked as received by you.",
+  },
+  ntf_kameti_position: {
+    ur: "{total} mein se {paid} round ada · ab tak {paidTotal} jama",
+    en: "Paid {paid} of {total} rounds · {paidTotal} in so far",
   },
   ntf_no_shared_yet: {
     ur: "Abhi tak koi shared notification nahi.",

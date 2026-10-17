@@ -198,6 +198,12 @@ supabase-migration-settlement-receiver-records.sql
 #   so it must follow it) and adds three internal helpers. Creates functions,
 #   so it must precede the grants sweep.
 supabase-migration-notify-balance-after.sql
+# ↓ 2026-10-17 every money notice says which way the balance moved and where
+#   it stands: per-reader group fan-out (replaces fan_out_group_notification +
+#   the two group triggers), delta on the linked notices (replaces tg_ltr /
+#   tg_lsr / _lsr_notify_info again — so after notify-balance-after), and two
+#   kameti triggers. Creates functions, so it must precede the grants sweep.
+supabase-migration-notify-direction-and-balance.sql
 # ↓ 2026-10-06 one share per loan: refuses a past-record sync (and its accept)
 #   for a loan already half of a live linked request. Two new BEFORE triggers
 #   on linked_transaction_requests + an internal helper; accept_linked_request

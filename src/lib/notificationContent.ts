@@ -19,6 +19,15 @@
 
 import type { I18nKey } from './i18n';
 import { formatMoney } from './constants';
+import {
+  balanceLineText,
+  balanceTone,
+  directionGlyph,
+  moveText,
+  readBalanceMove,
+  type BalanceDirection,
+  type BalanceTone,
+} from './notificationBalance';
 
 export interface NotificationContentInput {
   template?: string | null;
@@ -27,9 +36,33 @@ export interface NotificationContentInput {
   body?: string | null;
 }
 
+/** The Splitwise second line: which way the reader's balance moved and where
+ *  it stands now (supabase-migration-notify-direction-and-balance.sql).
+ *  `move` is the reader's own share / move on a group row ('' elsewhere);
+ *  `text` is the state after ("Now: You owe Ali AED 120.00"). */
+export interface NotificationBalanceLine {
+  direction: BalanceDirection;
+  tone: BalanceTone;
+  move: string;
+  text: string;
+}
+
 export interface NotificationContent {
   title: string;
   body: string;
+  /** Present only on money rows that carry the balance stamp. */
+  balance?: NotificationBalanceLine;
+}
+
+/** One string for surfaces that cannot draw a second line (the Android tray):
+ *  the event sentence, the move, and the state, with the arrow as a glyph. */
+export function notificationTrayBody(content: NotificationContent): string {
+  if (!content.balance) return content.body;
+  const glyph = directionGlyph(content.balance.direction);
+  const line = `${glyph ? `${glyph} ` : ''}${content.balance.text}`;
+  return [content.body, content.balance.move ? `${content.balance.move}.` : '', `${line}.`]
+    .filter(Boolean)
+    .join(' ');
 }
 
 export type NotificationTranslate = (key: I18nKey) => string;
@@ -72,6 +105,12 @@ const TITLE_KEYS: Record<string, I18nKey> = {
   lsr_request: 'ntf_lsr_request_title',
   lsr_accepted: 'ntf_lsr_accepted_title',
   lsr_rejected: 'ntf_lsr_rejected_title',
+  // _kameti_member_notice, supabase-migration-notify-direction-and-balance.sql
+  // §5. type 'kameti'. Params: { committeeId, committeeName, currency, amount,
+  // round, memberName, paidRounds, totalRounds, paidTotal, delta }.
+  kameti_contribution_recorded: 'ntf_kameti_contrib_title',
+  kameti_contribution_removed: 'ntf_kameti_contrib_removed_title',
+  kameti_payout_recorded: 'ntf_kameti_payout_recorded_title',
 };
 
 const BODY_KEYS: Record<string, I18nKey> = {
@@ -90,6 +129,16 @@ const BODY_KEYS: Record<string, I18nKey> = {
   group_unarchived: 'ntf_group_unarchived_body',
   lsr_recorded: 'ntf_lsr_recorded_body',
   lsr_undone: 'ntf_lsr_undone_body',
+  // The event sentence only — the balance rides on `balance` (the second
+  // line) since 2026-10-17, so these no longer end in "Now: …".
+  ltr_accepted: 'ntf_ltr_accepted_body',
+  ltr_rejected: 'ntf_ltr_rejected_body',
+  lsr_request: 'ntf_lsr_request_body',
+  lsr_accepted: 'ntf_lsr_accepted_body',
+  lsr_rejected: 'ntf_lsr_rejected_body',
+  kameti_contribution_recorded: 'ntf_kameti_contrib_body',
+  kameti_contribution_removed: 'ntf_kameti_contrib_removed_body',
+  kameti_payout_recorded: 'ntf_kameti_payout_recorded_body',
 };
 
 // Amount is optional on the money templates: an expense whose params predate
@@ -99,34 +148,6 @@ const BODY_KEYS_NO_AMOUNT: Record<string, I18nKey> = {
   expense_added: 'ntf_expense_added_body_plain',
   settlement_added: 'ntf_settlement_added_body_plain',
 };
-
-// Linked money notices that state where the total stands. Used only when the
-// row carries `balanceAfter`; an older row without it keeps its plain body
-// (lsr_*) or the server's stored text (the new templates have no plain body).
-const BODY_KEYS_WITH_BALANCE: Record<string, I18nKey> = {
-  lsr_recorded: 'ntf_lsr_recorded_body_bal',
-  lsr_undone: 'ntf_lsr_undone_body_bal',
-  ltr_accepted: 'ntf_ltr_accepted_body',
-  ltr_rejected: 'ntf_ltr_rejected_body',
-  lsr_request: 'ntf_lsr_request_body',
-  lsr_accepted: 'ntf_lsr_accepted_body',
-  lsr_rejected: 'ntf_lsr_rejected_body',
-};
-
-function readNumber(params: Record<string, unknown>, key: string): number | null {
-  const raw = params[key];
-  const n = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN;
-  return Number.isFinite(n) ? n : null;
-}
-
-// The reader's net with the actor, in the statement's own words
-// ("Aap ne Abdullah ko AED 5,225.01 dene hain"). Positive ⇒ actor owes reader.
-function balancePhrase(net: number, currency: string, actor: string, t: NotificationTranslate): string {
-  const amount = formatMoney(Math.abs(net), currency || 'PKR');
-  if (net > 0.005) return fill(t('stmt_net_owes_you'), { name: actor, amount });
-  if (net < -0.005) return fill(t('stmt_net_you_owe'), { name: actor, amount });
-  return fill(t('stmt_net_settled'), { name: actor });
-}
 
 function text(params: Record<string, unknown>, key: string): string {
   const value = params[key];
@@ -192,26 +213,38 @@ export function renderNotificationContent(
     slot: text(params, 'slot'),
   };
 
-  const balanceAfter = readNumber(params, 'balanceAfter');
-  if (balanceAfter !== null) vars.balance = balancePhrase(balanceAfter, currency, vars.actor, t);
-
   let bodyKey: I18nKey | undefined = amount === null && BODY_KEYS_NO_AMOUNT[template]
     ? BODY_KEYS_NO_AMOUNT[template]
     : BODY_KEYS[template];
-  if (balanceAfter !== null && amount !== null) {
-    // ltr_request reads from the reader's side: did THEY borrow or lend?
-    bodyKey = template === 'ltr_request'
-      ? (text(params, 'kind') === 'lent' ? 'ntf_ltr_request_lent_body' : 'ntf_ltr_request_borrowed_body')
-      : BODY_KEYS_WITH_BALANCE[template] ?? bodyKey;
+  // ltr_request reads from the reader's side: did THEY borrow or lend?
+  if (template === 'ltr_request' && amount !== null) {
+    bodyKey = text(params, 'kind') === 'lent' ? 'ntf_ltr_request_lent_body' : 'ntf_ltr_request_borrowed_body';
   }
 
   const title = fill(t(titleKey), vars).trim();
-  const body = bodyKey ? fill(t(bodyKey), vars).trim() : '';
+  let body = bodyKey ? fill(t(bodyKey), vars).trim() : '';
+  // A lump repayment fanned across loans (`${intentId}:${loanId}`): each
+  // per-loan row says it is one of several, so eleven cards read as one
+  // payment rather than eleven surprises.
+  if (body && text(params, 'batchId')) body = `${body} ${t('ntf_lsr_batch_note')}`;
 
   // Never render an empty card: a missing translation falls back to whatever
   // the server composed.
   if (!title) return stored;
-  return { title, body: body || stored.body };
+
+  const move = readBalanceMove(template, params);
+  const balance: NotificationBalanceLine | undefined = move
+    ? {
+        direction: move.direction,
+        tone: balanceTone(move),
+        move: moveText(move, t),
+        text: balanceLineText(move, { group: vars.group, someone: t('ntf_someone') }, t),
+      }
+    : undefined;
+
+  return balance
+    ? { title, body: body || stored.body, balance }
+    : { title, body: body || stored.body };
 }
 
 /** Where a notification should land when tapped. Group rows deep-link to the
