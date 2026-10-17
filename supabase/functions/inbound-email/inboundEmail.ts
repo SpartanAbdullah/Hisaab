@@ -1,6 +1,7 @@
 // Inbound-mail webhook payload → { token, from, subject, text }. Pure, no
 // Deno or browser globals, so it is unit-tested from the Vitest suite
-// (src/lib/inboundEmail.test.ts) and imported by supabase/functions/inbound-email.
+// (src/lib/inboundEmail.test.ts) and imported by index.ts next to it. Kept inside
+// the function folder so a deploy ships exactly this file.
 //
 // Providers: Postmark's inbound JSON is handled natively; any other provider
 // can be adapted by POSTing the generic shape { to, from, subject, text|html }.

@@ -88,7 +88,7 @@ Entry. The client parses with the same `bankAlertParser`; the server never inter
 | Tables, RPCs, guard trigger, flood cap, prune + cron | `supabase-migration-email-capture.sql` (PENDING manual apply, then re-run the grants sweep) |
 | Allow-list of the two client RPCs | `supabase-migration-p3-rpc-execute-grants.sql` `v_client_rpcs` |
 | Webhook function | `supabase/functions/inbound-email/index.ts` |
-| Payload normaliser (Postmark JSON, Mailgun/SendGrid form posts, generic JSON) | `supabase/functions/_shared/inboundEmail.ts` (tested from `src/lib/inboundEmail.test.ts`) |
+| Payload normaliser (Postmark JSON, Mailgun/SendGrid form posts, generic JSON) | `supabase/functions/inbound-email/inboundEmail.ts` (tested from `src/lib/inboundEmail.test.ts`) |
 | Address helper, URL param, client data access | `src/lib/captureAddress.ts`, `src/lib/captureOffer.ts`, `captureDb` in `src/lib/supabaseDb.ts` |
 | Settings row, sheet source, inbox icon, notification keys | `SettingsPage.tsx`, `CaptureSheet.tsx`, `InboxPage.tsx`, `notificationContent.ts` |
 | DB test | `supabase/tests/tests/8td-email-capture.sql` |

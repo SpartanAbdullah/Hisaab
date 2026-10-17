@@ -4,7 +4,7 @@
 // hisaab-<token>@<inbound domain>. The provider (Postmark inbound by default;
 // any provider can POST the generic { to, from, subject, text|html } shape)
 // calls this function, which authenticates the call, normalises the payload
-// (_shared/inboundEmail.ts), and hands the text to
+// (./inboundEmail.ts, unit-tested from src/lib/inboundEmail.test.ts), and hands the text to
 // _capture_candidate_received() with the service role. The database does the
 // rest: one capture_candidates row, one notification whose tap opens the
 // "Record this?" sheet. Nothing is ever recorded from here.
@@ -23,7 +23,7 @@
 // unparseable bodies: a 4xx would make the provider retry for hours and a
 // different status per outcome would let someone probe which addresses exist.
 
-import { normaliseInbound } from '../_shared/inboundEmail.ts';
+import { normaliseInbound } from './inboundEmail.ts';
 
 const SECRET = Deno.env.get('INBOUND_EMAIL_SECRET') ?? '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';

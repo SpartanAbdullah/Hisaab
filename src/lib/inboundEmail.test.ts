@@ -7,7 +7,7 @@ import {
   normaliseInbound,
   tokenFromAddress,
   tokenFromRecipients,
-} from '../../supabase/functions/_shared/inboundEmail';
+} from '../../supabase/functions/inbound-email/inboundEmail';
 
 describe('addresses and tokens', () => {
   it('reads a bare or display-name address, lower-cased', () => {
