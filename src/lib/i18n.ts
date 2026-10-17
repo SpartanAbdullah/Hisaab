@@ -5923,6 +5923,16 @@ const S = {
     en: "Your reset session has ended. Request a new reset link.",
   },
   err_recovery_session_action: { ur: "Naya link mangwayein", en: "Request a new link" },
+  // Reset-link "sent" state. Enumeration-safe on purpose: the SAME outcome
+  // whether or not the address has an account, with no success tick — the
+  // founder typed an unregistered address, saw a green tick, and assumed the
+  // mail had landed. The typed address is echoed so a typo is visible.
+  auth_reset_sent_body: {
+    ur: "Agar {email} ke liye Hisaab account hai to reset link raaste mein hai. Spam folder bhi dekhein. Ek minute mein email nahi aayi? Shayad aap ne kisi aur address se sign up kiya tha.",
+    en: "If there is a Hisaab account for {email}, the reset link is on its way. Check your spam folder too. No email within a minute? You may have signed up with a different address.",
+  },
+  auth_reset_try_another: { ur: "Doosra email try karein", en: "Try another email" },
+  auth_reset_create_account: { ur: "Account banayein", en: "Create an account" },
 } as const;
 
 type Key = keyof typeof S;

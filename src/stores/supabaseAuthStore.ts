@@ -405,9 +405,11 @@ export const useSupabaseAuthStore = create<SupabaseAuthState>((set, get) => ({
       redirectTo: buildAuthRedirectUrl('/?reset=1'),
     });
     if (error) return { success: false, message: error.message };
-    // Always show the same message regardless of whether the email exists —
-    // prevents user-enumeration via the password-reset endpoint.
-    return { success: true, message: 'If an account exists for this email, a reset link has been sent.' };
+    // Always the same outcome regardless of whether the email exists —
+    // prevents user-enumeration via the password-reset endpoint. The copy
+    // lives in i18n (`auth_reset_sent_body`, rendered by AuthPage with the
+    // typed address echoed back); the shape stays { success, message }.
+    return { success: true, message: '' };
   },
 
   updateProfile: async (data) => {
