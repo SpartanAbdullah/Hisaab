@@ -139,6 +139,17 @@ never opened. Rotating the address kills the old one on the next message. A per-
 8. **Data Safety form + privacy page** must be updated in Play Console before the build that
    ships this route reaches testers (the policy text is already in the app).
 
+### End-to-end proof — 2026-10-18 01:16 (Dubai)
+
+A test alert sent from Outlook to `hisaab-8061e5e703dc@in.usehisaab.com` (founder's
+`sendmailtoabdullah@gmail.com` account): Postmark processed it, the function queued one
+`capture_candidates` row (status pending, sender/subject stored, text cleaned) and one
+`capture_email` notification (`From interior-360.com. Tap to see what Hisaab read from it.`,
+href `/?capture_email=<id>`) in the same instant. The client parser on that text yields AED
+120.50 · debit · CARREFOUR MALL OF EMIRATES · card 4599 · 2026-10-18 · balance-after 5,879.50
+(confidence high) and matches the founder's real `CBD ••••4599 (AED)` account. No push was
+delivered because that account holds no device token; the inbox row is there.
+
 ### Device / web checklist for this route
 
 - Settings shows the address, Copy works, "New address" asks first and changes it.
