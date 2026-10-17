@@ -55,6 +55,13 @@ cd ..
 
 Output: `android\app\build\outputs\bundle\release\app-release.aab`
 
+> **Why a separate JDK (2026-10-17):** the Android Studio bundled runtime is now Java 25 and
+> Gradle 8.14.3 refuses it ("Unsupported class file major version 69"). Temurin 21 was installed with
+> `winget install --id EclipseAdoptium.Temurin.21.JDK -e`; if the version folder differs, point
+> `JAVA_HOME` at whatever `C:\Program Files\Eclipse Adoptium\jdk-21*` exists. The Android SDK itself
+> comes from Android Studio > SDK Manager (Platform 36, Build-Tools, Platform-Tools) at the path in
+> `android/local.properties`.
+
 > The signing is automatic — Gradle reads `android/keystore.properties` (your upload key).
 > That file and `android/app/hisaab-upload.jks` are **git-ignored**; keep your offline backup safe.
 > If you lose the keystore, you can never update the app again.
