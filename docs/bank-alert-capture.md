@@ -85,7 +85,7 @@ Entry. The client parses with the same `bankAlertParser`; the server never inter
 
 | Piece | Where |
 |---|---|
-| Tables, RPCs, guard trigger, flood cap, prune + cron | `supabase-migration-email-capture.sql` (PENDING manual apply, then re-run the grants sweep) |
+| Tables, RPCs, guard trigger, flood cap, prune + cron | `supabase-migration-email-capture.sql` — **applied to production 2026-10-18** via the Supabase connector, grants sweep re-run the same way, catalog verified (tables, grants, channel, cron job) |
 | Allow-list of the two client RPCs | `supabase-migration-p3-rpc-execute-grants.sql` `v_client_rpcs` |
 | Webhook function | `supabase/functions/inbound-email/index.ts` |
 | Payload normaliser (Postmark JSON, Mailgun/SendGrid form posts, generic JSON) | `supabase/functions/inbound-email/inboundEmail.ts` (tested from `src/lib/inboundEmail.test.ts`) |
@@ -104,9 +104,10 @@ never opened. Rotating the address kills the old one on the next message. A per-
 
 1. **Provider account.** Postmark is the reference (inbound JSON webhook, basic-auth URL). Create
    a server, open *Inbound* and set the inbound domain to `in.usehisaab.com`.
-2. **DNS (Vercel → Domains → usehisaab.com → DNS records).** Add the MX record Postmark shows for
-   `in` (host `in`, value `inbound.postmarkapp.com`, priority 10). Verify in Postmark. Nothing
-   else on the apex changes — mail to `@usehisaab.com` is unaffected.
+2. **DNS** — done 2026-10-18: `in.usehisaab.com MX 10 inbound.postmarkapp.com` (Vercel DNS,
+   record comment points here). Postmark server "Hisaab" (ID 21129528) has the inbound domain set
+   to `in.usehisaab.com`; account approval requested the same day (inbound works in test mode,
+   100-email cap, until approved).
 3. **Deploy the function + secret** (project ref `nnhwxjrgxsefywalwvaq`). Deployed on
    2026-10-18 through the Supabase connector (`verify_jwt` off); redeploy after any change with
    the CLI or the same connector. The secret is set in the dashboard — Project Settings → Edge
@@ -120,9 +121,8 @@ never opened. Rotating the address kills the old one on the next message. A per-
    `https://hisaab:<INBOUND_EMAIL_SECRET>@nnhwxjrgxsefywalwvaq.supabase.co/functions/v1/inbound-email`
    (basic auth; the function also accepts the `x-hisaab-inbound-secret` header for providers that
    allow custom headers). Tick "include raw email content" OFF — only the parsed fields are used.
-5. **Apply the migration** in Studio, re-run `supabase-migration-p3-rpc-execute-grants.sql`, and
-   confirm `capture_config.inbound_domain` = `in.usehisaab.com` (change it there if the domain
-   differs — the app composes the address from that row).
+5. **Migration** — done 2026-10-18 (applied through the connector, sweep re-run, `inbound_domain`
+   = `in.usehisaab.com` confirmed). For a future project: paste the file into Studio, then the sweep.
 6. **Test:** Settings → Capture from email → Copy. Forward any bank alert to it from your own
    mailbox. Within a few seconds: a "Record this bank email?" push/inbox row → tap → sheet shows
    the parsed amount → Record → Quick Entry prefilled. Forward the same mail again after
