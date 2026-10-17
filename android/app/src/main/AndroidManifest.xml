@@ -74,6 +74,46 @@
         </activity>
 
         <!--
+          "Record in Hisaab" in the system share sheet. Any text the user
+          shares (a bank email, SMS, WhatsApp message) reaches MainActivity as
+          ACTION_SEND; ShareIntentRewriter turns it into the /?capture= deep
+          link and App.tsx opens the "Record this?" sheet. An alias so the
+          share sheet shows its own label, not just the app name.
+        -->
+        <activity-alias
+            android:name=".ShareTarget"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="@string/share_target_label"
+            android:icon="@mipmap/ic_launcher">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
+
+        <!--
+          Notification access → "Record this?" offers for bank / wallet alerts
+          (java/com/usehisaab/app/capture/HisaabNotificationListener.java).
+          Dormant until the user (1) switches auto-capture on in Settings, which
+          shows the prominent disclosure, and (2) grants Notification access on
+          Android's own page. Excludes the default SMS app and messaging apps
+          by package, so it never reads SMS. Nothing leaves the phone until the
+          user taps Record. exported + the BIND permission are what the system
+          requires to bind a listener; no other app can talk to it.
+        -->
+        <service
+            android:name=".capture.HisaabNotificationListener"
+            android:exported="true"
+            android:label="@string/capture_listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!--
           Home-screen widget: today's status + Add expense / Close today
           (java/com/usehisaab/app/widget/QuickAddWidget.java). Exported so the
           system AppWidgetManager can deliver APPWIDGET_UPDATE; it only
