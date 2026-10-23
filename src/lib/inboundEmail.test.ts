@@ -16,8 +16,8 @@ describe('addresses and tokens', () => {
     expect(extractAddress('not an address')).toBeNull();
   });
   it('extracts the token only from a hisaab-<12 hex>@ local part', () => {
-    expect(tokenFromAddress('hisaab-0123456789ab@in.usehisaab.com')).toBe('0123456789ab');
-    expect(tokenFromAddress('Me <HISAAB-0123456789AB@in.usehisaab.com>')).toBe('0123456789ab');
+    expect(tokenFromAddress('hisaab-abcabcabcabc@in.usehisaab.com')).toBe('abcabcabcabc');
+    expect(tokenFromAddress('Me <HISAAB-ABCABCABCABC@in.usehisaab.com>')).toBe('abcabcabcabc');
     expect(tokenFromAddress('hisaab-0123456789a@in.usehisaab.com')).toBeNull();
     expect(tokenFromAddress('hisaab-0123456789ag@in.usehisaab.com')).toBeNull();
     expect(tokenFromAddress('support@usehisaab.com')).toBeNull();
@@ -67,17 +67,17 @@ describe('normaliseInbound', () => {
     const e = normaliseInbound({
       FromFull: { Email: 'alerts@mashreq.com', Name: 'Mashreq' },
       From: 'Mashreq <alerts@mashreq.com>',
-      To: 'hisaab-0123456789ab@in.usehisaab.com',
-      ToFull: [{ Email: 'hisaab-0123456789ab@in.usehisaab.com' }],
-      OriginalRecipient: 'hisaab-0123456789ab@in.usehisaab.com',
+      To: 'hisaab-abcabcabcabc@in.usehisaab.com',
+      ToFull: [{ Email: 'hisaab-abcabcabcabc@in.usehisaab.com' }],
+      OriginalRecipient: 'hisaab-abcabcabcabc@in.usehisaab.com',
       Subject: '  Transaction alert  ',
       TextBody: 'AED 45.00 at NOON.COM',
       HtmlBody: '<p>ignored</p>',
     });
-    expect(e).toEqual({ token: '0123456789ab', from: 'alerts@mashreq.com', subject: 'Transaction alert', text: 'AED 45.00 at NOON.COM' });
+    expect(e).toEqual({ token: 'abcabcabcabc', from: 'alerts@mashreq.com', subject: 'Transaction alert', text: 'AED 45.00 at NOON.COM' });
   });
   it('falls back to HtmlBody when TextBody is empty', () => {
-    const e = normaliseInbound({ ToFull: [{ Email: 'hisaab-0123456789ab@in.usehisaab.com' }], TextBody: '', HtmlBody: '<p>Rs. 5,000 debited</p>' });
+    const e = normaliseInbound({ ToFull: [{ Email: 'hisaab-abcabcabcabc@in.usehisaab.com' }], TextBody: '', HtmlBody: '<p>Rs. 5,000 debited</p>' });
     expect(e?.text).toBe('Rs. 5,000 debited');
   });
   it('reads the generic shape and reports a missing token as null', () => {

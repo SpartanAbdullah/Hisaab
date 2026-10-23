@@ -50,3 +50,5 @@ dfea60efba96edfa62bfb7d50632ac328ec4f40b:android/app/src/main/assets/public/asse
 # Verified by reading the file at this exact commit — it is a plain duration
 # constant, nothing that touches credentials.
 42f096996792915238edbd046389068ea0ffe045:src/lib/settlementNudges.ts:generic-api-key:14
+# 2026-10-23: test fixture token '0123456789ab' in the inbound-email normaliser tests (PR #5), not a credential; fixture later changed to a low-entropy dummy
+6ff3e96f70db01b8c4327155b7edfc4494527548:src/lib/inboundEmail.test.ts:generic-api-key:77
