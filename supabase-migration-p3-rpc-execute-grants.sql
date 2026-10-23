@@ -328,7 +328,9 @@ DECLARE
     'set_group_admin',
     'transfer_between_accounts',      'transfer_group_ownership',
     'unarchive_contact',              'unarchive_group',
-    'unlink_contact_profile',         'update_committee'
+    'unlink_contact_profile',         'update_committee',
+    -- supabase-migration-email-capture.sql §4 (2026-10-18)
+    'get_or_create_capture_address',  'rotate_capture_address'
   ];
 
   -- ── INTERNALS THAT MUST KEEP `authenticated` ANYWAY ───────────────────────

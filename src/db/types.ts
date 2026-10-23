@@ -411,7 +411,9 @@ export interface AppNotification {
   // 'linked_info' (supabase-migration-settlement-receiver-records.sql) is an
   // informational money notice with nothing to act on — "{name} recorded your
   // repayment" / "…removed the repayment". Deliberately NOT a request mirror.
-  type: 'group_update' | 'invite' | 'system' | 'linked_request' | 'linked_settlement' | 'linked_info' | 'contact_linked' | 'kameti';
+  // 'capture_email' (supabase-migration-email-capture.sql §5): a forwarded
+  // bank email is waiting as a capture candidate; href opens the sheet.
+  type: 'group_update' | 'invite' | 'system' | 'linked_request' | 'linked_settlement' | 'linked_info' | 'contact_linked' | 'kameti' | 'capture_email';
   // Server-composed fallback text. Since the fan-out moved into Postgres
   // triggers (supabase-migration-audit-p0-notifications.sql) these are written
   // ONLY by the database — a client can no longer author notification text for

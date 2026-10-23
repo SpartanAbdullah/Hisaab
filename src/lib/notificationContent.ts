@@ -70,6 +70,9 @@ export type NotificationTranslate = (key: I18nKey) => string;
 // Must stay in step with the catalog in
 // supabase-migration-audit-p0-notifications.sql (SECTION 3).
 const TITLE_KEYS: Record<string, I18nKey> = {
+  // _capture_candidate_received, supabase-migration-email-capture.sql §5.
+  // type 'capture_email'. Params: { fromName (sender's domain), candidateId }.
+  capture_email: 'ntf_capture_email_title',
   group_added: 'ntf_group_added_title',
   member_joined: 'ntf_member_joined_title',
   // tg_group_members_notify_left, supabase-migration-p2-notification-
@@ -114,6 +117,7 @@ const TITLE_KEYS: Record<string, I18nKey> = {
 };
 
 const BODY_KEYS: Record<string, I18nKey> = {
+  capture_email: 'ntf_capture_email_body',
   group_added: 'ntf_group_added_body',
   member_joined: 'ntf_member_joined_body',
   member_left: 'ntf_member_left_body',
@@ -145,6 +149,7 @@ const BODY_KEYS: Record<string, I18nKey> = {
 // the amount field, or a settlement written by an older trigger, must still
 // read as a sentence rather than "… for  was added".
 const BODY_KEYS_NO_AMOUNT: Record<string, I18nKey> = {
+  capture_email: 'ntf_capture_email_body',
   expense_added: 'ntf_expense_added_body_plain',
   settlement_added: 'ntf_settlement_added_body_plain',
 };
@@ -381,7 +386,7 @@ export function notificationChannel(n: {
   if (n.type === 'kameti' || (n.template ?? '').startsWith('kameti_')) return 'kameti';
   // 'linked_info' rows are stamped channel_id='money' server-side; this is the
   // fallback for a build that meets a row without it.
-  if (n.type === 'linked_request' || n.type === 'linked_settlement' || n.type === 'linked_info') return 'money';
+  if (n.type === 'linked_request' || n.type === 'linked_settlement' || n.type === 'linked_info' || n.type === 'capture_email') return 'money';
   return 'groups';
 }
 

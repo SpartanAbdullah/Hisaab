@@ -59,7 +59,10 @@ export function CaptureSheet({ open, source, text, onClose, onRecord, onManual }
 
   if (!open) return null;
 
-  const sourceLabel = source === 'share' ? t('capture_from_share') : t('capture_from_notification');
+  const sourceLabel =
+    source === 'share' ? t('capture_from_share')
+    : source === 'email' ? t('capture_from_email')
+    : t('capture_from_notification');
 
   const record = () => {
     if (!parsed) return;
@@ -131,7 +134,7 @@ export function CaptureSheet({ open, source, text, onClose, onRecord, onManual }
     >
       <div className="space-y-3">
         <p className="m-label text-[10px] flex items-center gap-1.5">
-          <Glyph name={source === 'share' ? 'share' : 'bell'} size={13} tone="violet" /> {sourceLabel}
+          <Glyph name={source === 'share' ? 'share' : source === 'email' ? 'mail' : 'bell'} size={13} tone="violet" /> {sourceLabel}
         </p>
 
         {/* Amount + direction. The direction is the one thing the parser gets

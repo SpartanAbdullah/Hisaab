@@ -28,9 +28,14 @@ describe('readCaptureParams / stripCaptureParams', () => {
     expect(readCaptureParams('?add=expense')).toBeNull();
     expect(readCaptureParams('?capture=%20%20')).toBeNull();
   });
+  it('reads an email candidate id (uuid) and rejects junk', () => {
+    expect(readCaptureParams('?capture_email=0F1E2D3C-4B5A-4697-8877-66554433AABB')).toEqual({ captureEmailId: '0f1e2d3c-4b5a-4697-8877-66554433aabb' });
+    expect(readCaptureParams('?capture_email=not-a-uuid')).toBeNull();
+  });
   it('strips only its own params', () => {
     expect(stripCaptureParams('?capture=x&tab=2')).toBe('?tab=2');
     expect(stripCaptureParams('?capture_id=abc')).toBe('');
+    expect(stripCaptureParams('?capture_email=abc&x=1')).toBe('?x=1');
   });
 });
 

@@ -193,7 +193,7 @@ export const TELEMETRY_SCHEMA = {
   // 27b — bank-alert capture (share sheet / Android notification listener).
   // Never the raw alert, the amount or the merchant: only how it went.
   capture_offered: {
-    source: enumOf(['share', 'notification']),
+    source: enumOf(['share', 'notification', 'email']),
     parsed: enumOf(['ok', 'none', 'refused']),
   },
   capture_resolved: { action: enumOf(['record', 'manual', 'dismiss']) },
